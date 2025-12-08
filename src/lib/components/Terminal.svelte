@@ -3,26 +3,47 @@
   import { Terminal } from '@xterm/xterm';
   import { FitAddon } from '@xterm/addon-fit';
   import { WebLinksAddon } from '@xterm/addon-web-links';
+  import { invoke } from '@tauri-apps/api/core';
+  import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import '@xterm/xterm/css/xterm.css';
 
   interface Props {
     namespace: string;
     podName: string;
     container?: string;
+    shell?: string;
     onClose?: () => void;
   }
 
-  let { namespace, podName, container, onClose }: Props = $props();
+  let { namespace, podName, container, shell: initialShell, onClose }: Props = $props();
+
+  // Common shells available in containers
+  const SHELLS = [
+    { value: '/bin/sh', label: '/bin/sh' },
+    { value: '/bin/bash', label: '/bin/bash' },
+    { value: '/bin/ash', label: '/bin/ash (Alpine)' },
+    { value: '/bin/zsh', label: '/bin/zsh' },
+  ];
 
   let terminalContainer: HTMLDivElement;
   let terminal: Terminal | null = null;
   let fitAddon: FitAddon | null = null;
+  let sessionId: string | null = null;
+  let isConnected = $state(false);
+  let connectionError = $state<string | null>(null);
+  let selectedShell = $state(initialShell || '/bin/sh');
+
+  // Event listeners
+  let unlistenData: UnlistenFn | null = null;
+  let unlistenExit: UnlistenFn | null = null;
+  let unlistenError: UnlistenFn | null = null;
 
   onMount(() => {
     terminal = new Terminal({
       cursorBlink: true,
       fontSize: 13,
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+      scrollback: 10000,
       theme: {
         background: '#0a0a0a',
         foreground: '#ffffff',
@@ -60,27 +81,147 @@
     // Write initial message
     terminal.writeln(`\x1b[36mConnecting to pod: ${podName}\x1b[0m`);
     terminal.writeln(`\x1b[90mNamespace: ${namespace}${container ? `, Container: ${container}` : ''}\x1b[0m`);
+    terminal.writeln(`\x1b[90mShell: ${selectedShell}\x1b[0m`);
     terminal.writeln('');
 
     // Handle window resize
     const handleResize = () => {
-      fitAddon?.fit();
+      if (fitAddon && terminal) {
+        fitAddon.fit();
+        // Send resize to PTY
+        if (sessionId) {
+          const dims = fitAddon.proposeDimensions();
+          if (dims) {
+            invoke('pty_resize', {
+              sessionId,
+              rows: dims.rows,
+              cols: dims.cols,
+            }).catch(console.error);
+          }
+        }
+      }
     };
     window.addEventListener('resize', handleResize);
 
-    // TODO: Implement actual pod exec via Tauri events
-    // For now, show a placeholder message
-    terminal.writeln('\x1b[33mTerminal exec functionality coming soon...\x1b[0m');
-    terminal.writeln('\x1b[90mThis will connect to the pod shell via kubectl exec.\x1b[0m');
+    // Handle terminal input - send directly to PTY
+    terminal.onData((data: string) => {
+      if (sessionId && isConnected) {
+        invoke('pty_write', { sessionId, data }).catch(console.error);
+      }
+    });
+
+    // Start the PTY session
+    startPty();
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      terminal?.dispose();
+      cleanup();
     };
   });
 
-  onDestroy(() => {
+  async function startPty() {
+    if (!terminal || !fitAddon) return;
+
+    try {
+      // Get terminal dimensions
+      const dims = fitAddon.proposeDimensions();
+
+      // Spawn PTY session
+      sessionId = await invoke<string>('pty_spawn', {
+        namespace,
+        podName,
+        container: container || null,
+        shell: selectedShell,
+      });
+
+      // Set up event listeners for this session
+      unlistenData = await listen<string>(`pty-data-${sessionId}`, (event) => {
+        terminal?.write(event.payload);
+      });
+
+      unlistenExit = await listen(`pty-exit-${sessionId}`, () => {
+        isConnected = false;
+        terminal?.writeln('');
+        terminal?.writeln('\x1b[33mConnection closed\x1b[0m');
+      });
+
+      unlistenError = await listen<string>(`pty-error-${sessionId}`, (event) => {
+        connectionError = event.payload;
+        terminal?.writeln(`\x1b[31mError: ${event.payload}\x1b[0m`);
+      });
+
+      isConnected = true;
+      terminal.writeln('\x1b[32mConnected!\x1b[0m');
+      terminal.writeln('');
+
+      // Resize PTY to match terminal
+      if (dims) {
+        await invoke('pty_resize', {
+          sessionId,
+          rows: dims.rows,
+          cols: dims.cols,
+        });
+      }
+
+      // Focus terminal
+      terminal.focus();
+
+    } catch (error) {
+      connectionError = String(error);
+      terminal.writeln(`\x1b[31mFailed to connect: ${error}\x1b[0m`);
+      terminal.writeln('');
+      // Check if error is about shell not found
+      if (String(error).includes('no such file or directory') || String(error).includes('exec format error')) {
+        terminal.writeln(`\x1b[33mThe shell "${selectedShell}" may not exist in this container.\x1b[0m`);
+        terminal.writeln('\x1b[90mTry a different shell: /bin/bash, /bin/ash (Alpine), or /bin/sh\x1b[0m');
+        terminal.writeln('\x1b[90mNote: Distroless/scratch containers may not have any shell.\x1b[0m');
+      } else {
+        terminal.writeln('\x1b[90mMake sure kubectl is installed and configured.\x1b[0m');
+      }
+    }
+  }
+
+  async function cleanup() {
+    // Unsubscribe from events
+    if (unlistenData) {
+      unlistenData();
+      unlistenData = null;
+    }
+    if (unlistenExit) {
+      unlistenExit();
+      unlistenExit = null;
+    }
+    if (unlistenError) {
+      unlistenError();
+      unlistenError = null;
+    }
+
+    // Close PTY session
+    if (sessionId) {
+      try {
+        await invoke('pty_close', { sessionId });
+      } catch (e) {
+        // Session might already be closed
+      }
+      sessionId = null;
+    }
+
+    // Dispose terminal
     terminal?.dispose();
+  }
+
+  async function reconnect() {
+    connectionError = null;
+    terminal?.reset();
+    terminal?.writeln(`\x1b[36mReconnecting to pod: ${podName}\x1b[0m`);
+    terminal?.writeln(`\x1b[90mShell: ${selectedShell}\x1b[0m`);
+    terminal?.writeln('');
+    await cleanup();
+    await startPty();
+  }
+
+  onDestroy(() => {
+    cleanup();
   });
 </script>
 
@@ -98,17 +239,44 @@
           <span class="text-xs text-text-muted ml-2">/ {container}</span>
         {/if}
       </div>
+      <!-- Connection status -->
+      <div class="flex items-center gap-1.5 ml-4">
+        <div class="w-2 h-2 rounded-full {isConnected ? 'bg-accent-success' : 'bg-accent-error'}"></div>
+        <span class="text-xs text-text-muted">{isConnected ? 'Connected' : 'Disconnected'}</span>
+      </div>
     </div>
-    {#if onClose}
-      <button
-        onclick={onClose}
-        class="p-1 rounded hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
+    <div class="flex items-center gap-2">
+      <!-- Shell selector -->
+      <select
+        bind:value={selectedShell}
+        disabled={isConnected}
+        class="px-2 py-1 text-xs bg-bg-tertiary text-text-primary border border-border-subtle rounded focus:outline-none focus:border-accent-primary disabled:opacity-50 disabled:cursor-not-allowed"
+        title={isConnected ? 'Disconnect to change shell' : 'Select shell'}
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
-    {/if}
+        {#each SHELLS as shell}
+          <option value={shell.value}>{shell.label}</option>
+        {/each}
+      </select>
+      {#if !isConnected}
+        <button
+          onclick={reconnect}
+          class="px-3 py-1 text-xs bg-accent-primary text-white rounded hover:bg-accent-primary/90 transition-colors"
+        >
+          Reconnect
+        </button>
+      {/if}
+      {#if onClose}
+        <button
+          onclick={onClose}
+          class="p-1 rounded hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
+          title="Close"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      {/if}
+    </div>
   </div>
 
   <!-- Terminal Content -->

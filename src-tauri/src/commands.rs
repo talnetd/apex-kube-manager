@@ -291,3 +291,117 @@ pub async fn open_resource_detail(
 
     Ok(())
 }
+
+#[tauri::command]
+pub async fn open_terminal_window(
+    app: AppHandle,
+    pod_name: String,
+    namespace: String,
+    context: String,
+    container: Option<String>,
+) -> Result<()> {
+    // Create a unique window label
+    let window_label = if let Some(ref c) = container {
+        format!(
+            "terminal-{}-{}-{}",
+            namespace.replace(['.', '/', '\\', ' '], "-"),
+            pod_name.replace(['.', '/', '\\', ' '], "-"),
+            c.replace(['.', '/', '\\', ' '], "-")
+        )
+    } else {
+        format!(
+            "terminal-{}-{}",
+            namespace.replace(['.', '/', '\\', ' '], "-"),
+            pod_name.replace(['.', '/', '\\', ' '], "-")
+        )
+    };
+
+    // Check if window already exists
+    if let Some(window) = app.get_webview_window(&window_label) {
+        // Focus existing window
+        window.set_focus().ok();
+        return Ok(());
+    }
+
+    // Build the URL with query parameters
+    let url = if let Some(ref c) = container {
+        format!(
+            "/terminal.html?pod={}&namespace={}&context={}&container={}",
+            urlencoding::encode(&pod_name),
+            urlencoding::encode(&namespace),
+            urlencoding::encode(&context),
+            urlencoding::encode(c)
+        )
+    } else {
+        format!(
+            "/terminal.html?pod={}&namespace={}&context={}",
+            urlencoding::encode(&pod_name),
+            urlencoding::encode(&namespace),
+            urlencoding::encode(&context)
+        )
+    };
+
+    // Create a new window for the terminal
+    let title = if let Some(ref c) = container {
+        format!("Terminal: {} ({}) - {}/{}", pod_name, c, context, namespace)
+    } else {
+        format!("Terminal: {} - {}/{}", pod_name, context, namespace)
+    };
+
+    WebviewWindowBuilder::new(
+        &app,
+        &window_label,
+        WebviewUrl::App(url.into()),
+    )
+    .title(&title)
+    .inner_size(800.0, 500.0)
+    .min_inner_size(500.0, 300.0)
+    .resizable(true)
+    .build()
+    .map_err(|e| crate::error::AppError::Custom(format!("Failed to create terminal window: {}", e)))?;
+
+    Ok(())
+}
+
+// ============ PTY Commands ============
+
+use crate::pty::PtyManager;
+
+#[tauri::command]
+pub fn pty_spawn(
+    app: AppHandle,
+    pty_manager: tauri::State<PtyManager>,
+    namespace: String,
+    pod_name: String,
+    container: Option<String>,
+    shell: Option<String>,
+) -> std::result::Result<String, String> {
+    pty_manager.spawn_session(app, &namespace, &pod_name, container.as_deref(), shell.as_deref())
+}
+
+#[tauri::command]
+pub fn pty_write(
+    pty_manager: tauri::State<PtyManager>,
+    session_id: String,
+    data: String,
+) -> std::result::Result<(), String> {
+    pty_manager.write_to_session(&session_id, &data)
+}
+
+#[tauri::command]
+pub fn pty_resize(
+    pty_manager: tauri::State<PtyManager>,
+    session_id: String,
+    rows: u16,
+    cols: u16,
+) -> std::result::Result<(), String> {
+    pty_manager.resize_session(&session_id, rows, cols)
+}
+
+#[tauri::command]
+pub fn pty_close(
+    pty_manager: tauri::State<PtyManager>,
+    session_id: String,
+) -> std::result::Result<(), String> {
+    pty_manager.close_session(&session_id)
+}
