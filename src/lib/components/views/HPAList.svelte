@@ -1,6 +1,16 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { hpas, selectedNamespace, currentContext, loadHPAs, isLoading } from '../../stores/kubernetes';
+  import SortableHeader from '../ui/SortableHeader.svelte';
+  import { sortData, toggleSort, type SortState } from '../../utils/sort';
+  import { hpas, selectedNamespace, currentContext, refreshTrigger, loadHPAs } from '../../stores/kubernetes';
+
+  let sort = $state<SortState>({ field: 'name', direction: 'asc' });
+
+  const sortedData = $derived(sortData($hpas, sort.field, sort.direction));
+
+  function handleSort(field: string) {
+    sort = toggleSort(sort, field);
+  }
 
   onMount(() => {
     loadHPAs($selectedNamespace);
@@ -10,42 +20,34 @@
 
   $effect(() => {
     const ctx = $currentContext;
-    if (!ctx) return; // Don't load if no context is set
+    const trigger = $refreshTrigger;
+    if (!ctx) return;
     loadHPAs($selectedNamespace);
   });
 </script>
 
 <div class="h-full flex flex-col overflow-hidden">
-  <div class="p-6 pb-4">
-    <div class="flex items-center justify-between mb-4">
-      <div>
-        <h1 class="text-2xl font-semibold text-text-primary">Horizontal Pod Autoscalers</h1>
-        <p class="text-text-muted mt-1">Automatic scaling based on resource utilization</p>
-      </div>
-      <button onclick={() => loadHPAs($selectedNamespace)} class="flex items-center gap-2 px-4 py-2 bg-bg-tertiary border border-border-subtle rounded-lg text-text-primary hover:border-accent-primary transition-colors">
-        <svg class="w-4 h-4 {$isLoading ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-        Refresh
-      </button>
-    </div>
+  <!-- Toolbar -->
+  <div class="px-6 py-4 border-b border-border-subtle">
+    <h1 class="text-xl font-semibold text-text-primary">Horizontal Pod Autoscalers</h1>
   </div>
 
-  <div class="flex-1 overflow-auto px-6 pb-6">
+  <!-- Table -->
+  <div class="flex-1 overflow-auto p-6 pt-4">
     <table class="w-full">
       <thead>
         <tr class="text-left border-b border-border-subtle">
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium">Name</th>
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium">Namespace</th>
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium">Reference</th>
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium">Targets</th>
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium">Min/Max</th>
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium">Replicas</th>
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium">Age</th>
+          <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
+          <SortableHeader label="Namespace" field="namespace" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
+          <SortableHeader label="Reference" field="reference" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
+          <SortableHeader label="Targets" field="targets" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
+          <SortableHeader label="Min/Max" field="min_pods" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
+          <SortableHeader label="Replicas" field="replicas" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
+          <SortableHeader label="Age" field="age" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
         </tr>
       </thead>
       <tbody>
-        {#each $hpas as hpa}
+        {#each sortedData as hpa}
           <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors">
             <td class="py-3 pr-4">
               <span class="text-text-primary font-medium">{hpa.name}</span>
@@ -73,7 +75,7 @@
       </tbody>
     </table>
 
-    {#if $hpas.length === 0}
+    {#if sortedData.length === 0}
       <div class="flex items-center justify-center h-48">
         <div class="text-center">
           <svg class="w-12 h-12 text-text-muted mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

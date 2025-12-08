@@ -661,6 +661,24 @@ export async function getPodLogs(
   }
 }
 
+export async function openTerminalWindow(
+  namespace: string,
+  podName: string,
+  container?: string
+) {
+  if (!isContextReady()) return;
+  try {
+    await tauriInvoke('open_terminal_window', {
+      podName,
+      namespace,
+      context: _currentContext,
+      container: container || null,
+    });
+  } catch (e) {
+    error.set(String(e));
+  }
+}
+
 // Derived stores
 export const filteredPods = derived(
   [pods, selectedNamespace],

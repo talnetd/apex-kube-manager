@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import StatusBadge from '../ui/StatusBadge.svelte';
+  import SortableHeader from '../ui/SortableHeader.svelte';
+  import { sortData, toggleSort, type SortState } from '../../utils/sort';
   import {
     pods,
     podsByStatus,
@@ -10,14 +12,15 @@
     refreshTrigger,
     loadPods,
     deletePod,
+    openTerminalWindow,
     isLoading,
   } from '../../stores/kubernetes';
   import type { PodInfo } from '../../stores/kubernetes';
 
   let activeFilter = $state('all');
-  let selectedPod = $state<PodInfo | null>(null);
   let showDeleteConfirm = $state(false);
   let podToDelete = $state<PodInfo | null>(null);
+  let sort = $state<SortState>({ field: 'name', direction: 'asc' });
 
   const filters = $derived([
     { id: 'all', label: 'All', count: $podsByStatus.all.length },
@@ -27,17 +30,26 @@
   ]);
 
   const filteredPods = $derived(() => {
+    let data: PodInfo[];
     switch (activeFilter) {
       case 'running':
-        return $podsByStatus.running;
+        data = $podsByStatus.running;
+        break;
       case 'pending':
-        return $podsByStatus.pending;
+        data = $podsByStatus.pending;
+        break;
       case 'failed':
-        return $podsByStatus.failed;
+        data = $podsByStatus.failed;
+        break;
       default:
-        return $podsByStatus.all;
+        data = $podsByStatus.all;
     }
+    return sortData(data, sort.field, sort.direction);
   });
+
+  function handleSort(field: string) {
+    sort = toggleSort(sort, field);
+  }
 
   onMount(() => {
     loadPods($selectedNamespace);
@@ -52,10 +64,6 @@
     if (!ctx) return;
     loadPods($selectedNamespace);
   });
-
-  function selectPod(pod: PodInfo) {
-    selectedPod = selectedPod?.name === pod.name ? null : pod;
-  }
 
   async function openPodDetail(pod: PodInfo) {
     try {
@@ -80,9 +88,6 @@
       await deletePod(podToDelete.namespace, podToDelete.name);
       showDeleteConfirm = false;
       podToDelete = null;
-      if (selectedPod?.name === podToDelete?.name) {
-        selectedPod = null;
-      }
     }
   }
 </script>
@@ -117,22 +122,20 @@
     <table class="w-full">
       <thead>
         <tr class="text-left border-b border-border-subtle">
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium">Name</th>
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium">Namespace</th>
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium">Status</th>
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium">Ready</th>
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium">Restarts</th>
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium">Age</th>
+          <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
+          <SortableHeader label="Namespace" field="namespace" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
+          <SortableHeader label="Status" field="status" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
+          <SortableHeader label="Ready" field="ready" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
+          <SortableHeader label="Restarts" field="restarts" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
+          <SortableHeader label="Age" field="age" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-20"></th>
         </tr>
       </thead>
       <tbody>
         {#each filteredPods() as pod}
           <tr
-            onclick={() => selectPod(pod)}
-            ondblclick={() => openPodDetail(pod)}
-            class="border-b border-border-subtle/50 cursor-pointer transition-colors
-              {selectedPod?.name === pod.name ? 'bg-bg-tertiary' : 'hover:bg-bg-secondary'}"
+            onclick={() => openPodDetail(pod)}
+            class="border-b border-border-subtle/50 cursor-pointer transition-colors hover:bg-bg-secondary"
           >
             <td class="py-3 pr-4">
               <div class="flex items-center gap-2">
@@ -159,25 +162,7 @@
             <td class="py-3">
               <div class="flex items-center gap-1">
                 <button
-                  onclick={(e) => { e.stopPropagation(); openPodDetail(pod); }}
-                  class="p-1.5 rounded hover:bg-accent-primary/20 text-text-muted hover:text-accent-primary transition-colors"
-                  title="View Details"
-                >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </button>
-                <button
-                  onclick={(e) => { e.stopPropagation(); openPodDetail(pod); }}
-                  class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
-                  title="View Logs"
-                >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </button>
-                <button
-                  onclick={(e) => { e.stopPropagation(); /* TODO: Open terminal */ }}
+                  onclick={(e) => { e.stopPropagation(); openTerminalWindow(pod.namespace, pod.name); }}
                   class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
                   title="Open Terminal"
                 >

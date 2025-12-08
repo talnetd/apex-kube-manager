@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
+  import YamlEditor from '../ui/YamlEditor.svelte';
 
   interface Props {
     context: string;
@@ -10,7 +11,7 @@
 
   let { context, namespace, name }: Props = $props();
 
-  type TabType = 'overview' | 'yaml' | 'logs' | 'events';
+  type TabType = 'overview' | 'containers' | 'env' | 'volumes' | 'events' | 'logs' | 'yaml';
   let activeTab = $state<TabType>('overview');
 
   // Pod detail data
@@ -40,6 +41,21 @@
     last_transition_time: string | null;
   }
 
+  interface EnvVarInfo {
+    name: string;
+    value: string | null;
+    source: string; // "literal", "configMapKeyRef", "secretKeyRef", "fieldRef", "resourceFieldRef"
+    source_name: string | null;
+    source_key: string | null;
+  }
+
+  interface VolumeMountInfo {
+    name: string;
+    mount_path: string;
+    read_only: boolean;
+    sub_path: string | null;
+  }
+
   interface ContainerDetail {
     name: string;
     image: string;
@@ -50,8 +66,8 @@
     started_at: string | null;
     ports: ContainerPort[];
     resources: ContainerResources;
-    env_count: number;
-    volume_mounts: string[];
+    env_vars: EnvVarInfo[];
+    volume_mounts: VolumeMountInfo[];
   }
 
   interface ContainerPort {
@@ -70,6 +86,7 @@
   interface VolumeInfo {
     name: string;
     volume_type: string;
+    source_name: string | null;
   }
 
   interface PodEvent {
@@ -90,12 +107,64 @@
   let error = $state<string | null>(null);
   let selectedContainer = $state<string>('');
   let logsLoading = $state<boolean>(false);
-  let autoRefreshLogs = $state<boolean>(false);
-  let logsInterval: number | null = null;
+  let autoRefreshLogs = $state<boolean>(true); // Tailing enabled by default
+  let logsInterval: ReturnType<typeof setInterval> | null = null;
+
+  // Tombstone state - when pod is deleted while window is open
+  let isDeleted = $state<boolean>(false);
+  let lastSeen = $state<string | null>(null);
+  let existenceInterval: ReturnType<typeof setInterval> | null = null;
 
   onMount(async () => {
     await loadPodDetail();
+
+    // Start polling for pod existence every 5 seconds
+    existenceInterval = setInterval(checkPodExists, 5000);
+
+    // Cleanup intervals on unmount
+    return () => {
+      if (logsInterval) {
+        clearInterval(logsInterval);
+        logsInterval = null;
+      }
+      if (existenceInterval) {
+        clearInterval(existenceInterval);
+        existenceInterval = null;
+      }
+    };
   });
+
+  async function checkPodExists() {
+    if (isDeleted) return; // Already marked as deleted
+
+    try {
+      await invoke<PodDetail>('get_pod_detail', {
+        contextName: context,
+        namespace,
+        name
+      });
+      // Pod still exists, update lastSeen
+      lastSeen = new Date().toLocaleTimeString();
+    } catch (e) {
+      const errorStr = String(e);
+      // Check if it's a "not found" error
+      if (errorStr.toLowerCase().includes('not found') ||
+          errorStr.toLowerCase().includes('404') ||
+          errorStr.toLowerCase().includes('does not exist')) {
+        isDeleted = true;
+        // Stop checking once we know it's deleted
+        if (existenceInterval) {
+          clearInterval(existenceInterval);
+          existenceInterval = null;
+        }
+        // Stop log tailing
+        if (logsInterval) {
+          clearInterval(logsInterval);
+          logsInterval = null;
+        }
+      }
+    }
+  }
 
   async function loadPodDetail() {
     try {
@@ -158,11 +227,22 @@
   }
 
   function handleTabChange(tab: TabType) {
+    // Stop tailing when leaving logs tab
+    if (activeTab === 'logs' && tab !== 'logs' && logsInterval) {
+      clearInterval(logsInterval);
+      logsInterval = null;
+    }
+
     activeTab = tab;
+
     if (tab === 'yaml' && !podYaml) {
       loadPodYaml();
-    } else if (tab === 'logs' && !podLogs) {
+    } else if (tab === 'logs') {
       loadPodLogs();
+      // Start tailing if enabled
+      if (autoRefreshLogs && !logsInterval) {
+        logsInterval = setInterval(() => loadPodLogs(), 3000);
+      }
     } else if (tab === 'events' && podEvents.length === 0) {
       loadPodEvents();
     }
@@ -197,6 +277,19 @@
   function getEventTypeColor(type: string): string {
     return type === 'Normal' ? 'text-accent-success bg-accent-success/10' : 'text-accent-warning bg-accent-warning/10';
   }
+
+  async function openTerminal(containerName?: string) {
+    try {
+      await invoke('open_terminal_window', {
+        podName: name,
+        namespace,
+        context,
+        container: containerName || null,
+      });
+    } catch (e) {
+      console.error('Failed to open terminal:', e);
+    }
+  }
 </script>
 
 <div class="h-full flex flex-col">
@@ -210,10 +303,28 @@
         Overview
       </button>
       <button
-        onclick={() => handleTabChange('yaml')}
-        class="px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'yaml' ? 'border-accent-primary text-accent-primary' : 'border-transparent text-text-muted hover:text-text-primary'}"
+        onclick={() => handleTabChange('containers')}
+        class="px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'containers' ? 'border-accent-primary text-accent-primary' : 'border-transparent text-text-muted hover:text-text-primary'}"
       >
-        YAML
+        Containers
+      </button>
+      <button
+        onclick={() => handleTabChange('env')}
+        class="px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'env' ? 'border-accent-primary text-accent-primary' : 'border-transparent text-text-muted hover:text-text-primary'}"
+      >
+        Env
+      </button>
+      <button
+        onclick={() => handleTabChange('volumes')}
+        class="px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'volumes' ? 'border-accent-primary text-accent-primary' : 'border-transparent text-text-muted hover:text-text-primary'}"
+      >
+        Volumes
+      </button>
+      <button
+        onclick={() => handleTabChange('events')}
+        class="px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'events' ? 'border-accent-primary text-accent-primary' : 'border-transparent text-text-muted hover:text-text-primary'}"
+      >
+        Events
       </button>
       <button
         onclick={() => handleTabChange('logs')}
@@ -222,13 +333,31 @@
         Logs
       </button>
       <button
-        onclick={() => handleTabChange('events')}
-        class="px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'events' ? 'border-accent-primary text-accent-primary' : 'border-transparent text-text-muted hover:text-text-primary'}"
+        onclick={() => handleTabChange('yaml')}
+        class="px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'yaml' ? 'border-accent-primary text-accent-primary' : 'border-transparent text-text-muted hover:text-text-primary'}"
       >
-        Events
+        YAML
       </button>
     </nav>
   </div>
+
+  <!-- Tombstone Banner - Pod deleted while window open -->
+  {#if isDeleted}
+    <div class="flex items-center justify-between px-4 py-3 bg-accent-warning/10 border-b border-accent-warning/30">
+      <div class="flex items-center gap-3">
+        <svg class="w-5 h-5 text-accent-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <div>
+          <span class="font-medium text-accent-warning">This pod no longer exists</span>
+          {#if lastSeen}
+            <span class="text-text-muted text-sm ml-2">Last seen: {lastSeen}</span>
+          {/if}
+        </div>
+      </div>
+      <span class="text-xs text-text-muted bg-bg-tertiary px-2 py-1 rounded">Read-only - Actions disabled</span>
+    </div>
+  {/if}
 
   <!-- Tab content -->
   <div class="flex-1 overflow-auto">
@@ -305,48 +434,6 @@
           </div>
         </section>
 
-        <!-- Containers Section -->
-        <section>
-          <h2 class="text-lg font-semibold text-text-primary mb-4">Containers ({podDetail.containers.length})</h2>
-          <div class="space-y-4">
-            {#each podDetail.containers as container}
-              <div class="bg-bg-secondary rounded-lg p-4">
-                <div class="flex items-center justify-between mb-3">
-                  <div class="flex items-center gap-2">
-                    <div class="w-2 h-2 rounded-full {container.ready ? 'bg-accent-success' : 'bg-accent-error'}"></div>
-                    <span class="font-medium text-text-primary">{container.name}</span>
-                    <span class="text-xs px-2 py-0.5 rounded {getStatusColor(container.state)}">{container.state}</span>
-                  </div>
-                  <span class="text-xs text-text-muted">Restarts: {container.restart_count}</span>
-                </div>
-                <div class="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span class="text-text-muted">Image:</span>
-                    <code class="ml-2 text-text-secondary break-all">{container.image}</code>
-                  </div>
-                  {#if container.ports.length > 0}
-                    <div>
-                      <span class="text-text-muted">Ports:</span>
-                      <span class="ml-2 text-text-secondary">
-                        {container.ports.map(p => `${p.container_port}/${p.protocol}`).join(', ')}
-                      </span>
-                    </div>
-                  {/if}
-                  {#if container.resources.cpu_request || container.resources.memory_request}
-                    <div>
-                      <span class="text-text-muted">Resources:</span>
-                      <span class="ml-2 text-text-secondary">
-                        CPU: {container.resources.cpu_request || '-'}/{container.resources.cpu_limit || '-'},
-                        Mem: {container.resources.memory_request || '-'}/{container.resources.memory_limit || '-'}
-                      </span>
-                    </div>
-                  {/if}
-                </div>
-              </div>
-            {/each}
-          </div>
-        </section>
-
         <!-- Labels & Annotations -->
         <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
@@ -383,46 +470,279 @@
             </div>
           </div>
         </section>
+      </div>
 
-        <!-- Volumes -->
-        {#if podDetail.volumes.length > 0}
+    {:else if activeTab === 'containers' && podDetail}
+      <div class="p-6 space-y-6">
+        <!-- Init Containers -->
+        {#if podDetail.init_containers.length > 0}
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Volumes ({podDetail.volumes.length})</h2>
+            <h2 class="text-lg font-semibold text-text-primary mb-4">Init Containers ({podDetail.init_containers.length})</h2>
+            <div class="space-y-4">
+              {#each podDetail.init_containers as container}
+                <div class="bg-bg-secondary rounded-lg p-4">
+                  <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                      <div class="w-2 h-2 rounded-full {container.ready ? 'bg-accent-success' : 'bg-accent-error'}"></div>
+                      <span class="font-medium text-text-primary">{container.name}</span>
+                      <span class="text-xs px-2 py-0.5 rounded bg-bg-tertiary text-text-muted">init</span>
+                      <span class="text-xs px-2 py-0.5 rounded {getStatusColor(container.state)}">{container.state}</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                      <span class="text-xs text-text-muted">Restarts: {container.restart_count}</span>
+                      <button
+                        onclick={() => openTerminal(container.name)}
+                        disabled={isDeleted}
+                        class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-text-muted"
+                        title={isDeleted ? "Pod no longer exists" : `Open Terminal in ${container.name}`}
+                      >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="text-sm">
+                    <span class="text-text-muted">Image:</span>
+                    <code class="ml-2 text-text-secondary break-all">{container.image}</code>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          </section>
+        {/if}
+
+        <!-- Containers -->
+        <section>
+          <h2 class="text-lg font-semibold text-text-primary mb-4">Containers ({podDetail.containers.length})</h2>
+          <div class="space-y-4">
+            {#each podDetail.containers as container}
+              <div class="bg-bg-secondary rounded-lg p-4">
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full {container.ready ? 'bg-accent-success' : 'bg-accent-error'}"></div>
+                    <span class="font-medium text-text-primary">{container.name}</span>
+                    <span class="text-xs px-2 py-0.5 rounded {getStatusColor(container.state)}">{container.state}</span>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <span class="text-xs text-text-muted">Restarts: {container.restart_count}</span>
+                    <button
+                      onclick={() => openTerminal(container.name)}
+                      disabled={isDeleted}
+                      class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-text-muted"
+                      title={isDeleted ? "Pod no longer exists" : `Open Terminal in ${container.name}`}
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span class="text-text-muted">Image:</span>
+                    <code class="ml-2 text-text-secondary break-all">{container.image}</code>
+                  </div>
+                  {#if container.ports.length > 0}
+                    <div>
+                      <span class="text-text-muted">Ports:</span>
+                      <span class="ml-2 text-text-secondary">
+                        {container.ports.map(p => `${p.container_port}/${p.protocol}`).join(', ')}
+                      </span>
+                    </div>
+                  {/if}
+                  <div>
+                    <span class="text-text-muted">CPU:</span>
+                    <span class="ml-2 text-text-secondary">
+                      {container.resources.cpu_request || '-'} / {container.resources.cpu_limit || '-'}
+                    </span>
+                  </div>
+                  <div>
+                    <span class="text-text-muted">Memory:</span>
+                    <span class="ml-2 text-text-secondary">
+                      {container.resources.memory_request || '-'} / {container.resources.memory_limit || '-'}
+                    </span>
+                  </div>
+                </div>
+                {#if container.state_reason}
+                  <div class="mt-3 text-sm">
+                    <span class="text-text-muted">Reason:</span>
+                    <span class="ml-2 text-accent-warning">{container.state_reason}</span>
+                  </div>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        </section>
+      </div>
+
+    {:else if activeTab === 'env' && podDetail}
+      <div class="p-6">
+        <div class="space-y-6">
+          {#each [...podDetail.containers, ...podDetail.init_containers] as container}
+            <section>
+              <h2 class="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
+                <span>{container.name}</span>
+                <span class="text-xs px-2 py-0.5 rounded bg-bg-tertiary text-text-muted">{container.env_vars.length} vars</span>
+              </h2>
+              {#if container.env_vars.length > 0}
+                <div class="bg-bg-secondary rounded-lg overflow-hidden">
+                  <table class="w-full text-sm">
+                    <thead class="bg-bg-tertiary">
+                      <tr>
+                        <th class="px-4 py-2 text-left text-xs text-text-muted uppercase w-1/4">Name</th>
+                        <th class="px-4 py-2 text-left text-xs text-text-muted uppercase">Value / Source</th>
+                        <th class="px-4 py-2 text-left text-xs text-text-muted uppercase w-24">Type</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {#each container.env_vars as env}
+                        <tr class="border-t border-border-subtle">
+                          <td class="px-4 py-2 text-text-primary font-mono text-xs">{env.name}</td>
+                          <td class="px-4 py-2">
+                            {#if env.source === 'literal'}
+                              <code class="text-xs text-text-secondary break-all">{env.value || ''}</code>
+                            {:else if env.source === 'secretKeyRef'}
+                              <span class="text-xs text-accent-warning">
+                                {env.source_name || '?'} → {env.source_key || '?'}
+                              </span>
+                            {:else if env.source === 'configMapKeyRef'}
+                              <span class="text-xs text-accent-primary">
+                                {env.source_name || '?'} → {env.source_key || '?'}
+                              </span>
+                            {:else if env.source === 'fieldRef'}
+                              <span class="text-xs text-text-secondary">{env.source_name || '?'}</span>
+                            {:else}
+                              <span class="text-xs text-text-muted">{env.source_name || '-'}</span>
+                            {/if}
+                          </td>
+                          <td class="px-4 py-2">
+                            <span class="text-xs px-2 py-0.5 rounded {
+                              env.source === 'secretKeyRef' ? 'bg-accent-warning/10 text-accent-warning' :
+                              env.source === 'configMapKeyRef' ? 'bg-accent-primary/10 text-accent-primary' :
+                              env.source === 'fieldRef' ? 'bg-bg-tertiary text-text-muted' :
+                              'bg-bg-tertiary text-text-secondary'
+                            }">
+                              {env.source === 'literal' ? 'value' : env.source.replace('KeyRef', '')}
+                            </span>
+                          </td>
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                </div>
+              {:else}
+                <p class="text-text-muted text-sm bg-bg-secondary rounded-lg p-4">No environment variables</p>
+              {/if}
+            </section>
+          {/each}
+        </div>
+      </div>
+
+    {:else if activeTab === 'volumes' && podDetail}
+      <div class="p-6 space-y-6">
+        <!-- Volume Definitions -->
+        <section>
+          <h2 class="text-lg font-semibold text-text-primary mb-4">Volumes ({podDetail.volumes.length})</h2>
+          {#if podDetail.volumes.length > 0}
             <div class="bg-bg-secondary rounded-lg overflow-hidden">
               <table class="w-full text-sm">
                 <thead class="bg-bg-tertiary">
                   <tr>
                     <th class="px-4 py-2 text-left text-xs text-text-muted uppercase">Name</th>
                     <th class="px-4 py-2 text-left text-xs text-text-muted uppercase">Type</th>
+                    <th class="px-4 py-2 text-left text-xs text-text-muted uppercase">Source</th>
                   </tr>
                 </thead>
                 <tbody>
                   {#each podDetail.volumes as volume}
                     <tr class="border-t border-border-subtle">
-                      <td class="px-4 py-2 text-text-primary">{volume.name}</td>
-                      <td class="px-4 py-2 text-text-secondary">{volume.volume_type}</td>
+                      <td class="px-4 py-2 text-text-primary font-medium">{volume.name}</td>
+                      <td class="px-4 py-2">
+                        <span class="text-xs px-2 py-0.5 rounded {
+                          volume.volume_type === 'Secret' ? 'bg-accent-warning/10 text-accent-warning' :
+                          volume.volume_type === 'ConfigMap' ? 'bg-accent-primary/10 text-accent-primary' :
+                          volume.volume_type === 'PersistentVolumeClaim' ? 'bg-accent-success/10 text-accent-success' :
+                          'bg-bg-tertiary text-text-secondary'
+                        }">
+                          {volume.volume_type}
+                        </span>
+                      </td>
+                      <td class="px-4 py-2 text-text-secondary text-sm">{volume.source_name || '-'}</td>
                     </tr>
                   {/each}
                 </tbody>
               </table>
             </div>
-          </section>
-        {/if}
+          {:else}
+            <p class="text-text-muted text-sm bg-bg-secondary rounded-lg p-4">No volumes defined</p>
+          {/if}
+        </section>
+
+        <!-- Volume Mounts by Container -->
+        <section>
+          <h2 class="text-lg font-semibold text-text-primary mb-4">Volume Mounts</h2>
+          <div class="space-y-4">
+            {#each [...podDetail.containers, ...podDetail.init_containers] as container}
+              {#if container.volume_mounts.length > 0}
+                <div class="bg-bg-secondary rounded-lg p-4">
+                  <h3 class="text-sm font-medium text-text-primary mb-3">{container.name}</h3>
+                  <div class="space-y-2">
+                    {#each container.volume_mounts as mount}
+                      <div class="flex items-center gap-4 text-sm">
+                        <code class="text-accent-primary">{mount.name}</code>
+                        <span class="text-text-muted">→</span>
+                        <code class="text-text-secondary">{mount.mount_path}</code>
+                        {#if mount.read_only}
+                          <span class="text-xs px-2 py-0.5 rounded bg-accent-warning/10 text-accent-warning">read-only</span>
+                        {/if}
+                        {#if mount.sub_path}
+                          <span class="text-xs text-text-muted">subPath: {mount.sub_path}</span>
+                        {/if}
+                      </div>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
+            {/each}
+          </div>
+        </section>
       </div>
 
     {:else if activeTab === 'yaml'}
       <div class="h-full flex flex-col">
         <div class="flex items-center justify-between px-4 py-2 bg-bg-secondary border-b border-border-subtle">
-          <span class="text-sm text-text-muted">Pod YAML Manifest</span>
-          <button
-            onclick={loadPodYaml}
-            class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors"
-          >
-            Refresh
-          </button>
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-text-muted">Pod YAML Manifest</span>
+            {#if isDeleted}
+              <span class="text-xs text-accent-warning">(last known state)</span>
+            {/if}
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              onclick={() => navigator.clipboard.writeText(podYaml)}
+              class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors"
+              title="Copy to clipboard"
+            >
+              Copy
+            </button>
+            <button
+              onclick={loadPodYaml}
+              disabled={isDeleted}
+              class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
-        <div class="flex-1 overflow-auto p-4">
-          <pre class="text-xs font-mono text-text-secondary whitespace-pre-wrap bg-bg-secondary p-4 rounded-lg">{podYaml || 'Loading...'}</pre>
+        <div class="flex-1 overflow-hidden">
+          {#if podYaml}
+            <YamlEditor content={podYaml} readonly={true} />
+          {:else}
+            <div class="flex items-center justify-center h-full text-text-muted">
+              Loading YAML...
+            </div>
+          {/if}
         </div>
       </div>
 
@@ -433,7 +753,8 @@
             <select
               bind:value={selectedContainer}
               onchange={loadPodLogs}
-              class="text-sm bg-bg-tertiary border border-border-subtle rounded px-3 py-1 text-text-primary"
+              disabled={isDeleted}
+              class="text-sm bg-bg-tertiary border border-border-subtle rounded px-3 py-1 text-text-primary disabled:opacity-50"
             >
               {#if podDetail}
                 {#each podDetail.containers as container}
@@ -441,31 +762,41 @@
                 {/each}
               {/if}
             </select>
-            <label class="flex items-center gap-2 text-sm text-text-muted">
-              <input type="checkbox" bind:checked={autoRefreshLogs} onchange={toggleAutoRefresh} class="rounded" />
-              Auto-refresh (3s)
-            </label>
+            {#if !isDeleted}
+              <label class="flex items-center gap-2 text-sm text-text-muted">
+                <input type="checkbox" bind:checked={autoRefreshLogs} onchange={toggleAutoRefresh} class="rounded" />
+                Auto-refresh (3s)
+              </label>
+            {:else}
+              <span class="text-xs text-accent-warning">Showing cached logs</span>
+            {/if}
           </div>
           <button
             onclick={loadPodLogs}
-            disabled={logsLoading}
-            class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors disabled:opacity-50"
+            disabled={logsLoading || isDeleted}
+            class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {logsLoading ? 'Loading...' : 'Refresh'}
           </button>
         </div>
         <div class="flex-1 overflow-auto p-4 bg-[#1e1e1e]">
-          <pre class="text-xs font-mono text-green-400 whitespace-pre-wrap">{podLogs || 'No logs available'}</pre>
+          <pre class="text-xs font-mono text-green-400 whitespace-pre-wrap">{podLogs || (isDeleted ? 'No cached logs available' : 'No logs available')}</pre>
         </div>
       </div>
 
     {:else if activeTab === 'events'}
       <div class="h-full flex flex-col">
         <div class="flex items-center justify-between px-4 py-2 bg-bg-secondary border-b border-border-subtle">
-          <span class="text-sm text-text-muted">Pod Events</span>
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-text-muted">Pod Events</span>
+            {#if isDeleted}
+              <span class="text-xs text-accent-warning">(cached)</span>
+            {/if}
+          </div>
           <button
             onclick={loadPodEvents}
-            class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors"
+            disabled={isDeleted}
+            class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Refresh
           </button>

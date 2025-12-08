@@ -78,38 +78,56 @@
       </div>
     </div>
 
-    <!-- Check List -->
-    <div class="space-y-3 {mounted ? 'animate-fade-in-delay-2' : 'opacity-0'}">
-      {#each $startupChecks as check, i}
-        <div
-          class="flex items-center gap-3 p-3 rounded-lg transition-all duration-300
-            {check.status === 'running' ? 'bg-bg-tertiary' : 'bg-transparent'}"
-          style="animation-delay: {i * 100}ms"
-        >
-          <div class="flex-shrink-0 w-6 h-6 flex items-center justify-center">
-            {#if check.status === 'running'}
-              <svg class="w-5 h-5 text-accent-primary animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            {:else}
-              <svg class="w-5 h-5 {getStatusColor(check.status)}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={getStatusIcon(check.status)} />
-              </svg>
-            {/if}
-          </div>
-          <div class="flex-1 min-w-0">
-            <p class="text-sm {check.status === 'pending' ? 'text-text-muted' : 'text-text-primary'}">
-              {check.label}
-            </p>
-            {#if check.message && check.status !== 'pending'}
-              <p class="text-xs {check.status === 'error' ? 'text-accent-error' : 'text-text-muted'} truncate">
-                {check.message}
-              </p>
-            {/if}
-          </div>
+    <!-- Check List - Terminal Style Box -->
+    <div class="rounded-lg border border-border-subtle bg-bg-secondary overflow-hidden {mounted ? 'animate-fade-in-delay-2' : 'opacity-0'}">
+      <!-- Terminal Header -->
+      <div class="flex items-center gap-2 px-4 py-2 bg-bg-tertiary border-b border-border-subtle">
+        <div class="flex gap-1.5">
+          <div class="w-3 h-3 rounded-full bg-accent-error/60"></div>
+          <div class="w-3 h-3 rounded-full bg-accent-warning/60"></div>
+          <div class="w-3 h-3 rounded-full bg-accent-success/60"></div>
         </div>
-      {/each}
+        <span class="text-xs text-text-muted ml-2 font-mono">system checks</span>
+      </div>
+      <!-- Terminal Content -->
+      <div class="h-48 overflow-y-auto p-3 font-mono text-sm scroll-smooth" id="check-log">
+        {#each $startupChecks as check, i}
+          <div
+            class="flex items-start gap-2 py-1.5 transition-all duration-300"
+            style="animation-delay: {i * 100}ms"
+          >
+            <span class="text-text-muted select-none shrink-0">$</span>
+            <div class="flex items-center gap-2 min-w-0 flex-1">
+              {#if check.status === 'running'}
+                <svg class="w-4 h-4 text-accent-primary animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              {:else if check.status === 'success'}
+                <svg class="w-4 h-4 text-accent-success shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+              {:else if check.status === 'error'}
+                <svg class="w-4 h-4 text-accent-error shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              {:else}
+                <span class="w-4 h-4 shrink-0"></span>
+              {/if}
+              <div class="min-w-0 flex-1">
+                <span class="{check.status === 'pending' ? 'text-text-muted' : check.status === 'error' ? 'text-accent-error' : 'text-text-primary'}">
+                  {check.label}
+                </span>
+                {#if check.message && check.status !== 'pending'}
+                  <span class="text-xs {check.status === 'error' ? 'text-accent-error/70' : 'text-text-muted'} block truncate">
+                    → {check.message}
+                  </span>
+                {/if}
+              </div>
+            </div>
+          </div>
+        {/each}
+      </div>
     </div>
 
     <!-- Error State -->
@@ -157,5 +175,20 @@
   .animate-fade-in-delay-3 {
     animation: fade-in 0.5s ease-out 0.6s forwards;
     opacity: 0;
+  }
+
+  /* Terminal scrollbar */
+  #check-log::-webkit-scrollbar {
+    width: 6px;
+  }
+  #check-log::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  #check-log::-webkit-scrollbar-thumb {
+    background: #333333;
+    border-radius: 3px;
+  }
+  #check-log::-webkit-scrollbar-thumb:hover {
+    background: #444444;
   }
 </style>

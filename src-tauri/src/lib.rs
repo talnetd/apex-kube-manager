@@ -1,7 +1,9 @@
 mod commands;
 mod error;
 mod kubernetes;
+mod pty;
 
+use pty::PtyManager;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -13,6 +15,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .manage(PtyManager::new())
         .invoke_handler(tauri::generate_handler![
             // Startup checks
             commands::check_kubeconfig,
@@ -57,6 +60,12 @@ pub fn run() {
             commands::get_pod_yaml,
             commands::get_pod_events,
             commands::open_resource_detail,
+            commands::open_terminal_window,
+            // PTY commands
+            commands::pty_spawn,
+            commands::pty_write,
+            commands::pty_resize,
+            commands::pty_close,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -29,6 +29,9 @@ async function delay(ms: number) {
 }
 
 export async function runStartupChecks(): Promise<boolean> {
+  // Minimum display time per step (ms) - enough to see the animation
+  const STEP_DELAY = 400;
+
   try {
     // Check if running in Tauri environment
     if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) {
@@ -40,34 +43,50 @@ export async function runStartupChecks(): Promise<boolean> {
 
     // Check 1: Kubeconfig exists
     updateCheck('kubeconfig', { status: 'running' });
-    await delay(300);
-    const configPath = await invoke<string>('check_kubeconfig');
+    const [configPath] = await Promise.all([
+      invoke<string>('check_kubeconfig'),
+      delay(STEP_DELAY),
+    ]);
     updateCheck('kubeconfig', { status: 'success', message: configPath });
 
     // Check 2: Parse configuration
     updateCheck('parse', { status: 'running' });
-    await delay(200);
-    await invoke('validate_kubeconfig');
+    await Promise.all([
+      invoke('validate_kubeconfig'),
+      delay(STEP_DELAY),
+    ]);
     updateCheck('parse', { status: 'success' });
 
     // Check 3: Load contexts
     updateCheck('contexts', { status: 'running' });
-    await delay(200);
-    const contexts = await invoke<string[]>('get_context_names');
+    const [contexts] = await Promise.all([
+      invoke<string[]>('get_context_names'),
+      delay(STEP_DELAY),
+    ]);
     updateCheck('contexts', { status: 'success', message: `${contexts.length} contexts found` });
 
     // Check 4: Connect to cluster
     updateCheck('connection', { status: 'running' });
-    const currentContext = await invoke<string>('get_current_context');
-    await invoke('test_cluster_connection');
+    const [currentContext] = await Promise.all([
+      (async () => {
+        const ctx = await invoke<string>('get_current_context');
+        await invoke('test_cluster_connection');
+        return ctx;
+      })(),
+      delay(STEP_DELAY),
+    ]);
     updateCheck('connection', { status: 'success', message: currentContext });
 
     // Check 5: Fetch namespaces
     updateCheck('namespaces', { status: 'running' });
-    const namespaces = await invoke<string[]>('get_namespaces');
+    const [namespaces] = await Promise.all([
+      invoke<string[]>('get_namespaces'),
+      delay(STEP_DELAY),
+    ]);
     updateCheck('namespaces', { status: 'success', message: `${namespaces.length} namespaces` });
 
-    await delay(500);
+    // Brief pause to enjoy the completed state
+    await delay(300);
     isInitialized.set(true);
     return true;
   } catch (error) {

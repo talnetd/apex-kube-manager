@@ -1610,8 +1610,8 @@ pub struct ContainerDetail {
     pub started_at: Option<String>,
     pub ports: Vec<ContainerPort>,
     pub resources: ContainerResources,
-    pub env_count: i32,
-    pub volume_mounts: Vec<String>,
+    pub env_vars: Vec<EnvVarInfo>,
+    pub volume_mounts: Vec<VolumeMountInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1630,9 +1630,27 @@ pub struct ContainerResources {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnvVarInfo {
+    pub name: String,
+    pub value: Option<String>,
+    pub source: String, // "literal", "configMapKeyRef", "secretKeyRef", "fieldRef", "resourceFieldRef"
+    pub source_name: Option<String>, // name of configmap/secret/field
+    pub source_key: Option<String>,  // key in configmap/secret
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VolumeMountInfo {
+    pub name: String,
+    pub mount_path: String,
+    pub read_only: bool,
+    pub sub_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VolumeInfo {
     pub name: String,
     pub volume_type: String,
+    pub source_name: Option<String>, // PVC name, ConfigMap name, Secret name, etc.
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1689,8 +1707,69 @@ pub async fn get_pod_detail(client: &Client, namespace: &str, name: &str) -> Res
                             .and_then(|lim| lim.get("memory")).map(|q| q.0.clone()),
                     };
 
-                    let volume_mounts: Vec<String> = c.volume_mounts.as_ref()
-                        .map(|vms| vms.iter().map(|vm| vm.name.clone()).collect())
+                    let volume_mounts: Vec<VolumeMountInfo> = c.volume_mounts.as_ref()
+                        .map(|vms| vms.iter().map(|vm| VolumeMountInfo {
+                            name: vm.name.clone(),
+                            mount_path: vm.mount_path.clone(),
+                            read_only: vm.read_only.unwrap_or(false),
+                            sub_path: vm.sub_path.clone(),
+                        }).collect())
+                        .unwrap_or_default();
+
+                    let env_vars: Vec<EnvVarInfo> = c.env.as_ref()
+                        .map(|envs| envs.iter().map(|e| {
+                            if let Some(value_from) = &e.value_from {
+                                if let Some(config_map_ref) = &value_from.config_map_key_ref {
+                                    EnvVarInfo {
+                                        name: e.name.clone(),
+                                        value: None,
+                                        source: "configMapKeyRef".to_string(),
+                                        source_name: Some(config_map_ref.name.clone()),
+                                        source_key: Some(config_map_ref.key.clone()),
+                                    }
+                                } else if let Some(secret_ref) = &value_from.secret_key_ref {
+                                    EnvVarInfo {
+                                        name: e.name.clone(),
+                                        value: None,
+                                        source: "secretKeyRef".to_string(),
+                                        source_name: Some(secret_ref.name.clone()),
+                                        source_key: Some(secret_ref.key.clone()),
+                                    }
+                                } else if let Some(field_ref) = &value_from.field_ref {
+                                    EnvVarInfo {
+                                        name: e.name.clone(),
+                                        value: None,
+                                        source: "fieldRef".to_string(),
+                                        source_name: Some(field_ref.field_path.clone()),
+                                        source_key: None,
+                                    }
+                                } else if let Some(resource_ref) = &value_from.resource_field_ref {
+                                    EnvVarInfo {
+                                        name: e.name.clone(),
+                                        value: None,
+                                        source: "resourceFieldRef".to_string(),
+                                        source_name: Some(resource_ref.resource.clone()),
+                                        source_key: resource_ref.container_name.clone(),
+                                    }
+                                } else {
+                                    EnvVarInfo {
+                                        name: e.name.clone(),
+                                        value: e.value.clone(),
+                                        source: "literal".to_string(),
+                                        source_name: None,
+                                        source_key: None,
+                                    }
+                                }
+                            } else {
+                                EnvVarInfo {
+                                    name: e.name.clone(),
+                                    value: e.value.clone(),
+                                    source: "literal".to_string(),
+                                    source_name: None,
+                                    source_key: None,
+                                }
+                            }
+                        }).collect())
                         .unwrap_or_default();
 
                     ContainerDetail {
@@ -1703,7 +1782,7 @@ pub async fn get_pod_detail(client: &Client, namespace: &str, name: &str) -> Res
                         started_at,
                         ports,
                         resources: container_resources,
-                        env_count: c.env.as_ref().map(|e| e.len() as i32).unwrap_or(0),
+                        env_vars,
                         volume_mounts,
                     }
                 })
@@ -1723,6 +1802,63 @@ pub async fn get_pod_detail(client: &Client, namespace: &str, name: &str) -> Res
 
                     let (state, state_reason, started_at) = get_container_state_detail(container_status);
 
+                    let env_vars: Vec<EnvVarInfo> = c.env.as_ref()
+                        .map(|envs| envs.iter().map(|e| {
+                            if let Some(value_from) = &e.value_from {
+                                if let Some(config_map_ref) = &value_from.config_map_key_ref {
+                                    EnvVarInfo {
+                                        name: e.name.clone(),
+                                        value: None,
+                                        source: "configMapKeyRef".to_string(),
+                                        source_name: Some(config_map_ref.name.clone()),
+                                        source_key: Some(config_map_ref.key.clone()),
+                                    }
+                                } else if let Some(secret_ref) = &value_from.secret_key_ref {
+                                    EnvVarInfo {
+                                        name: e.name.clone(),
+                                        value: None,
+                                        source: "secretKeyRef".to_string(),
+                                        source_name: Some(secret_ref.name.clone()),
+                                        source_key: Some(secret_ref.key.clone()),
+                                    }
+                                } else if let Some(field_ref) = &value_from.field_ref {
+                                    EnvVarInfo {
+                                        name: e.name.clone(),
+                                        value: None,
+                                        source: "fieldRef".to_string(),
+                                        source_name: Some(field_ref.field_path.clone()),
+                                        source_key: None,
+                                    }
+                                } else {
+                                    EnvVarInfo {
+                                        name: e.name.clone(),
+                                        value: e.value.clone(),
+                                        source: "literal".to_string(),
+                                        source_name: None,
+                                        source_key: None,
+                                    }
+                                }
+                            } else {
+                                EnvVarInfo {
+                                    name: e.name.clone(),
+                                    value: e.value.clone(),
+                                    source: "literal".to_string(),
+                                    source_name: None,
+                                    source_key: None,
+                                }
+                            }
+                        }).collect())
+                        .unwrap_or_default();
+
+                    let volume_mounts: Vec<VolumeMountInfo> = c.volume_mounts.as_ref()
+                        .map(|vms| vms.iter().map(|vm| VolumeMountInfo {
+                            name: vm.name.clone(),
+                            mount_path: vm.mount_path.clone(),
+                            read_only: vm.read_only.unwrap_or(false),
+                            sub_path: vm.sub_path.clone(),
+                        }).collect())
+                        .unwrap_or_default();
+
                     ContainerDetail {
                         name: c.name.clone(),
                         image: c.image.clone().unwrap_or_default(),
@@ -1738,8 +1874,8 @@ pub async fn get_pod_detail(client: &Client, namespace: &str, name: &str) -> Res
                             memory_request: None,
                             memory_limit: None,
                         },
-                        env_count: c.env.as_ref().map(|e| e.len() as i32).unwrap_or(0),
-                        volume_mounts: vec![],
+                        env_vars,
+                        volume_mounts,
                     }
                 })
                 .collect()
@@ -1767,9 +1903,23 @@ pub async fn get_pod_detail(client: &Client, namespace: &str, name: &str) -> Res
         .map(|vols| {
             vols.iter().map(|v| {
                 let volume_type = get_volume_type(v);
+                let source_name: Option<String> = if let Some(cm) = &v.config_map {
+                    Some(cm.name.clone())
+                } else if let Some(secret) = &v.secret {
+                    secret.secret_name.clone()
+                } else if let Some(pvc) = &v.persistent_volume_claim {
+                    Some(pvc.claim_name.clone())
+                } else if let Some(hp) = &v.host_path {
+                    Some(hp.path.clone())
+                } else if let Some(nfs) = &v.nfs {
+                    Some(format!("{}:{}", nfs.server, nfs.path))
+                } else {
+                    None
+                };
                 VolumeInfo {
                     name: v.name.clone(),
                     volume_type,
+                    source_name,
                 }
             }).collect()
         })

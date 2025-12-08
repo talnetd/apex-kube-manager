@@ -29,6 +29,8 @@ chrono = "0.4"
 dirs = "5"
 serde_yaml = "0.9"
 urlencoding = "2"
+portable-pty = "0.8"
+uuid = { version = "1", features = ["v4"] }
 
 [features]
 default = ["custom-protocol"]
