@@ -6,12 +6,113 @@ mod pty;
 use pty::PtyManager;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+/// Fix environment on macOS when launched from Finder (GUI apps don't inherit shell env)
+/// This is needed for exec-based Kubernetes auth (EKS, GKE, AKS) to find auth binaries
+#[cfg(target_os = "macos")]
+fn fix_path_env() {
+    use std::process::Command;
+
+    // Get the user's shell
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+
+    // Run the shell in login mode to get all environment variables
+    // Using `env` command to output all variables in a parseable format
+    let output = Command::new(&shell)
+        .args(["-l", "-c", "env"])
+        .output();
+
+    match output {
+        Ok(output) if output.status.success() => {
+            if let Ok(env_output) = String::from_utf8(output.stdout) {
+                let mut count = 0;
+                for line in env_output.lines() {
+                    // Handle multi-line values by only parsing lines with = at reasonable position
+                    if let Some(eq_pos) = line.find('=') {
+                        if eq_pos > 0 && eq_pos < 64 {
+                            let key = &line[..eq_pos];
+                            let value = &line[eq_pos + 1..];
+                            // Skip some variables that shouldn't be overwritten
+                            if key == "PWD" || key == "_" || key == "SHLVL" || key == "OLDPWD" {
+                                continue;
+                            }
+                            // Only set valid env var names
+                            if key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                                std::env::set_var(key, value);
+                                count += 1;
+                            }
+                        }
+                    }
+                }
+                eprintln!("[apex-kube-manager] Inherited {} environment variables from login shell", count);
+            }
+        }
+        Ok(output) => {
+            eprintln!("[apex-kube-manager] Shell env command failed: {:?}", output.status);
+        }
+        Err(e) => {
+            eprintln!("[apex-kube-manager] Failed to run shell: {}", e);
+        }
+    }
+}
+
+/// Fix environment on Linux when launched from desktop (GUI apps don't inherit shell env)
+#[cfg(target_os = "linux")]
+fn fix_path_env() {
+    use std::process::Command;
+
+    // Get the user's shell
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
+
+    // Run the shell in login mode to get all environment variables
+    let output = Command::new(&shell)
+        .args(["-l", "-c", "env"])
+        .output();
+
+    match output {
+        Ok(output) if output.status.success() => {
+            if let Ok(env_output) = String::from_utf8(output.stdout) {
+                let mut count = 0;
+                for line in env_output.lines() {
+                    if let Some(eq_pos) = line.find('=') {
+                        if eq_pos > 0 && eq_pos < 64 {
+                            let key = &line[..eq_pos];
+                            let value = &line[eq_pos + 1..];
+                            if key == "PWD" || key == "_" || key == "SHLVL" || key == "OLDPWD" {
+                                continue;
+                            }
+                            if key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                                std::env::set_var(key, value);
+                                count += 1;
+                            }
+                        }
+                    }
+                }
+                eprintln!("[apex-kube-manager] Inherited {} environment variables from login shell", count);
+            }
+        }
+        Ok(output) => {
+            eprintln!("[apex-kube-manager] Shell env command failed: {:?}", output.status);
+        }
+        Err(e) => {
+            eprintln!("[apex-kube-manager] Failed to run shell: {}", e);
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn fix_path_env() {
+    // Windows GUI apps typically inherit PATH correctly
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer())
         .with(tracing_subscriber::EnvFilter::from_default_env())
         .init();
+
+    // Fix PATH before doing anything else
+    fix_path_env();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
