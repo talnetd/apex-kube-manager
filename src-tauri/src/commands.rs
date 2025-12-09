@@ -1,9 +1,10 @@
 use crate::error::Result;
 use crate::kubernetes::{
-    self, ClusterMetrics, ConfigMapInfo, CronJobInfo, DaemonSetInfo, DeploymentInfo, HPAInfo,
-    IngressInfo, JobInfo, KubeContext, NamespaceInfo, NetworkPolicyInfo, NodeInfo,
-    PersistentVolumeClaimInfo, PersistentVolumeInfo, PodDetail, PodEvent, PodInfo, PulseMetrics,
-    ReplicaSetInfo, SecretInfo, ServiceAccountInfo, ServiceInfo, StatefulSetInfo,
+    self, ClusterMetrics, ConfigMapInfo, CronJobInfo, DaemonSetInfo, DeploymentDetail,
+    DeploymentEvent, DeploymentInfo, HPAInfo, IngressInfo, JobInfo, KubeContext, NamespaceInfo,
+    NetworkPolicyInfo, NodeInfo, PersistentVolumeClaimInfo, PersistentVolumeInfo, PodDetail,
+    PodEvent, PodInfo, PulseMetrics, ReplicaSetInfo, SecretInfo, ServiceAccountInfo, ServiceInfo,
+    StatefulSetInfo,
 };
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
@@ -61,6 +62,7 @@ pub async fn get_pod_logs(
     pod_name: String,
     container: Option<String>,
     tail_lines: Option<i64>,
+    previous: Option<bool>,
 ) -> Result<String> {
     let client = kubernetes::create_client().await?;
     kubernetes::get_logs(
@@ -69,6 +71,7 @@ pub async fn get_pod_logs(
         &pod_name,
         container.as_deref(),
         tail_lines,
+        previous,
     )
     .await
 }
@@ -83,6 +86,60 @@ pub async fn delete_pod(namespace: String, pod_name: String) -> Result<()> {
 pub async fn get_deployments(namespace: Option<String>) -> Result<Vec<DeploymentInfo>> {
     let client = kubernetes::create_client().await?;
     kubernetes::list_deployments(&client, namespace.as_deref()).await
+}
+
+// ============ Deployment Commands ============
+
+#[tauri::command]
+pub async fn scale_deployment(namespace: String, name: String, replicas: i32) -> Result<()> {
+    let client = kubernetes::create_client().await?;
+    kubernetes::scale_deployment(&client, &namespace, &name, replicas).await
+}
+
+#[tauri::command]
+pub async fn restart_deployment(namespace: String, name: String) -> Result<()> {
+    let client = kubernetes::create_client().await?;
+    kubernetes::restart_deployment(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_deployment_detail(
+    context_name: String,
+    namespace: String,
+    name: String,
+) -> Result<DeploymentDetail> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_deployment_detail(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_deployment_yaml(
+    context_name: String,
+    namespace: String,
+    name: String,
+) -> Result<String> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_deployment_yaml(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_deployment_events(
+    context_name: String,
+    namespace: String,
+    name: String,
+) -> Result<Vec<DeploymentEvent>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_deployment_events(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_deployment_pods(
+    context_name: String,
+    namespace: String,
+    name: String,
+) -> Result<Vec<PodInfo>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_deployment_pods(&client, &namespace, &name).await
 }
 
 #[tauri::command]
@@ -274,8 +331,17 @@ pub async fn open_resource_detail(
         urlencoding::encode(&context)
     );
 
+    // Capitalize resource type for title
+    let capitalized_type = {
+        let mut chars = resource_type.chars();
+        match chars.next() {
+            None => String::new(),
+            Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        }
+    };
+
     // Create a new window for the resource detail
-    let title = format!("{}: {} ({}/{})", resource_type, name, context, namespace);
+    let title = format!("{}: {} ({}/{})", capitalized_type, name, context, namespace);
 
     WebviewWindowBuilder::new(
         &app,

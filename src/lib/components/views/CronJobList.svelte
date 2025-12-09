@@ -43,6 +43,7 @@
     <table class="w-full">
       <thead>
         <tr class="text-left border-b border-border-subtle">
+          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-4"></th>
           <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Namespace" field="namespace" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Schedule" field="schedule" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
@@ -50,17 +51,17 @@
           <SortableHeader label="Active" field="active" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Last Schedule" field="last_schedule" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Age" field="age" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-20"></th>
+          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-24">Actions</th>
         </tr>
       </thead>
       <tbody>
         {#each sortedData as cj}
-          <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors">
+          <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer">
+            <td class="py-3 pr-2">
+              <div class="w-2 h-2 rounded-full {cj.suspend ? 'bg-accent-warning' : 'bg-accent-success'}"></div>
+            </td>
             <td class="py-3 pr-4">
-              <div class="flex items-center gap-2">
-                <div class="w-2 h-2 rounded-full {cj.suspend ? 'bg-accent-warning' : 'bg-accent-success'}"></div>
-                <span class="text-text-primary font-medium">{cj.name}</span>
-              </div>
+              <span class="text-accent-primary font-medium hover:underline">{cj.name}</span>
             </td>
             <td class="py-3 pr-4">
               <span class="text-text-secondary text-sm">{cj.namespace}</span>
@@ -87,7 +88,7 @@
             <td class="py-3">
               <div class="flex items-center gap-1">
                 <button
-                  class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
+                  class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-success transition-colors"
                   title="Trigger Now"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -96,7 +97,7 @@
                   </svg>
                 </button>
                 <button
-                  class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
+                  class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-warning transition-colors"
                   title="{cj.suspend ? 'Resume' : 'Suspend'}"
                 >
                   {#if cj.suspend}

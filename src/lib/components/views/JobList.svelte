@@ -69,23 +69,24 @@
     <table class="w-full">
       <thead>
         <tr class="text-left border-b border-border-subtle">
+          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-4"></th>
           <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Namespace" field="namespace" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Completions" field="completions" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Duration" field="duration" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Status" field="status" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Age" field="age" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-20"></th>
+          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-24">Actions</th>
         </tr>
       </thead>
       <tbody>
         {#each sortedData as job}
-          <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors">
+          <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer">
+            <td class="py-3 pr-2">
+              <div class="w-2 h-2 rounded-full {getStatusDot(job.status)}"></div>
+            </td>
             <td class="py-3 pr-4">
-              <div class="flex items-center gap-2">
-                <div class="w-2 h-2 rounded-full {getStatusDot(job.status)}"></div>
-                <span class="text-text-primary font-medium">{job.name}</span>
-              </div>
+              <span class="text-accent-primary font-medium hover:underline">{job.name}</span>
             </td>
             <td class="py-3 pr-4">
               <span class="text-text-secondary text-sm">{job.namespace}</span>
@@ -105,7 +106,7 @@
             <td class="py-3">
               <div class="flex items-center gap-1">
                 <button
-                  class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
+                  class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors"
                   title="View Logs"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -113,7 +114,7 @@
                   </svg>
                 </button>
                 <button
-                  class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-error transition-colors"
+                  class="p-1.5 rounded hover:bg-accent-error/20 text-text-muted hover:text-accent-error transition-colors"
                   title="Delete"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -96,15 +96,13 @@
   <!-- Toolbar -->
   <div class="px-6 py-4 border-b border-border-subtle">
     <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-xl font-semibold text-text-primary">Pods</h1>
-      </div>
+      <h1 class="text-xl font-semibold text-text-primary">Pods</h1>
       <!-- Filter Pills -->
       <div class="flex items-center gap-1">
         {#each filters as filter}
           <button
             onclick={() => activeFilter = filter.id}
-            class="px-3 py-1.5 text-sm rounded-lg transition-colors
+            class="px-2.5 py-1 text-sm rounded-md transition-colors
               {activeFilter === filter.id
                 ? 'bg-accent-primary/20 text-accent-primary border border-accent-primary/30'
                 : 'bg-bg-tertiary text-text-secondary hover:text-text-primary border border-transparent'}"
@@ -122,25 +120,28 @@
     <table class="w-full">
       <thead>
         <tr class="text-left border-b border-border-subtle">
+          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-4"></th>
           <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Namespace" field="namespace" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Status" field="status" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Ready" field="ready" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Restarts" field="restarts" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Age" field="age" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-20"></th>
+          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-24">Actions</th>
         </tr>
       </thead>
       <tbody>
         {#each filteredPods() as pod}
+          {@const statusColor = pod.status === 'Running' ? 'bg-accent-success' : pod.status === 'Pending' ? 'bg-accent-warning' : 'bg-accent-error'}
           <tr
             onclick={() => openPodDetail(pod)}
             class="border-b border-border-subtle/50 cursor-pointer transition-colors hover:bg-bg-secondary"
           >
+            <td class="py-3 pr-2">
+              <div class="w-2 h-2 rounded-full {statusColor}"></div>
+            </td>
             <td class="py-3 pr-4">
-              <div class="flex items-center gap-2">
-                <span class="text-text-primary font-medium">{pod.name}</span>
-              </div>
+              <span class="text-accent-primary font-medium hover:underline">{pod.name}</span>
             </td>
             <td class="py-3 pr-4">
               <span class="text-text-secondary text-sm">{pod.namespace}</span>
@@ -163,7 +164,7 @@
               <div class="flex items-center gap-1">
                 <button
                   onclick={(e) => { e.stopPropagation(); openTerminalWindow(pod.namespace, pod.name); }}
-                  class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
+                  class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors"
                   title="Open Terminal"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

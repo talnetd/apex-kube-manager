@@ -659,3 +659,378 @@ uuid = { version = "1", features = ["v4"] }
 3. **Watch vs Poll**: Use K8s watch API for real-time updates or stick with polling?
 
 4. **Terminal preference**: Should we detect user's preferred terminal app or always use system default?
+
+---
+
+## Session: December 9, 2025 - Pod Log Enhancements
+
+### 1. Terminal Reconnection Fix
+
+**Problem:** When disconnecting from a pod shell and reconnecting, the terminal showed a blank screen.
+
+**Root Cause:** The `reconnect()` function called `cleanup()` which disposed the terminal instance entirely. After disposal, `startPty()` tried to write to a non-existent terminal.
+
+**Solution:** Split cleanup into two functions:
+- `cleanupPty()` - Only cleans up PTY session and event listeners, keeps terminal alive
+- `cleanup()` - Calls `cleanupPty()` + disposes terminal (used on component unmount)
+
+**Files Changed:**
+- `src/lib/components/Terminal.svelte`
+
+---
+
+### 2. Pod Log Enhancements
+
+Added high-value features to the pod logs viewer in both `PodDetail.svelte` and `LogViewer.svelte`.
+
+#### 2.1 Log Search/Filter
+- Real-time filtering of log lines as you type
+- Shows match count (e.g., "42 matches")
+- Clear button to reset search
+- Case-insensitive search
+
+#### 2.2 Log Download
+- Download button exports logs to a `.txt` file
+- Filename format: `{pod}-{container}-{timestamp}.txt`
+- If search filter is active, downloads only matching lines
+- Uses browser's native download mechanism (Blob + anchor click)
+
+#### 2.3 Previous Container Logs
+- "Previous" checkbox to view logs from crashed/restarted containers
+- Uses Kubernetes `--previous` flag via `LogParams.previous`
+- Useful for debugging crash loops
+
+#### 2.4 Tail Lines Selector
+- Dropdown to select number of lines: 100, 500, 1000, 5000
+- Allows viewing more history when debugging
+
+#### 2.5 Scroll to Bottom Button
+- Floating teal button at bottom-right of log area
+- Down arrow icon with hover scale effect
+- Uses `absolute` positioning within log container
+- Fixes issue where auto-refresh/tailing doesn't properly scroll
+
+**Files Changed:**
+- `src-tauri/src/kubernetes.rs` - Added `previous` parameter to `get_logs()`
+- `src-tauri/src/commands.rs` - Updated `get_pod_logs` command signature
+- `src/lib/stores/kubernetes.ts` - Updated `getPodLogs()` function
+- `src/lib/components/detail/PodDetail.svelte` - Enhanced logs tab UI
+- `src/lib/components/LogViewer.svelte` - Added same features
+
+**Backend API Change:**
+```rust
+// Before
+pub async fn get_logs(client, namespace, pod_name, container, tail_lines) -> Result<String>
+
+// After
+pub async fn get_logs(client, namespace, pod_name, container, tail_lines, previous: Option<bool>) -> Result<String>
+```
+
+---
+
+### 3. Title Capitalization Fix
+
+**Problem:** Pod detail window title showed `Pod: Apisix-664967d48d-Lkbbn` with incorrectly capitalized pod name.
+
+**Root Cause:** CSS `text-transform: capitalize` was applied to the entire title, capitalizing the first letter of every word including the pod name.
+
+**Solution:** Only capitalize the resource type, not the resource name:
+- Wrap only `{resourceType}` in a `<span class="capitalize">`
+- In Rust, manually capitalize first letter for window title
+
+**Files Changed:**
+- `src/lib/components/detail/DetailWindow.svelte` - Fixed h1 and h2 titles
+- `src-tauri/src/commands.rs` - Fixed window title in `open_resource_detail()`
+
+**Before:** `Pod: Apisix-664967d48d-Lkbbn`
+**After:** `Pod: apisix-664967d48d-lkbbn`
+
+---
+
+### Design Decisions Made
+
+#### Log Filtering Strategy
+Client-side filtering was chosen over server-side for several reasons:
+1. Kubernetes API doesn't support log filtering
+2. Immediate feedback as user types
+3. No additional API calls needed
+4. Logs are already loaded in memory
+
+#### Scroll Button Positioning
+Used `absolute` positioning within a `relative` container rather than `fixed`:
+- Button stays within the log area bounds
+- Doesn't interfere with other UI elements
+- Works correctly in windowed detail views
+
+#### Previous Logs Toggle
+Implemented as a checkbox rather than a separate button:
+- Cleaner UI with existing controls
+- State is preserved while switching containers
+- Auto-refresh respects the toggle state
+
+---
+
+## Session: December 9, 2025 - Deployment Features
+
+### Deployment Operations Implemented
+
+Full CRUD-like operations for Kubernetes Deployments.
+
+#### Backend Commands (Rust)
+
+| Command | Parameters | Description |
+|---------|------------|-------------|
+| `scale_deployment` | `namespace, name, replicas` | Scale deployment replicas up/down |
+| `restart_deployment` | `namespace, name` | Rollout restart via annotation |
+| `get_deployment_detail` | `context_name, namespace, name` | Full deployment details |
+| `get_deployment_yaml` | `context_name, namespace, name` | YAML manifest |
+| `get_deployment_events` | `context_name, namespace, name` | Deployment events |
+| `get_deployment_pods` | `context_name, namespace, name` | Pods owned by deployment |
+
+**Files Changed:**
+- `src-tauri/src/kubernetes.rs` - New functions + structs (DeploymentDetail, DeploymentCondition, DeploymentEvent)
+- `src-tauri/src/commands.rs` - Tauri command wrappers
+- `src-tauri/src/lib.rs` - Command registration
+
+#### Restart Implementation
+
+Rollout restart is implemented by patching the pod template annotation:
+```rust
+let patch = serde_json::json!({
+    "spec": {
+        "template": {
+            "metadata": {
+                "annotations": {
+                    "kubectl.kubernetes.io/restartedAt": chrono::Utc::now().to_rfc3339()
+                }
+            }
+        }
+    }
+});
+```
+This triggers Kubernetes to create new pods, matching `kubectl rollout restart` behavior.
+
+---
+
+### DeploymentList.svelte Enhancements
+
+#### Status Indicator
+- Green dot: All replicas ready (healthy)
+- Amber dot: Some replicas ready (degraded)
+- Red dot: No replicas ready (failing)
+
+#### Actions Column
+- Added "Actions" header to clarify button purpose
+- Scale button (resize icon) → Opens scale modal
+- Restart button (refresh icon) → Confirms then restarts
+- Buttons show hover colors (teal for scale, amber for restart)
+- Restart button spins while restarting
+
+#### Click to Open Detail
+- Clicking row opens deployment detail in new window
+- Uses `open_resource_detail` command with `resourceType: 'deployment'`
+
+---
+
+### DeploymentDetail.svelte Component
+
+New detail window component with tabbed interface.
+
+#### Tabs
+
+| Tab | Content |
+|-----|---------|
+| Overview | Health status, replicas, strategy, conditions, labels, selector, container images |
+| Pods | Table of pods owned by deployment, click to open pod detail |
+| Events | Deployment events with type/reason/message |
+| YAML | Full manifest with copy button, uses YamlEditor component |
+
+#### Action Bar
+- Scale button → Opens modal with +/- controls
+- Restart button → Confirms then triggers rollout restart
+
+#### Tombstone State
+When deployment is deleted while window is open:
+- Warning banner appears
+- Actions are disabled
+- Last-seen timestamp shown
+- Data remains visible for post-mortem analysis
+
+---
+
+### Scale Modal UI
+
+Improved scale modal with better UX:
+
+```
+┌─────────────────────────────────────┐
+│  Scale Deployment                    │
+│                                      │
+│  Set replicas for my-deployment      │
+│                                      │
+│    [ - ]     [ 3 ]     [ + ]        │
+│                                      │
+│              [Cancel] [Scale]        │
+└─────────────────────────────────────┘
+```
+
+**Design Decisions:**
+- SVG icons for +/- buttons (not text characters)
+- Hover colors: red for decrease, green for increase
+- Large number input (3xl font) for visibility
+- Hidden browser spinners on number input
+- Centered layout for visual balance
+
+---
+
+### Files Added/Changed
+
+**New Files:**
+- `src/lib/components/detail/DeploymentDetail.svelte`
+
+**Modified Files:**
+- `src-tauri/src/kubernetes.rs` - Deployment operations
+- `src-tauri/src/commands.rs` - Tauri commands
+- `src-tauri/src/lib.rs` - Command registration
+- `src/lib/components/detail/DetailWindow.svelte` - Deployment route
+- `src/lib/components/views/DeploymentList.svelte` - Working buttons + click handler
+
+---
+
+## Session: December 9, 2025 - List View Consistency
+
+### Problem
+
+Inconsistent layout, font sizes, and spacing between list views. PodList and DeploymentList had different patterns, and other list views varied in implementation.
+
+### Solution: Unified List View Pattern
+
+Applied consistent design pattern across all 16 resource list views.
+
+#### Standard Table Pattern
+
+```svelte
+<thead>
+  <tr class="text-left border-b border-border-subtle">
+    <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-4"></th>
+    <SortableHeader label="Name" ... />
+    <!-- other columns -->
+    <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-24">Actions</th>
+  </tr>
+</thead>
+<tbody>
+  {#each sortedData as item}
+    <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer">
+      <td class="py-3 pr-2">
+        <div class="w-2 h-2 rounded-full {statusColor}"></div>
+      </td>
+      <td class="py-3 pr-4">
+        <span class="text-accent-primary font-medium hover:underline">{item.name}</span>
+      </td>
+      <!-- other columns -->
+    </tr>
+  {/each}
+</tbody>
+```
+
+#### Key Changes Applied
+
+| Element | Before | After |
+|---------|--------|-------|
+| Status dot | Inside name cell | Separate w-4 column |
+| Name color | `text-text-primary` | `text-accent-primary` |
+| Name hover | None | `hover:underline` |
+| Row cursor | Default | `cursor-pointer` |
+| Actions header | Empty `<th>` | "Actions" label |
+| Action button hover | `hover:text-text-primary` | Semantic colors |
+
+#### Action Button Hover Colors
+
+- **Scale**: `hover:text-accent-primary` (teal)
+- **Restart**: `hover:text-accent-warning` (amber)
+- **Delete**: `hover:text-accent-error` (red)
+- **Trigger/Play**: `hover:text-accent-success` (green)
+- **View Logs**: `hover:text-accent-primary` (teal)
+
+#### Status Dot Logic by Resource Type
+
+| Resource | Green | Amber | Red |
+|----------|-------|-------|-----|
+| Pods | Running | Pending | Failed/Error |
+| Deployments | All ready | Partial ready | None ready |
+| StatefulSets | All ready | Partial ready | None ready |
+| DaemonSets | All ready | Partial ready | None ready |
+| ReplicaSets | Desired=0 or all ready | Partial ready | None ready |
+| Jobs | Complete | Running | Failed |
+| CronJobs | Active (not suspended) | Suspended | - |
+| Services | Always green | - | - |
+| Ingresses | Has address | No address | - |
+| PVs | Available | Released | Failed |
+| PVCs | Bound | Pending | Lost |
+| Nodes | Ready | SchedulingDisabled | NotReady |
+| Namespaces | Active | Terminating | - |
+| ConfigMaps | Primary accent | - | - |
+| Secrets | Warning accent | - | - |
+| HPAs | Always green | - | - |
+| ServiceAccounts | Primary accent | - | - |
+| NetworkPolicies | Always green | - | - |
+
+#### PodList Filter Pills
+
+Compacted filter pills to reduce toolbar height:
+
+```svelte
+<!-- Before -->
+class="px-3 py-1.5 text-sm rounded-lg ..."
+
+<!-- After -->
+class="px-2.5 py-1 text-sm rounded-md ..."
+```
+
+This makes the PodList toolbar height consistent with other views that don't have filter pills.
+
+---
+
+### Files Modified (16 List Views)
+
+**Workloads:**
+- `PodList.svelte` - Filter pills compacted, status dot column
+- `DeploymentList.svelte` - Already updated (reference pattern)
+- `StatefulSetList.svelte` - Status dot column, Actions header, name styling
+- `DaemonSetList.svelte` - Status dot column, Actions header, name styling
+- `ReplicaSetList.svelte` - Status dot column, name styling (no actions)
+- `JobList.svelte` - Status dot column, Actions header, name styling
+- `CronJobList.svelte` - Status dot column, Actions header, name styling
+
+**Network:**
+- `ServiceList.svelte` - Status dot column, name styling
+- `IngressList.svelte` - Status dot column (address-based), name styling
+- `NetworkPolicyList.svelte` - Status dot column, name styling
+
+**Config:**
+- `ConfigMapList.svelte` - Status dot column, name styling
+- `SecretList.svelte` - Status dot column (removed lock icon), name styling
+- `HPAList.svelte` - Status dot column, name styling
+
+**Storage:**
+- `PVList.svelte` - Status dot column (status-based), name styling
+- `PVCList.svelte` - Status dot column (status-based), name styling
+
+**Cluster:**
+- `NodeList.svelte` - Status dot column (separate), name styling
+- `NamespaceList.svelte` - Status dot column (separate), name styling
+- `ServiceAccountList.svelte` - Status dot column (removed user icon), name styling
+
+---
+
+### Design Rationale
+
+1. **Consistent status indicators**: Users can quickly scan the leftmost column to assess health across any resource type.
+
+2. **Clickable names**: Teal color and underline-on-hover signal interactivity, preparing for detail view navigation.
+
+3. **Action button discoverability**: "Actions" header explicitly labels the column, reducing confusion about icon meanings.
+
+4. **Semantic hover colors**: Action buttons change to colors that match their intent (red for delete, green for trigger, amber for restart).
+
+5. **Compact filter pills**: Reduced padding keeps toolbar height consistent whether or not filters are present.

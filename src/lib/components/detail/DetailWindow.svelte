@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import PodDetail from './PodDetail.svelte';
+  import DeploymentDetail from './DeploymentDetail.svelte';
 
   // Resource types that can be displayed
   type ResourceType = 'pod' | 'deployment' | 'statefulset' | 'daemonset' | 'replicaset' |
@@ -30,8 +31,9 @@
       isLoaded = true;
     }
 
-    // Update window title
-    document.title = `${resourceType}: ${resourceName}`;
+    // Update window title (capitalize resource type only)
+    const capitalizedType = resourceType.charAt(0).toUpperCase() + resourceType.slice(1);
+    document.title = `${capitalizedType}: ${resourceName}`;
   });
 
   function getResourceIcon(type: ResourceType): string {
@@ -67,7 +69,7 @@
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={getResourceIcon(resourceType)} />
       </svg>
       <div>
-        <h1 class="text-lg font-semibold text-text-primary capitalize">{resourceType}: {resourceName}</h1>
+        <h1 class="text-lg font-semibold text-text-primary"><span class="capitalize">{resourceType}</span>: {resourceName}</h1>
         <div class="flex items-center gap-2 text-xs text-text-muted">
           <span class="flex items-center gap-1">
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -120,6 +122,12 @@
         namespace={lockedNamespace}
         name={resourceName}
       />
+    {:else if resourceType === 'deployment'}
+      <DeploymentDetail
+        context={lockedContext}
+        namespace={lockedNamespace}
+        name={resourceName}
+      />
     {:else}
       <!-- Placeholder for other resource types -->
       <div class="flex items-center justify-center h-full">
@@ -127,7 +135,7 @@
           <svg class="w-16 h-16 text-text-muted mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d={getResourceIcon(resourceType)} />
           </svg>
-          <h2 class="text-xl text-text-primary mb-2 capitalize">{resourceType} Details</h2>
+          <h2 class="text-xl text-text-primary mb-2"><span class="capitalize">{resourceType}</span> Details</h2>
           <p class="text-text-muted">Detail view coming soon...</p>
         </div>
       </div>

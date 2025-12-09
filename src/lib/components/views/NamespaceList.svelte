@@ -45,6 +45,7 @@
     <table class="w-full">
       <thead>
         <tr class="text-left border-b border-border-subtle">
+          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-4"></th>
           <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Status" field="status" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Age" field="age" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
@@ -52,12 +53,12 @@
       </thead>
       <tbody>
         {#each sortedData as ns}
-          <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors">
+          <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer">
+            <td class="py-3 pr-2">
+              <div class="w-2 h-2 rounded-full {ns.status === 'Active' ? 'bg-accent-success' : 'bg-accent-warning'}"></div>
+            </td>
             <td class="py-3 pr-4">
-              <div class="flex items-center gap-2">
-                <div class="w-2 h-2 rounded-full {ns.status === 'Active' ? 'bg-accent-success' : 'bg-accent-warning'}"></div>
-                <span class="text-text-primary font-medium">{ns.name}</span>
-              </div>
+              <span class="text-accent-primary font-medium hover:underline">{ns.name}</span>
             </td>
             <td class="py-3 pr-4">
               <span class="text-xs px-2 py-0.5 rounded {getStatusColor(ns.status)}">{ns.status}</span>

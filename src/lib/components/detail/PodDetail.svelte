@@ -109,6 +109,9 @@
   let logsLoading = $state<boolean>(false);
   let autoRefreshLogs = $state<boolean>(true); // Tailing enabled by default
   let logsInterval: ReturnType<typeof setInterval> | null = null;
+  let logSearch = $state<string>('');
+  let showPreviousLogs = $state<boolean>(false);
+  let tailLines = $state<number>(500);
 
   // Tombstone state - when pod is deleted while window is open
   let isDeleted = $state<boolean>(false);
@@ -205,12 +208,55 @@
         namespace,
         podName: name,
         container: selectedContainer,
-        tailLines: 500
+        tailLines,
+        previous: showPreviousLogs
       });
     } catch (e) {
       podLogs = `Error loading logs: ${e}`;
     } finally {
       logsLoading = false;
+    }
+  }
+
+  // Filtered logs based on search
+  const filteredLogs = $derived(() => {
+    if (!logSearch.trim()) return podLogs;
+    const searchLower = logSearch.toLowerCase();
+    return podLogs
+      .split('\n')
+      .filter(line => line.toLowerCase().includes(searchLower))
+      .join('\n');
+  });
+
+  // Download logs
+  async function downloadLogs() {
+    const content = logSearch ? filteredLogs() : podLogs;
+    const filename = `${name}-${selectedContainer}-${showPreviousLogs ? 'previous-' : ''}logs-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.txt`;
+
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // Count matching lines
+  const matchCount = $derived(() => {
+    if (!logSearch.trim()) return 0;
+    const searchLower = logSearch.toLowerCase();
+    return podLogs.split('\n').filter(line => line.toLowerCase().includes(searchLower)).length;
+  });
+
+  // Log container ref for scrolling
+  let logContainerRef: HTMLDivElement;
+
+  function scrollToBottom() {
+    if (logContainerRef) {
+      logContainerRef.scrollTop = logContainerRef.scrollHeight;
     }
   }
 
@@ -748,8 +794,10 @@
 
     {:else if activeTab === 'logs'}
       <div class="h-full flex flex-col">
-        <div class="flex items-center justify-between px-4 py-2 bg-bg-secondary border-b border-border-subtle">
-          <div class="flex items-center gap-4">
+        <!-- Logs Toolbar -->
+        <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-2 bg-bg-secondary border-b border-border-subtle">
+          <div class="flex items-center gap-3">
+            <!-- Container selector -->
             <select
               bind:value={selectedContainer}
               onchange={loadPodLogs}
@@ -762,25 +810,105 @@
                 {/each}
               {/if}
             </select>
+
+            <!-- Tail lines selector -->
+            <select
+              bind:value={tailLines}
+              onchange={loadPodLogs}
+              disabled={isDeleted}
+              class="text-sm bg-bg-tertiary border border-border-subtle rounded px-3 py-1 text-text-primary disabled:opacity-50"
+            >
+              <option value={100}>100 lines</option>
+              <option value={500}>500 lines</option>
+              <option value={1000}>1000 lines</option>
+              <option value={5000}>5000 lines</option>
+            </select>
+
+            <!-- Previous logs toggle -->
+            <label class="flex items-center gap-2 text-sm text-text-muted cursor-pointer">
+              <input
+                type="checkbox"
+                bind:checked={showPreviousLogs}
+                onchange={loadPodLogs}
+                disabled={isDeleted}
+                class="rounded"
+              />
+              Previous
+            </label>
+
             {#if !isDeleted}
-              <label class="flex items-center gap-2 text-sm text-text-muted">
+              <label class="flex items-center gap-2 text-sm text-text-muted cursor-pointer">
                 <input type="checkbox" bind:checked={autoRefreshLogs} onchange={toggleAutoRefresh} class="rounded" />
-                Auto-refresh (3s)
+                Tail
               </label>
             {:else}
               <span class="text-xs text-accent-warning">Showing cached logs</span>
             {/if}
           </div>
-          <button
-            onclick={loadPodLogs}
-            disabled={logsLoading || isDeleted}
-            class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {logsLoading ? 'Loading...' : 'Refresh'}
-          </button>
+          <div class="flex items-center gap-2">
+            <!-- Download button -->
+            <button
+              onclick={downloadLogs}
+              disabled={!podLogs}
+              class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+              title="Download logs"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Download
+            </button>
+            <button
+              onclick={loadPodLogs}
+              disabled={logsLoading || isDeleted}
+              class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {logsLoading ? 'Loading...' : 'Refresh'}
+            </button>
+          </div>
         </div>
-        <div class="flex-1 overflow-auto p-4 bg-[#1e1e1e]">
-          <pre class="text-xs font-mono text-green-400 whitespace-pre-wrap">{podLogs || (isDeleted ? 'No cached logs available' : 'No logs available')}</pre>
+
+        <!-- Search bar -->
+        <div class="flex items-center gap-2 px-4 py-2 bg-bg-tertiary/50 border-b border-border-subtle">
+          <svg class="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            bind:value={logSearch}
+            placeholder="Filter logs..."
+            class="flex-1 bg-transparent text-sm text-text-primary placeholder-text-muted focus:outline-none"
+          />
+          {#if logSearch}
+            <span class="text-xs text-text-muted">
+              {matchCount()} match{matchCount() !== 1 ? 'es' : ''}
+            </span>
+            <button
+              onclick={() => logSearch = ''}
+              class="text-text-muted hover:text-text-primary"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          {/if}
+        </div>
+
+        <!-- Log content -->
+        <div class="flex-1 overflow-hidden relative">
+          <div class="h-full overflow-auto p-4 bg-[#1e1e1e]" bind:this={logContainerRef}>
+            <pre class="text-xs font-mono text-green-400 whitespace-pre-wrap">{filteredLogs() || (isDeleted ? 'No cached logs available' : 'No logs available')}</pre>
+          </div>
+          <!-- Scroll to bottom button -->
+          <button
+            onclick={scrollToBottom}
+            class="absolute bottom-4 right-4 p-2 bg-accent-primary text-white rounded-full shadow-lg hover:bg-accent-primary/90 transition-all hover:scale-110"
+            title="Scroll to bottom"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+          </button>
         </div>
       </div>
 

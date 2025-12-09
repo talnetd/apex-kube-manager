@@ -181,7 +181,7 @@
     }
   }
 
-  async function cleanup() {
+  async function cleanupPty() {
     // Unsubscribe from events
     if (unlistenData) {
       unlistenData();
@@ -205,18 +205,22 @@
       }
       sessionId = null;
     }
+  }
 
+  async function cleanup() {
+    await cleanupPty();
     // Dispose terminal
     terminal?.dispose();
   }
 
   async function reconnect() {
     connectionError = null;
+    isConnected = false;
+    await cleanupPty();
     terminal?.reset();
     terminal?.writeln(`\x1b[36mReconnecting to pod: ${podName}\x1b[0m`);
     terminal?.writeln(`\x1b[90mShell: ${selectedShell}\x1b[0m`);
     terminal?.writeln('');
-    await cleanup();
     await startPty();
   }
 

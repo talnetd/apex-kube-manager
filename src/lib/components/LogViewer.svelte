@@ -16,13 +16,54 @@
   let tailLines = $state(100);
   let autoRefresh = $state(false);
   let logContainer: HTMLPreElement;
+  let searchQuery = $state('');
+  let showPrevious = $state(false);
 
   async function fetchLogs() {
     isLoading = true;
-    logs = await getPodLogs(namespace, podName, container, tailLines);
+    logs = await getPodLogs(namespace, podName, container, tailLines, showPrevious);
     isLoading = false;
 
     // Scroll to bottom
+    if (logContainer) {
+      logContainer.scrollTop = logContainer.scrollHeight;
+    }
+  }
+
+  // Filtered logs based on search
+  const filteredLogs = $derived(() => {
+    if (!searchQuery.trim()) return logs;
+    const searchLower = searchQuery.toLowerCase();
+    return logs
+      .split('\n')
+      .filter(line => line.toLowerCase().includes(searchLower))
+      .join('\n');
+  });
+
+  // Count matching lines
+  const matchCount = $derived(() => {
+    if (!searchQuery.trim()) return 0;
+    const searchLower = searchQuery.toLowerCase();
+    return logs.split('\n').filter(line => line.toLowerCase().includes(searchLower)).length;
+  });
+
+  // Download logs
+  function downloadLogs() {
+    const content = searchQuery ? filteredLogs() : logs;
+    const filename = `${podName}${container ? `-${container}` : ''}-${showPrevious ? 'previous-' : ''}logs-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.txt`;
+
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function scrollToBottom() {
     if (logContainer) {
       logContainer.scrollTop = logContainer.scrollHeight;
     }
@@ -80,6 +121,17 @@
         <option value={1000}>Last 1000 lines</option>
       </select>
 
+      <!-- Previous Logs Toggle -->
+      <label class="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
+        <input
+          type="checkbox"
+          bind:checked={showPrevious}
+          onchange={fetchLogs}
+          class="w-3 h-3 rounded border-border-subtle bg-bg-tertiary text-accent-primary focus:ring-accent-primary focus:ring-offset-0"
+        />
+        Previous
+      </label>
+
       <!-- Auto Refresh Toggle -->
       <label class="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
         <input
@@ -87,8 +139,20 @@
           bind:checked={autoRefresh}
           class="w-3 h-3 rounded border-border-subtle bg-bg-tertiary text-accent-primary focus:ring-accent-primary focus:ring-offset-0"
         />
-        Auto-refresh
+        Tail
       </label>
+
+      <!-- Download Button -->
+      <button
+        onclick={downloadLogs}
+        disabled={!logs}
+        class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors disabled:opacity-50"
+        title="Download logs"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+      </button>
 
       <!-- Refresh Button -->
       <button
@@ -114,9 +178,47 @@
     </div>
   </div>
 
+  <!-- Search bar -->
+  <div class="flex items-center gap-2 px-4 py-2 bg-bg-tertiary/50 border-b border-border-subtle">
+    <svg class="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+    </svg>
+    <input
+      type="text"
+      bind:value={searchQuery}
+      placeholder="Filter logs..."
+      class="flex-1 bg-transparent text-xs text-text-primary placeholder-text-muted focus:outline-none"
+    />
+    {#if searchQuery}
+      <span class="text-xs text-text-muted">
+        {matchCount()} match{matchCount() !== 1 ? 'es' : ''}
+      </span>
+      <button
+        onclick={() => searchQuery = ''}
+        class="text-text-muted hover:text-text-primary"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    {/if}
+  </div>
+
   <!-- Log Content -->
-  <pre
-    bind:this={logContainer}
-    class="flex-1 overflow-auto p-4 text-xs font-mono text-text-secondary whitespace-pre-wrap break-all"
-  >{#if isLoading && !logs}Loading logs...{:else if logs}{logs}{:else}No logs available{/if}</pre>
+  <div class="flex-1 overflow-auto relative">
+    <pre
+      bind:this={logContainer}
+      class="h-full overflow-auto p-4 text-xs font-mono text-text-secondary whitespace-pre-wrap break-all"
+    >{#if isLoading && !logs}Loading logs...{:else if filteredLogs()}{filteredLogs()}{:else}No logs available{/if}</pre>
+    <!-- Scroll to bottom button -->
+    <button
+      onclick={scrollToBottom}
+      class="absolute bottom-4 right-4 p-2 bg-accent-primary text-white rounded-full shadow-lg hover:bg-accent-primary/90 transition-all hover:scale-110"
+      title="Scroll to bottom"
+    >
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+      </svg>
+    </button>
+  </div>
 </div>

@@ -37,6 +37,7 @@
     <table class="w-full">
       <thead>
         <tr class="text-left border-b border-border-subtle">
+          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-4"></th>
           <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Namespace" field="namespace" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Secrets" field="secrets" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
@@ -45,14 +46,12 @@
       </thead>
       <tbody>
         {#each sortedData as sa}
-          <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors">
+          <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer">
+            <td class="py-3 pr-2">
+              <div class="w-2 h-2 rounded-full bg-accent-primary"></div>
+            </td>
             <td class="py-3 pr-4">
-              <div class="flex items-center gap-2">
-                <svg class="w-4 h-4 text-accent-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-                <span class="text-text-primary font-medium">{sa.name}</span>
-              </div>
+              <span class="text-accent-primary font-medium hover:underline">{sa.name}</span>
             </td>
             <td class="py-3 pr-4">
               <span class="text-text-secondary text-sm">{sa.namespace}</span>

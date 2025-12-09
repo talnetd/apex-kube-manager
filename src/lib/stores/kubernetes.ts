@@ -645,7 +645,8 @@ export async function getPodLogs(
   namespace: string,
   podName: string,
   container?: string,
-  tailLines?: number
+  tailLines?: number,
+  previous?: boolean
 ): Promise<string> {
   if (!isContextReady()) return '';
   try {
@@ -654,6 +655,7 @@ export async function getPodLogs(
       podName,
       container,
       tailLines,
+      previous,
     });
   } catch (e) {
     error.set(String(e));

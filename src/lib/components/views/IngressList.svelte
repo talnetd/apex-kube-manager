@@ -37,6 +37,7 @@
     <table class="w-full">
       <thead>
         <tr class="text-left border-b border-border-subtle">
+          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-4"></th>
           <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Namespace" field="namespace" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Class" field="class" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
@@ -48,9 +49,12 @@
       </thead>
       <tbody>
         {#each sortedData as ing}
-          <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors">
+          <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer">
+            <td class="py-3 pr-2">
+              <div class="w-2 h-2 rounded-full {ing.address ? 'bg-accent-success' : 'bg-accent-warning'}"></div>
+            </td>
             <td class="py-3 pr-4">
-              <span class="text-text-primary font-medium">{ing.name}</span>
+              <span class="text-accent-primary font-medium hover:underline">{ing.name}</span>
             </td>
             <td class="py-3 pr-4">
               <span class="text-text-secondary text-sm">{ing.namespace}</span>
