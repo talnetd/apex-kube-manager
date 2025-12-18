@@ -6,190 +6,98 @@ No Electron. No bundled Chromium. Just a ~15MB native app.
 
 ## Download
 
-### macOS
+Download from [GitHub Releases](https://github.com/talnetd/apex-kube-manager/releases):
 
-Download the latest release from [GitHub Releases](https://github.com/talnetd/apex-kube-manager/releases):
+| Platform | File |
+|----------|------|
+| macOS (Apple Silicon) | `Apex.Kube.Manager_x.x.x_aarch64.dmg` |
+| macOS (Intel) | `Apex.Kube.Manager_x.x.x_x64.dmg` |
+| Linux | `.AppImage` or `.deb` |
+| Windows | `.msi` or `.exe` |
 
-| Chip | File |
-|------|------|
-| Apple Silicon (M1/M2/M3/M4) | `Apex.Kube.Manager_x.x.x_aarch64.dmg` |
-| Intel | `Apex.Kube.Manager_x.x.x_x64.dmg` |
+### macOS First Launch
 
-#### macOS Installation
+macOS blocks unsigned apps. On first launch:
 
-1. Download the `.dmg` file for your chip
-2. Open the DMG and drag **Apex Kube Manager** to your Applications folder
-3. **First launch** - macOS blocks unsigned apps, use one of these methods:
+1. **Right-click** the app in Applications
+2. Select **Open**
+3. Click **Open** in the dialog
 
-**Method 1: Right-click to open**
-- Find the app in Applications folder
-- **Right-click** (or Control+click) the app
-- Select **Open** from the menu
-- Click **Open** in the security dialog
-- You only need to do this once
-
-**Method 2: Remove quarantine via Terminal**
+Or remove quarantine via Terminal:
 ```bash
 xattr -cr /Applications/Apex\ Kube\ Manager.app
 ```
-Then open the app normally.
-
-### Linux
-
-Download `.AppImage` or `.deb` from [GitHub Releases](https://github.com/talnetd/apex-kube-manager/releases).
-
-### Windows
-
-Download `.msi` or `.exe` from [GitHub Releases](https://github.com/talnetd/apex-kube-manager/releases).
 
 ## Requirements
 
-- **kubectl** installed and in your PATH
-- Valid kubeconfig file at `~/.kube/config`
-- For exec-based auth (EKS, GKE, AKS): respective CLI tools installed (aws-cli, gcloud, az)
+- **kubectl** installed and in PATH
+- Valid kubeconfig at `~/.kube/config`
+- For cloud clusters: respective CLI (aws-cli, gcloud, az)
 
-### Verify kubectl is working
-
+Verify setup:
 ```bash
 kubectl cluster-info
-kubectl get nodes
 ```
-
-If these commands work, Apex Kube Manager will work.
 
 ## Features
 
-### Cluster Management
-- **One-click context switching** - Simple dropdown, app-wide refresh
-- **Locked detail windows** - Open a pod detail, switch context, the window stays on the original cluster
-- **External kubectx detection** - Switch context via kubectx/terminal, app picks it up automatically
-- **Namespace filtering** - Global selector applies to all views
+### Resource Views
 
-### Resource Views (17 types)
 | Workloads | Network | Config | Storage | Cluster |
 |-----------|---------|--------|---------|---------|
-| Pods | Services | ConfigMaps | PersistentVolumes | Namespaces |
-| Deployments | Ingresses | Secrets | PersistentVolumeClaims | Nodes |
+| Pods | Services | ConfigMaps | PVs | Namespaces |
+| Deployments | Ingresses | Secrets | PVCs | Nodes |
 | StatefulSets | NetworkPolicies | HPAs | | ServiceAccounts |
 | DaemonSets | | | | |
 | ReplicaSets | | | | |
 | Jobs | | | | |
 | CronJobs | | | | |
 
-### Pod Operations
-- **Exec terminal** - Shell into pods with selection (/bin/sh, /bin/bash, /bin/ash, /bin/zsh)
-- **Logs viewer** - Stream logs with search, download, previous container logs
-- **Delete pods** - With confirmation
+### Operations
 
-### Deployment & StatefulSet Operations
-- **Scale** - Adjust replica count with +/- controls
-- **Restart** - Rolling restart via annotation patch
-- **Detail view** - Overview, managed pods, events, YAML export
+- **Pod exec** - Shell into pods (sh, bash, ash, zsh)
+- **Pod logs** - Stream with search, download, previous container
+- **Scale** - Deployments and StatefulSets
+- **Restart** - Rolling restart
+- **Delete** - With confirmation
 
-### Dashboard (Pulse)
-- Cluster info (context, user, K8s version)
-- Resource status cards (OK/FAIL counts)
-- CPU/Memory capacity gauges
+### Search
+
+- **Cmd+K** - Global search across all resources
+- **Per-view filter** - Filter current list by name
+
+### Multi-cluster
+
+- Context switching via dropdown
+- Detail windows lock to their original context
+- Auto-detects external context changes (kubectx)
 
 ## Usage
 
 1. Launch the app
-2. It will automatically detect your kubeconfig and connect to the current context
-3. Use the **context dropdown** (top-left) to switch clusters
-4. Use the **namespace dropdown** to filter resources
-5. Click any resource row to open its detail view
-6. Use action buttons (Scale, Restart, Logs, Exec) for operations
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Backend | Rust + Tauri 2 |
-| K8s Client | kube-rs (same lib used in Rust k8s controllers) |
-| Frontend | Svelte 5 + TypeScript |
-| Styling | TailwindCSS (custom dark theme) |
-| Terminal | xterm.js + portable-pty |
-
-### How Pod Exec Works
-
-1. App spawns `kubectl exec -it <pod> -- <shell>` via portable-pty
-2. PTY stdin/stdout streams over Tauri IPC channels
-3. xterm.js renders the terminal in the frontend
-4. Result: Native terminal experience, works with any auth method kubectl supports
-
-## Build from Source
-
-```bash
-# Prerequisites
-# - Node.js 18+
-# - Rust 1.70+
-# - Tauri CLI
-
-# Clone
-git clone https://github.com/talnetd/apex-kube-manager.git
-cd apex-kube-manager
-
-# Install dependencies
-npm install
-
-# Development (hot-reload)
-npm run tauri dev
-
-# Production build
-npm run tauri build
-# Output: src-tauri/target/release/bundle/
-```
-
-## Project Structure
-
-```
-apex-kube-manager/
-├── src-tauri/           # Rust backend
-│   ├── src/
-│   │   ├── main.rs      # Entry point
-│   │   ├── lib.rs       # App init & command registration
-│   │   ├── commands.rs  # Tauri IPC commands
-│   │   ├── kubernetes.rs # K8s API operations (kube-rs)
-│   │   ├── pty.rs       # Terminal PTY handling
-│   │   └── error.rs     # Error types
-│   └── Cargo.toml
-├── src/                 # Svelte frontend
-│   ├── lib/
-│   │   ├── components/  # UI components
-│   │   │   ├── views/   # Resource list views
-│   │   │   └── detail/  # Resource detail views
-│   │   └── stores/      # Svelte stores (state)
-│   └── App.svelte
-└── package.json
-```
+2. Select context (top-left dropdown)
+3. Select namespace to filter
+4. Click any row to open detail view
+5. Use action buttons for operations
 
 ## Troubleshooting
 
-### "App is damaged" on macOS
-Run this to remove quarantine flag:
-```bash
-xattr -cr /Applications/Apex\ Kube\ Manager.app
-```
+### App doesn't connect
 
-### App doesn't connect to cluster
-1. Verify kubectl works: `kubectl get nodes`
-2. Check kubeconfig path: `echo $KUBECONFIG` or `~/.kube/config`
-3. For EKS/GKE/AKS: ensure CLI tools are in PATH
+1. Verify: `kubectl get nodes`
+2. Check kubeconfig: `~/.kube/config`
+3. For EKS/GKE/AKS: ensure CLI tools in PATH
 
-### Exec terminal doesn't work
-1. Verify kubectl exec works: `kubectl exec -it <pod> -- /bin/sh`
-2. Some minimal images only have `/bin/sh`, not `/bin/bash`
+### Exec doesn't work
 
-## Looking for Testers
+1. Verify: `kubectl exec -it <pod> -- /bin/sh`
+2. Some images only have `/bin/sh`
 
-If you use Kubernetes daily and have opinions about how these tools should work, I'd love your feedback.
+## Documentation
 
-Open an issue or reach out.
+- [Architecture](docs/ARCHITECTURE.md) - Tech stack, how it works
+- [Development](docs/DEVELOPMENT.md) - Build from source, contributing
 
 ## License
 
 [MIT](LICENSE)
-
-## Contributing
-
-Contributions welcome. Please open an issue first to discuss what you'd like to change.
