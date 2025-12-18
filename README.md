@@ -19,15 +19,20 @@ Download the latest release from [GitHub Releases](https://github.com/talnetd/ap
 
 1. Download the `.dmg` file for your chip
 2. Open the DMG and drag **Apex Kube Manager** to your Applications folder
-3. **First launch** (unsigned app):
-   - Right-click the app and select **Open**
-   - Click **Open** in the security dialog
-   - You only need to do this once
+3. **First launch** - macOS blocks unsigned apps, use one of these methods:
 
-Alternatively, bypass Gatekeeper via Terminal:
+**Method 1: Right-click to open**
+- Find the app in Applications folder
+- **Right-click** (or Control+click) the app
+- Select **Open** from the menu
+- Click **Open** in the security dialog
+- You only need to do this once
+
+**Method 2: Remove quarantine via Terminal**
 ```bash
 xattr -cr /Applications/Apex\ Kube\ Manager.app
 ```
+Then open the app normally.
 
 ### Linux
 
