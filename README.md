@@ -8,7 +8,7 @@ No Electron. No bundled Chromium. Just a ~15MB native app.
 
 ### macOS
 
-Download the latest release from [GitHub Releases](https://github.com/tinaunglin/apex-kube-manager/releases):
+Download the latest release from [GitHub Releases](https://github.com/talnetd/apex-kube-manager/releases):
 
 | Chip | File |
 |------|------|
@@ -31,11 +31,11 @@ xattr -cr /Applications/Apex\ Kube\ Manager.app
 
 ### Linux
 
-Download `.AppImage` or `.deb` from [GitHub Releases](https://github.com/tinaunglin/apex-kube-manager/releases).
+Download `.AppImage` or `.deb` from [GitHub Releases](https://github.com/talnetd/apex-kube-manager/releases).
 
 ### Windows
 
-Download `.msi` or `.exe` from [GitHub Releases](https://github.com/tinaunglin/apex-kube-manager/releases).
+Download `.msi` or `.exe` from [GitHub Releases](https://github.com/talnetd/apex-kube-manager/releases).
 
 ## Requirements
 
@@ -121,7 +121,7 @@ If these commands work, Apex Kube Manager will work.
 # - Tauri CLI
 
 # Clone
-git clone https://github.com/tinaunglin/apex-kube-manager.git
+git clone https://github.com/talnetd/apex-kube-manager.git
 cd apex-kube-manager
 
 # Install dependencies
