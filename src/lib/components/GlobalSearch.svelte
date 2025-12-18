@@ -10,11 +10,12 @@
     resourceTypeMap,
     type SearchResults,
   } from '../stores/search';
-  import { currentContext } from '../stores/kubernetes';
+  import { currentContext, selectedNamespace, loadAllResources } from '../stores/kubernetes';
 
   let searchInput: HTMLInputElement;
   let selectedIndex = $state(0);
   let listContainer: HTMLDivElement;
+  let isLoadingResources = $state(false);
 
   // Flatten all results into a single list for command palette style
   const flatResults = $derived(() => {
@@ -123,10 +124,15 @@
     searchInput?.focus();
   });
 
-  // Focus input when modal opens
+  // Focus input and load resources when modal opens
   $effect(() => {
-    if ($globalSearchOpen && searchInput) {
-      searchInput.focus();
+    if ($globalSearchOpen) {
+      searchInput?.focus();
+      // Load all resources so search has data
+      isLoadingResources = true;
+      loadAllResources($selectedNamespace).finally(() => {
+        isLoadingResources = false;
+      });
     }
   });
 
@@ -264,7 +270,17 @@
       <div bind:this={listContainer} class="max-h-80 overflow-y-auto">
         {#if !$searchQuery}
           <div class="px-3 py-8 text-center text-text-muted">
-            <p class="text-sm">Type to search pods, deployments, services...</p>
+            {#if isLoadingResources}
+              <div class="flex items-center justify-center gap-2">
+                <svg class="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span class="text-sm">Loading resources...</span>
+              </div>
+            {:else}
+              <p class="text-sm">Type to search pods, deployments, services...</p>
+            {/if}
           </div>
         {:else if flatResults().length === 0}
           <div class="px-3 py-8 text-center text-text-muted">

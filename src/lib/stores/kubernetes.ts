@@ -641,6 +641,33 @@ export async function loadPulseMetrics(namespace?: string | null) {
   }
 }
 
+// Load all resources for global search
+export async function loadAllResources(namespace?: string | null) {
+  if (!isContextReady()) return;
+
+  // Load all resources in parallel
+  await Promise.all([
+    loadPods(namespace),
+    loadDeployments(namespace),
+    loadStatefulSets(namespace),
+    loadDaemonSets(namespace),
+    loadReplicaSets(namespace),
+    loadJobs(namespace),
+    loadCronJobs(namespace),
+    loadServices(namespace),
+    loadIngresses(namespace),
+    loadNetworkPolicies(namespace),
+    loadConfigMaps(namespace),
+    loadSecrets(namespace),
+    loadHPAs(namespace),
+    loadPVs(),
+    loadPVCs(namespace),
+    loadNamespacesInfo(),
+    loadNodes(),
+    loadServiceAccounts(namespace),
+  ]);
+}
+
 export async function deletePod(namespace: string, podName: string) {
   if (!isContextReady()) return;
   try {
