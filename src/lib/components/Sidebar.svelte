@@ -77,18 +77,18 @@
 <aside
   class="flex flex-col bg-bg-secondary border-r border-border-subtle transition-all duration-200 {$sidebarCollapsed ? 'w-14' : 'w-52'}"
 >
-  <!-- Logo / Brand -->
-  <div class="flex items-center h-14 px-3 border-b border-border-subtle">
+  <!-- Logo / Brand / Drag Region -->
+  <div class="flex items-center h-14 px-3 border-b border-border-subtle cursor-grab active:cursor-grabbing select-none" data-tauri-drag-region>
     {#if !$sidebarCollapsed}
-      <div class="flex items-center gap-2">
-        <div class="w-7 h-7 bg-accent-primary rounded-lg flex items-center justify-center">
-          <span class="text-bg-primary font-bold text-xs">K8</span>
+      <div class="flex items-center gap-2" data-tauri-drag-region>
+        <div class="w-7 h-7 bg-accent-primary rounded-lg flex items-center justify-center" data-tauri-drag-region>
+          <span class="text-bg-primary font-bold text-xs" data-tauri-drag-region>K8</span>
         </div>
-        <span class="text-text-primary font-semibold text-sm">Apex Kube</span>
+        <span class="text-text-primary font-semibold text-sm" data-tauri-drag-region>Apex Kube</span>
       </div>
     {:else}
-      <div class="w-7 h-7 bg-accent-primary rounded-lg flex items-center justify-center mx-auto">
-        <span class="text-bg-primary font-bold text-xs">K8</span>
+      <div class="w-7 h-7 bg-accent-primary rounded-lg flex items-center justify-center mx-auto" data-tauri-drag-region>
+        <span class="text-bg-primary font-bold text-xs" data-tauri-drag-region>K8</span>
       </div>
     {/if}
   </div>

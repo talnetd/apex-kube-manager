@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { getCurrentWindow } from '@tauri-apps/api/window';
   import {
     contexts,
     currentContext,
@@ -16,6 +17,20 @@
     stopContextPolling,
   } from '../stores/kubernetes';
   import { searchQuery, globalSearchOpen } from '../stores/search';
+
+  const appWindow = getCurrentWindow();
+
+  async function minimizeWindow() {
+    await appWindow.minimize();
+  }
+
+  async function toggleMaximize() {
+    await appWindow.toggleMaximize();
+  }
+
+  async function closeWindow() {
+    await appWindow.close();
+  }
 
   let showContextDropdown = $state(false);
   let showNamespaceDropdown = $state(false);
@@ -194,8 +209,8 @@
     </div>
   {/if}
 
-  <!-- Spacer -->
-  <div class="flex-1"></div>
+  <!-- Spacer / Drag Region -->
+  <div class="flex-1 h-full cursor-grab active:cursor-grabbing" data-tauri-drag-region></div>
 
   <!-- Search -->
   <button
@@ -223,4 +238,38 @@
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
     </svg>
   </button>
+
+  <!-- Window Controls -->
+  <div class="flex items-center gap-1 ml-2 pl-2 border-l border-border-subtle">
+    <!-- Minimize -->
+    <button
+      onclick={minimizeWindow}
+      class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors"
+      title="Minimize"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
+      </svg>
+    </button>
+    <!-- Maximize -->
+    <button
+      onclick={toggleMaximize}
+      class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors"
+      title="Maximize"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <rect x="4" y="4" width="16" height="16" rx="1" stroke-width="2" />
+      </svg>
+    </button>
+    <!-- Close -->
+    <button
+      onclick={closeWindow}
+      class="p-1.5 rounded hover:bg-accent-error/20 text-text-muted hover:text-accent-error transition-colors"
+      title="Close"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </button>
+  </div>
 </header>
