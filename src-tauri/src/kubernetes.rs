@@ -555,6 +555,11 @@ fn find_wsl_kubeconfig() -> Option<PathBuf> {
     None
 }
 
+// Public accessor for kubeconfig path (used by portforward module)
+pub fn get_kubeconfig_path_for_portforward() -> PathBuf {
+    get_kubeconfig_path()
+}
+
 // Startup check functions
 pub async fn get_kubeconfig_path_string() -> Result<String> {
     let path = get_kubeconfig_path();

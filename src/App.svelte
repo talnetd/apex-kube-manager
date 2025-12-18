@@ -8,12 +8,18 @@
   import { currentView } from './lib/stores/navigation';
   import { isInitialized } from './lib/stores/startup';
   import { globalSearchOpen } from './lib/stores/search';
+  import { portForwardPanelOpen } from './lib/stores/portforward';
 
   function handleKeydown(e: KeyboardEvent) {
     // Cmd+K (Mac) or Ctrl+K (Windows/Linux) to open global search
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
       e.preventDefault();
       globalSearchOpen.set(true);
+    }
+    // Cmd+P (Mac) or Ctrl+P (Windows/Linux) to open port forwards
+    if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
+      e.preventDefault();
+      portForwardPanelOpen.update(v => !v);
     }
   }
 
