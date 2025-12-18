@@ -204,6 +204,111 @@ pub struct ServiceInfo {
     pub age: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServiceDetail {
+    pub name: String,
+    pub namespace: String,
+    pub uid: String,
+    pub creation_timestamp: String,
+    pub labels: std::collections::BTreeMap<String, String>,
+    pub annotations: std::collections::BTreeMap<String, String>,
+    pub service_type: String,
+    pub cluster_ip: Option<String>,
+    pub cluster_ips: Vec<String>,
+    pub external_ips: Vec<String>,
+    pub ports: Vec<ServicePortDetail>,
+    pub selector: std::collections::BTreeMap<String, String>,
+    pub session_affinity: String,
+    pub load_balancer_ip: Option<String>,
+    pub load_balancer_ingress: Vec<String>,
+    pub external_name: Option<String>,
+    pub internal_traffic_policy: Option<String>,
+    pub external_traffic_policy: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServicePortDetail {
+    pub name: Option<String>,
+    pub protocol: String,
+    pub port: i32,
+    pub target_port: String,
+    pub node_port: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServiceEndpoint {
+    pub ip: String,
+    pub port: i32,
+    pub protocol: String,
+    pub pod_name: Option<String>,
+    pub node_name: Option<String>,
+    pub ready: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServiceEvent {
+    pub event_type: String,
+    pub reason: String,
+    pub message: String,
+    pub count: i32,
+    pub first_timestamp: Option<String>,
+    pub last_timestamp: Option<String>,
+    pub source: String,
+}
+
+// Ingress Detail structs
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IngressDetail {
+    pub name: String,
+    pub namespace: String,
+    pub uid: String,
+    pub creation_timestamp: String,
+    pub labels: std::collections::BTreeMap<String, String>,
+    pub annotations: std::collections::BTreeMap<String, String>,
+    pub ingress_class: Option<String>,
+    pub rules: Vec<IngressRuleDetail>,
+    pub tls: Vec<IngressTlsDetail>,
+    pub default_backend: Option<IngressBackendDetail>,
+    pub load_balancer_addresses: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IngressRuleDetail {
+    pub host: Option<String>,
+    pub paths: Vec<IngressPathDetail>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IngressPathDetail {
+    pub path: String,
+    pub path_type: String,
+    pub backend_service: Option<String>,
+    pub backend_port: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IngressTlsDetail {
+    pub hosts: Vec<String>,
+    pub secret_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IngressBackendDetail {
+    pub service_name: String,
+    pub service_port: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IngressEvent {
+    pub event_type: String,
+    pub reason: String,
+    pub message: String,
+    pub count: i32,
+    pub first_timestamp: Option<String>,
+    pub last_timestamp: Option<String>,
+    pub source: String,
+}
+
 // Network resources
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IngressInfo {
@@ -1350,6 +1455,167 @@ pub async fn list_services(client: &Client, namespace: Option<&str>) -> Result<V
     Ok(svc_infos)
 }
 
+// ============ Service Operations ============
+
+pub async fn get_service_detail(client: &Client, namespace: &str, name: &str) -> Result<ServiceDetail> {
+    let services: Api<Service> = Api::namespaced(client.clone(), namespace);
+    let svc = services.get(name).await?;
+
+    let metadata = &svc.metadata;
+    let spec = svc.spec.as_ref();
+    let status = svc.status.as_ref();
+
+    // Get ports with detailed info
+    let ports: Vec<ServicePortDetail> = spec
+        .and_then(|s| s.ports.as_ref())
+        .map(|ports| {
+            ports
+                .iter()
+                .map(|p| ServicePortDetail {
+                    name: p.name.clone(),
+                    protocol: p.protocol.clone().unwrap_or_else(|| "TCP".to_string()),
+                    port: p.port,
+                    target_port: p.target_port.as_ref()
+                        .map(|tp| match tp {
+                            k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(i) => i.to_string(),
+                            k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::String(s) => s.clone(),
+                        })
+                        .unwrap_or_default(),
+                    node_port: p.node_port,
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    // Get load balancer ingress IPs/hostnames
+    let load_balancer_ingress: Vec<String> = status
+        .and_then(|s| s.load_balancer.as_ref())
+        .and_then(|lb| lb.ingress.as_ref())
+        .map(|ingress| {
+            ingress
+                .iter()
+                .filter_map(|i| i.ip.clone().or_else(|| i.hostname.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Ok(ServiceDetail {
+        name: metadata.name.clone().unwrap_or_default(),
+        namespace: metadata.namespace.clone().unwrap_or_default(),
+        uid: metadata.uid.clone().unwrap_or_default(),
+        creation_timestamp: metadata
+            .creation_timestamp
+            .as_ref()
+            .map(|t| t.0.to_rfc3339())
+            .unwrap_or_default(),
+        labels: metadata.labels.clone().unwrap_or_default(),
+        annotations: metadata.annotations.clone().unwrap_or_default(),
+        service_type: spec.and_then(|s| s.type_.clone()).unwrap_or_else(|| "ClusterIP".to_string()),
+        cluster_ip: spec.and_then(|s| s.cluster_ip.clone()),
+        cluster_ips: spec.and_then(|s| s.cluster_ips.clone()).unwrap_or_default(),
+        external_ips: spec.and_then(|s| s.external_ips.clone()).unwrap_or_default(),
+        ports,
+        selector: spec.and_then(|s| s.selector.clone()).unwrap_or_default(),
+        session_affinity: spec.and_then(|s| s.session_affinity.clone()).unwrap_or_else(|| "None".to_string()),
+        load_balancer_ip: spec.and_then(|s| s.load_balancer_ip.clone()),
+        load_balancer_ingress,
+        external_name: spec.and_then(|s| s.external_name.clone()),
+        internal_traffic_policy: spec.and_then(|s| s.internal_traffic_policy.clone()),
+        external_traffic_policy: spec.and_then(|s| s.external_traffic_policy.clone()),
+    })
+}
+
+pub async fn get_service_yaml(client: &Client, namespace: &str, name: &str) -> Result<String> {
+    let services: Api<Service> = Api::namespaced(client.clone(), namespace);
+    let svc = services.get(name).await?;
+    let yaml = serde_yaml::to_string(&svc)
+        .map_err(|e| AppError::Custom(format!("Failed to serialize service to YAML: {}", e)))?;
+    Ok(yaml)
+}
+
+pub async fn get_service_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<ServiceEvent>> {
+    use k8s_openapi::api::core::v1::Event;
+
+    let events: Api<Event> = Api::namespaced(client.clone(), namespace);
+    let lp = ListParams::default()
+        .fields(&format!("involvedObject.name={},involvedObject.kind=Service", name));
+    let event_list = events.list(&lp).await?;
+
+    let svc_events: Vec<ServiceEvent> = event_list
+        .items
+        .iter()
+        .map(|e| ServiceEvent {
+            event_type: e.type_.clone().unwrap_or_default(),
+            reason: e.reason.clone().unwrap_or_default(),
+            message: e.message.clone().unwrap_or_default(),
+            count: e.count.unwrap_or(1),
+            first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            source: e
+                .source
+                .as_ref()
+                .map(|s| s.component.clone().unwrap_or_default())
+                .unwrap_or_default(),
+        })
+        .collect();
+
+    Ok(svc_events)
+}
+
+pub async fn get_service_endpoints(client: &Client, namespace: &str, name: &str) -> Result<Vec<ServiceEndpoint>> {
+    use k8s_openapi::api::core::v1::Endpoints;
+
+    let endpoints: Api<Endpoints> = Api::namespaced(client.clone(), namespace);
+
+    // Endpoints have the same name as the service
+    let ep = match endpoints.get(name).await {
+        Ok(ep) => ep,
+        Err(_) => return Ok(vec![]), // No endpoints found
+    };
+
+    let mut result: Vec<ServiceEndpoint> = vec![];
+
+    if let Some(subsets) = ep.subsets {
+        for subset in subsets {
+            let ports = subset.ports.unwrap_or_default();
+
+            // Ready addresses
+            if let Some(addresses) = subset.addresses {
+                for addr in addresses {
+                    for port in &ports {
+                        result.push(ServiceEndpoint {
+                            ip: addr.ip.clone(),
+                            port: port.port,
+                            protocol: port.protocol.clone().unwrap_or_else(|| "TCP".to_string()),
+                            pod_name: addr.target_ref.as_ref().and_then(|tr| tr.name.clone()),
+                            node_name: addr.node_name.clone(),
+                            ready: true,
+                        });
+                    }
+                }
+            }
+
+            // Not ready addresses
+            if let Some(not_ready_addresses) = subset.not_ready_addresses {
+                for addr in not_ready_addresses {
+                    for port in &ports {
+                        result.push(ServiceEndpoint {
+                            ip: addr.ip.clone(),
+                            port: port.port,
+                            protocol: port.protocol.clone().unwrap_or_else(|| "TCP".to_string()),
+                            pod_name: addr.target_ref.as_ref().and_then(|tr| tr.name.clone()),
+                            node_name: addr.node_name.clone(),
+                            ready: false,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(result)
+}
+
 // Network resources
 pub async fn list_ingresses(client: &Client, namespace: Option<&str>) -> Result<Vec<IngressInfo>> {
     let ingresses: Api<Ingress> = match namespace {
@@ -1402,6 +1668,139 @@ pub async fn list_ingresses(client: &Client, namespace: Option<&str>) -> Result<
         .collect();
 
     Ok(ing_infos)
+}
+
+// ============ Ingress Detail Functions ============
+
+pub async fn get_ingress_detail(client: &Client, namespace: &str, name: &str) -> Result<IngressDetail> {
+    let ingresses: Api<Ingress> = Api::namespaced(client.clone(), namespace);
+    let ingress = ingresses.get(name).await?;
+
+    let metadata = &ingress.metadata;
+    let spec = ingress.spec.as_ref();
+    let status = ingress.status.as_ref();
+
+    let labels = metadata.labels.clone().unwrap_or_default();
+    let annotations = metadata.annotations.clone().unwrap_or_default();
+
+    let ingress_class = spec.and_then(|s| s.ingress_class_name.clone());
+
+    let rules: Vec<IngressRuleDetail> = spec
+        .and_then(|s| s.rules.as_ref())
+        .map(|rules| {
+            rules.iter().map(|rule| {
+                let paths: Vec<IngressPathDetail> = rule.http.as_ref()
+                    .map(|http| {
+                        http.paths.iter().map(|path| {
+                            let backend_service = path.backend.service.as_ref().map(|s| s.name.clone());
+                            let backend_port = path.backend.service.as_ref()
+                                .and_then(|s| s.port.as_ref())
+                                .map(|p| {
+                                    p.name.clone().unwrap_or_else(|| {
+                                        p.number.map(|n| n.to_string()).unwrap_or_default()
+                                    })
+                                });
+
+                            IngressPathDetail {
+                                path: path.path.clone().unwrap_or_else(|| "/".to_string()),
+                                path_type: path.path_type.clone(),
+                                backend_service,
+                                backend_port,
+                            }
+                        }).collect()
+                    })
+                    .unwrap_or_default();
+
+                IngressRuleDetail {
+                    host: rule.host.clone(),
+                    paths,
+                }
+            }).collect()
+        })
+        .unwrap_or_default();
+
+    let tls: Vec<IngressTlsDetail> = spec
+        .and_then(|s| s.tls.as_ref())
+        .map(|tls_list| {
+            tls_list.iter().map(|tls| {
+                IngressTlsDetail {
+                    hosts: tls.hosts.clone().unwrap_or_default(),
+                    secret_name: tls.secret_name.clone(),
+                }
+            }).collect()
+        })
+        .unwrap_or_default();
+
+    let default_backend = spec
+        .and_then(|s| s.default_backend.as_ref())
+        .and_then(|db| db.service.as_ref())
+        .map(|svc| {
+            let port = svc.port.as_ref()
+                .map(|p| p.name.clone().unwrap_or_else(|| p.number.map(|n| n.to_string()).unwrap_or_default()))
+                .unwrap_or_default();
+            IngressBackendDetail {
+                service_name: svc.name.clone(),
+                service_port: port,
+            }
+        });
+
+    let load_balancer_addresses: Vec<String> = status
+        .and_then(|s| s.load_balancer.as_ref())
+        .and_then(|lb| lb.ingress.as_ref())
+        .map(|ingress_list| {
+            ingress_list.iter()
+                .filter_map(|i| i.ip.clone().or_else(|| i.hostname.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Ok(IngressDetail {
+        name: metadata.name.clone().unwrap_or_default(),
+        namespace: metadata.namespace.clone().unwrap_or_default(),
+        uid: metadata.uid.clone().unwrap_or_default(),
+        creation_timestamp: metadata.creation_timestamp
+            .as_ref()
+            .map(|t| t.0.format("%Y-%m-%d %H:%M:%S UTC").to_string())
+            .unwrap_or_default(),
+        labels,
+        annotations,
+        ingress_class,
+        rules,
+        tls,
+        default_backend,
+        load_balancer_addresses,
+    })
+}
+
+pub async fn get_ingress_yaml(client: &Client, namespace: &str, name: &str) -> Result<String> {
+    let ingresses: Api<Ingress> = Api::namespaced(client.clone(), namespace);
+    let ingress = ingresses.get(name).await?;
+    serde_yaml::to_string(&ingress)
+        .map_err(|e| AppError::Custom(format!("Failed to serialize ingress to YAML: {}", e)))
+}
+
+pub async fn get_ingress_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<IngressEvent>> {
+    use k8s_openapi::api::core::v1::Event;
+
+    let events: Api<Event> = Api::namespaced(client.clone(), namespace);
+    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=Ingress", name));
+    let event_list = events.list(&lp).await?;
+
+    let result: Vec<IngressEvent> = event_list.items.iter().map(|e| {
+        IngressEvent {
+            event_type: e.type_.clone().unwrap_or_else(|| "Unknown".to_string()),
+            reason: e.reason.clone().unwrap_or_default(),
+            message: e.message.clone().unwrap_or_default(),
+            count: e.count.unwrap_or(1),
+            first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.format("%Y-%m-%d %H:%M:%S").to_string()),
+            last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.format("%Y-%m-%d %H:%M:%S").to_string()),
+            source: e.source.as_ref()
+                .map(|s| format!("{}/{}", s.component.as_deref().unwrap_or(""), s.host.as_deref().unwrap_or("")))
+                .unwrap_or_default(),
+        }
+    }).collect();
+
+    Ok(result)
 }
 
 pub async fn list_network_policies(client: &Client, namespace: Option<&str>) -> Result<Vec<NetworkPolicyInfo>> {
@@ -2618,4 +3017,45 @@ pub async fn create_client_for_context(context_name: &str) -> Result<Client> {
     let config = Config::from_custom_kubeconfig(kubeconfig, &options).await?;
     let client = Client::try_from(config)?;
     Ok(client)
+}
+
+// ============ YAML Apply Function ============
+
+/// Apply a YAML manifest to the cluster using kubectl
+/// This is the most reliable way to handle all resource types and edge cases
+pub async fn apply_yaml(context_name: &str, yaml_content: &str) -> Result<String> {
+    use std::process::Command;
+    use std::io::Write;
+
+    // Create a temporary file for the YAML
+    let temp_dir = std::env::temp_dir();
+    let temp_file = temp_dir.join(format!("apex-kube-apply-{}.yaml", std::process::id()));
+
+    // Write YAML to temp file
+    let mut file = std::fs::File::create(&temp_file)
+        .map_err(|e| AppError::Custom(format!("Failed to create temp file: {}", e)))?;
+    file.write_all(yaml_content.as_bytes())
+        .map_err(|e| AppError::Custom(format!("Failed to write YAML: {}", e)))?;
+    drop(file);
+
+    // Run kubectl apply
+    let output = Command::new("kubectl")
+        .args([
+            "--context", context_name,
+            "apply",
+            "-f", temp_file.to_str().unwrap(),
+        ])
+        .output()
+        .map_err(|e| AppError::Custom(format!("Failed to execute kubectl: {}", e)))?;
+
+    // Clean up temp file
+    let _ = std::fs::remove_file(&temp_file);
+
+    if output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        Ok(stdout)
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        Err(AppError::Custom(format!("kubectl apply failed: {}", stderr)))
+    }
 }

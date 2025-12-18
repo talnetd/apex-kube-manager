@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { invoke } from '@tauri-apps/api/core';
   import Badge from '../ui/Badge.svelte';
   import SortableHeader from '../ui/SortableHeader.svelte';
   import { sortData, toggleSort, type SortState } from '../../utils/sort';
@@ -44,6 +45,19 @@
         return 'default';
     }
   }
+
+  async function openServiceDetail(service: { name: string; namespace: string }) {
+    try {
+      await invoke('open_resource_detail', {
+        resourceType: 'service',
+        name: service.name,
+        namespace: service.namespace,
+        context: $currentContext
+      });
+    } catch (e) {
+      console.error('Failed to open service detail:', e);
+    }
+  }
 </script>
 
 <div class="h-full flex flex-col overflow-hidden">
@@ -69,7 +83,10 @@
       </thead>
       <tbody>
         {#each sortedData as service}
-          <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer">
+          <tr
+            class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer"
+            onclick={() => openServiceDetail(service)}
+          >
             <td class="py-3 pr-2">
               <div class="w-2 h-2 rounded-full bg-accent-success"></div>
             </td>

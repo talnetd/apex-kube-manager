@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { invoke } from '@tauri-apps/api/core';
   import SortableHeader from '../ui/SortableHeader.svelte';
   import { sortData, toggleSort, type SortState } from '../../utils/sort';
   import { ingresses, selectedNamespace, currentContext, refreshTrigger, loadIngresses } from '../../stores/kubernetes';
@@ -24,6 +25,19 @@
     if (!ctx) return;
     loadIngresses($selectedNamespace);
   });
+
+  async function openIngressDetail(ingress: { name: string; namespace: string }) {
+    try {
+      await invoke('open_resource_detail', {
+        resourceType: 'ingress',
+        name: ingress.name,
+        namespace: ingress.namespace,
+        context: $currentContext
+      });
+    } catch (e) {
+      console.error('Failed to open ingress detail:', e);
+    }
+  }
 </script>
 
 <div class="h-full flex flex-col overflow-hidden">
@@ -49,7 +63,10 @@
       </thead>
       <tbody>
         {#each sortedData as ing}
-          <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer">
+          <tr
+            class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer"
+            onclick={() => openIngressDetail(ing)}
+          >
             <td class="py-3 pr-2">
               <div class="w-2 h-2 rounded-full {ing.address ? 'bg-accent-success' : 'bg-accent-warning'}"></div>
             </td>

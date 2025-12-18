@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
-  import YamlEditor from '../ui/YamlEditor.svelte';
+  import YamlEditorPanel from '../ui/YamlEditorPanel.svelte';
 
   interface Props {
     context: string;
@@ -605,35 +605,14 @@
       </div>
 
     {:else if activeTab === 'yaml'}
-      <div class="h-full flex flex-col">
-        <div class="flex items-center justify-between px-4 py-2 bg-bg-secondary border-b border-border-subtle">
-          <span class="text-sm text-text-muted">StatefulSet YAML Manifest</span>
-          <div class="flex items-center gap-2">
-            <button
-              onclick={() => navigator.clipboard.writeText(statefulSetYaml)}
-              class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors"
-            >
-              Copy
-            </button>
-            <button
-              onclick={loadStatefulSetYaml}
-              disabled={isDeleted}
-              class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors disabled:opacity-50"
-            >
-              Refresh
-            </button>
-          </div>
-        </div>
-        <div class="flex-1 overflow-hidden">
-          {#if statefulSetYaml}
-            <YamlEditor content={statefulSetYaml} readonly={true} />
-          {:else}
-            <div class="flex items-center justify-center h-full text-text-muted">
-              Loading YAML...
-            </div>
-          {/if}
-        </div>
-      </div>
+      <YamlEditorPanel
+        yaml={statefulSetYaml}
+        context={context}
+        resourceType="StatefulSet"
+        isDeleted={isDeleted}
+        onRefresh={loadStatefulSetYaml}
+        onApplySuccess={loadStatefulSetDetail}
+      />
     {/if}
   </div>
 </div>

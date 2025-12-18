@@ -3,6 +3,8 @@
   import PodDetail from './PodDetail.svelte';
   import DeploymentDetail from './DeploymentDetail.svelte';
   import StatefulSetDetail from './StatefulSetDetail.svelte';
+  import ServiceDetail from './ServiceDetail.svelte';
+  import IngressDetail from './IngressDetail.svelte';
 
   // Resource types that can be displayed
   type ResourceType = 'pod' | 'deployment' | 'statefulset' | 'daemonset' | 'replicaset' |
@@ -131,6 +133,18 @@
       />
     {:else if resourceType === 'statefulset'}
       <StatefulSetDetail
+        context={lockedContext}
+        namespace={lockedNamespace}
+        name={resourceName}
+      />
+    {:else if resourceType === 'service'}
+      <ServiceDetail
+        context={lockedContext}
+        namespace={lockedNamespace}
+        name={resourceName}
+      />
+    {:else if resourceType === 'ingress'}
+      <IngressDetail
         context={lockedContext}
         namespace={lockedNamespace}
         name={resourceName}

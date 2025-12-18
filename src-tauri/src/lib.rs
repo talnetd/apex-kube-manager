@@ -151,8 +151,15 @@ pub fn run() {
             commands::get_jobs,
             commands::get_cronjobs,
             commands::get_services,
+            commands::get_service_detail,
+            commands::get_service_yaml,
+            commands::get_service_events,
+            commands::get_service_endpoints,
             // Network
             commands::get_ingresses,
+            commands::get_ingress_detail,
+            commands::get_ingress_yaml,
+            commands::get_ingress_events,
             commands::get_network_policies,
             // Config
             commands::get_configmaps,
@@ -179,6 +186,8 @@ pub fn run() {
             commands::pty_write,
             commands::pty_resize,
             commands::pty_close,
+            // YAML editing
+            commands::apply_yaml,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

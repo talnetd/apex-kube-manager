@@ -313,13 +313,15 @@ colors: {
 - [x] Pod deletion
 - [x] Status indicators (colored dots, badges)
 - [x] Auto-refresh (10s intervals)
+- [x] Resource detail panels (Pod, Deployment, StatefulSet, Service, Ingress)
+- [x] Shared YamlEditorPanel component (UI ready, editing broken)
 
 ### TODO (Next Features)
 - [ ] Pod exec WebSocket streaming (xterm.js ready)
-- [ ] Resource detail panels (describe view)
+- [ ] Resource detail panels for remaining types (ConfigMap, Secret, Job, CronJob, etc.)
 - [ ] Deployment scaling
 - [ ] Deployment/StatefulSet restart
-- [ ] Resource YAML editor
+- [ ] Fix YAML editor - typing/editing not working in CodeMirror (YamlEditorPanel.svelte)
 - [ ] Real-time watch streams (K8s watch API)
 - [ ] Search/filter within tables
 - [ ] Application icons

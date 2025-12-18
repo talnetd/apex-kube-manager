@@ -1,9 +1,10 @@
 use crate::error::Result;
 use crate::kubernetes::{
     self, ClusterMetrics, ConfigMapInfo, CronJobInfo, DaemonSetInfo, DeploymentDetail,
-    DeploymentEvent, DeploymentInfo, HPAInfo, IngressInfo, JobInfo, KubeContext, NamespaceInfo,
-    NetworkPolicyInfo, NodeInfo, PersistentVolumeClaimInfo, PersistentVolumeInfo, PodDetail,
-    PodEvent, PodInfo, PulseMetrics, ReplicaSetInfo, SecretInfo, ServiceAccountInfo, ServiceInfo,
+    DeploymentEvent, DeploymentInfo, HPAInfo, IngressInfo, IngressDetail, IngressEvent,
+    JobInfo, KubeContext, NamespaceInfo, NetworkPolicyInfo, NodeInfo, PersistentVolumeClaimInfo,
+    PersistentVolumeInfo, PodDetail, PodEvent, PodInfo, PulseMetrics, ReplicaSetInfo, SecretInfo,
+    ServiceAccountInfo, ServiceInfo, ServiceDetail, ServiceEndpoint, ServiceEvent,
     StatefulSetDetail, StatefulSetEvent, StatefulSetInfo,
 };
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
@@ -232,11 +233,85 @@ pub async fn get_services(namespace: Option<String>) -> Result<Vec<ServiceInfo>>
     kubernetes::list_services(&client, namespace.as_deref()).await
 }
 
+// ============ Service Commands ============
+
+#[tauri::command]
+pub async fn get_service_detail(
+    context_name: String,
+    namespace: String,
+    name: String,
+) -> Result<ServiceDetail> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_service_detail(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_service_yaml(
+    context_name: String,
+    namespace: String,
+    name: String,
+) -> Result<String> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_service_yaml(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_service_events(
+    context_name: String,
+    namespace: String,
+    name: String,
+) -> Result<Vec<ServiceEvent>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_service_events(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_service_endpoints(
+    context_name: String,
+    namespace: String,
+    name: String,
+) -> Result<Vec<ServiceEndpoint>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_service_endpoints(&client, &namespace, &name).await
+}
+
 // Network resources
 #[tauri::command]
 pub async fn get_ingresses(namespace: Option<String>) -> Result<Vec<IngressInfo>> {
     let client = kubernetes::create_client().await?;
     kubernetes::list_ingresses(&client, namespace.as_deref()).await
+}
+
+// ============ Ingress Commands ============
+
+#[tauri::command]
+pub async fn get_ingress_detail(
+    context_name: String,
+    namespace: String,
+    name: String,
+) -> Result<IngressDetail> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_ingress_detail(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_ingress_yaml(
+    context_name: String,
+    namespace: String,
+    name: String,
+) -> Result<String> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_ingress_yaml(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_ingress_events(
+    context_name: String,
+    namespace: String,
+    name: String,
+) -> Result<Vec<IngressEvent>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_ingress_events(&client, &namespace, &name).await
 }
 
 #[tauri::command]
@@ -524,4 +599,14 @@ pub fn pty_close(
     session_id: String,
 ) -> std::result::Result<(), String> {
     pty_manager.close_session(&session_id)
+}
+
+// ============ YAML Apply Command ============
+
+#[tauri::command]
+pub async fn apply_yaml(
+    context_name: String,
+    yaml_content: String,
+) -> Result<String> {
+    kubernetes::apply_yaml(&context_name, &yaml_content).await
 }
