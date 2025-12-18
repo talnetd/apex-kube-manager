@@ -2,23 +2,65 @@
 
 A fast, native desktop application for managing Kubernetes clusters. Built with Tauri 2, Svelte 5, and Rust.
 
-<!-- ![Screenshot](./screenshots/dashboard.png) -->
+No Electron. No bundled Chromium. Just a ~15MB native app.
+
+## Download
+
+### macOS
+
+Download the latest release from [GitHub Releases](https://github.com/tinaunglin/apex-kube-manager/releases):
+
+| Chip | File |
+|------|------|
+| Apple Silicon (M1/M2/M3/M4) | `Apex.Kube.Manager_x.x.x_aarch64.dmg` |
+| Intel | `Apex.Kube.Manager_x.x.x_x64.dmg` |
+
+#### macOS Installation
+
+1. Download the `.dmg` file for your chip
+2. Open the DMG and drag **Apex Kube Manager** to your Applications folder
+3. **First launch** (unsigned app):
+   - Right-click the app and select **Open**
+   - Click **Open** in the security dialog
+   - You only need to do this once
+
+Alternatively, bypass Gatekeeper via Terminal:
+```bash
+xattr -cr /Applications/Apex\ Kube\ Manager.app
+```
+
+### Linux
+
+Download `.AppImage` or `.deb` from [GitHub Releases](https://github.com/tinaunglin/apex-kube-manager/releases).
+
+### Windows
+
+Download `.msi` or `.exe` from [GitHub Releases](https://github.com/tinaunglin/apex-kube-manager/releases).
+
+## Requirements
+
+- **kubectl** installed and in your PATH
+- Valid kubeconfig file at `~/.kube/config`
+- For exec-based auth (EKS, GKE, AKS): respective CLI tools installed (aws-cli, gcloud, az)
+
+### Verify kubectl is working
+
+```bash
+kubectl cluster-info
+kubectl get nodes
+```
+
+If these commands work, Apex Kube Manager will work.
 
 ## Features
 
-- **Dashboard (Pulse)** - Real-time cluster overview with resource status and CPU/Memory gauges
-- **17 Resource Types** - Full support for Pods, Deployments, Services, ConfigMaps, Secrets, and more
-- **Pod Terminal** - Exec into pods with shell selection (/bin/sh, /bin/bash, /bin/ash, /bin/zsh)
-- **Pod Logs** - Stream and view container logs
-- **YAML Viewer** - View resource definitions with syntax highlighting
-- **Context Switching** - Switch between multiple Kubernetes clusters
-- **Namespace Filtering** - Global namespace selector across all views
-- **Sortable Tables** - Click column headers to sort resources
-- **Auto-refresh** - 10-second refresh intervals with manual refresh option
-- **Native Performance** - Rust backend with minimal resource usage
+### Cluster Management
+- **One-click context switching** - Simple dropdown, app-wide refresh
+- **Locked detail windows** - Open a pod detail, switch context, the window stays on the original cluster
+- **External kubectx detection** - Switch context via kubectx/terminal, app picks it up automatically
+- **Namespace filtering** - Global selector applies to all views
 
-## Supported Resources
-
+### Resource Views (17 types)
 | Workloads | Network | Config | Storage | Cluster |
 |-----------|---------|--------|---------|---------|
 | Pods | Services | ConfigMaps | PersistentVolumes | Namespaces |
@@ -29,53 +71,68 @@ A fast, native desktop application for managing Kubernetes clusters. Built with 
 | Jobs | | | | |
 | CronJobs | | | | |
 
-## Requirements
+### Pod Operations
+- **Exec terminal** - Shell into pods with selection (/bin/sh, /bin/bash, /bin/ash, /bin/zsh)
+- **Logs viewer** - Stream logs with search, download, previous container logs
+- **Delete pods** - With confirmation
 
-- macOS, Linux, or Windows
-- [kubectl](https://kubernetes.io/docs/tasks/tools/) installed and configured
-- Valid kubeconfig file (`~/.kube/config`)
+### Deployment & StatefulSet Operations
+- **Scale** - Adjust replica count with +/- controls
+- **Restart** - Rolling restart via annotation patch
+- **Detail view** - Overview, managed pods, events, YAML export
 
-## Installation
+### Dashboard (Pulse)
+- Cluster info (context, user, K8s version)
+- Resource status cards (OK/FAIL counts)
+- CPU/Memory capacity gauges
 
-### From Source
+## Usage
+
+1. Launch the app
+2. It will automatically detect your kubeconfig and connect to the current context
+3. Use the **context dropdown** (top-left) to switch clusters
+4. Use the **namespace dropdown** to filter resources
+5. Click any resource row to open its detail view
+6. Use action buttons (Scale, Restart, Logs, Exec) for operations
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Backend | Rust + Tauri 2 |
+| K8s Client | kube-rs (same lib used in Rust k8s controllers) |
+| Frontend | Svelte 5 + TypeScript |
+| Styling | TailwindCSS (custom dark theme) |
+| Terminal | xterm.js + portable-pty |
+
+### How Pod Exec Works
+
+1. App spawns `kubectl exec -it <pod> -- <shell>` via portable-pty
+2. PTY stdin/stdout streams over Tauri IPC channels
+3. xterm.js renders the terminal in the frontend
+4. Result: Native terminal experience, works with any auth method kubectl supports
+
+## Build from Source
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/apex-kube-manager.git
+# Prerequisites
+# - Node.js 18+
+# - Rust 1.70+
+# - Tauri CLI
+
+# Clone
+git clone https://github.com/tinaunglin/apex-kube-manager.git
 cd apex-kube-manager
 
 # Install dependencies
 npm install
 
-# Run in development mode
+# Development (hot-reload)
 npm run tauri dev
 
-# Build for production
+# Production build
 npm run tauri build
-```
-
-### Pre-built Binaries
-
-Coming soon.
-
-## Tech Stack
-
-- **Backend**: Rust + Tauri 2 + kube-rs
-- **Frontend**: Svelte 5 + TypeScript
-- **Styling**: TailwindCSS (dark theme)
-- **Terminal**: xterm.js + portable-pty
-
-## Development
-
-```bash
-# Install dependencies
-npm install
-
-# Start development server (hot-reload)
-npm run tauri dev
-
-# Build production binary
-npm run tauri build
+# Output: src-tauri/target/release/bundle/
 ```
 
 ## Project Structure
@@ -85,19 +142,44 @@ apex-kube-manager/
 ├── src-tauri/           # Rust backend
 │   ├── src/
 │   │   ├── main.rs      # Entry point
-│   │   ├── lib.rs       # App init & commands
+│   │   ├── lib.rs       # App init & command registration
 │   │   ├── commands.rs  # Tauri IPC commands
-│   │   ├── kubernetes.rs # K8s API operations
-│   │   └── pty.rs       # Terminal PTY handling
+│   │   ├── kubernetes.rs # K8s API operations (kube-rs)
+│   │   ├── pty.rs       # Terminal PTY handling
+│   │   └── error.rs     # Error types
 │   └── Cargo.toml
 ├── src/                 # Svelte frontend
 │   ├── lib/
 │   │   ├── components/  # UI components
-│   │   └── stores/      # State management
+│   │   │   ├── views/   # Resource list views
+│   │   │   └── detail/  # Resource detail views
+│   │   └── stores/      # Svelte stores (state)
 │   └── App.svelte
-├── tailwind.config.js
 └── package.json
 ```
+
+## Troubleshooting
+
+### "App is damaged" on macOS
+Run this to remove quarantine flag:
+```bash
+xattr -cr /Applications/Apex\ Kube\ Manager.app
+```
+
+### App doesn't connect to cluster
+1. Verify kubectl works: `kubectl get nodes`
+2. Check kubeconfig path: `echo $KUBECONFIG` or `~/.kube/config`
+3. For EKS/GKE/AKS: ensure CLI tools are in PATH
+
+### Exec terminal doesn't work
+1. Verify kubectl exec works: `kubectl exec -it <pod> -- /bin/sh`
+2. Some minimal images only have `/bin/sh`, not `/bin/bash`
+
+## Looking for Testers
+
+If you use Kubernetes daily and have opinions about how these tools should work, I'd love your feedback.
+
+Open an issue or reach out.
 
 ## License
 
@@ -105,4 +187,4 @@ apex-kube-manager/
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions welcome. Please open an issue first to discuss what you'd like to change.

@@ -4,7 +4,7 @@ use crate::kubernetes::{
     DeploymentEvent, DeploymentInfo, HPAInfo, IngressInfo, JobInfo, KubeContext, NamespaceInfo,
     NetworkPolicyInfo, NodeInfo, PersistentVolumeClaimInfo, PersistentVolumeInfo, PodDetail,
     PodEvent, PodInfo, PulseMetrics, ReplicaSetInfo, SecretInfo, ServiceAccountInfo, ServiceInfo,
-    StatefulSetInfo,
+    StatefulSetDetail, StatefulSetEvent, StatefulSetInfo,
 };
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
@@ -146,6 +146,60 @@ pub async fn get_deployment_pods(
 pub async fn get_statefulsets(namespace: Option<String>) -> Result<Vec<StatefulSetInfo>> {
     let client = kubernetes::create_client().await?;
     kubernetes::list_statefulsets(&client, namespace.as_deref()).await
+}
+
+// ============ StatefulSet Commands ============
+
+#[tauri::command]
+pub async fn scale_statefulset(namespace: String, name: String, replicas: i32) -> Result<()> {
+    let client = kubernetes::create_client().await?;
+    kubernetes::scale_statefulset(&client, &namespace, &name, replicas).await
+}
+
+#[tauri::command]
+pub async fn restart_statefulset(namespace: String, name: String) -> Result<()> {
+    let client = kubernetes::create_client().await?;
+    kubernetes::restart_statefulset(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_statefulset_detail(
+    context_name: String,
+    namespace: String,
+    name: String,
+) -> Result<StatefulSetDetail> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_statefulset_detail(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_statefulset_yaml(
+    context_name: String,
+    namespace: String,
+    name: String,
+) -> Result<String> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_statefulset_yaml(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_statefulset_events(
+    context_name: String,
+    namespace: String,
+    name: String,
+) -> Result<Vec<StatefulSetEvent>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_statefulset_events(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_statefulset_pods(
+    context_name: String,
+    namespace: String,
+    name: String,
+) -> Result<Vec<PodInfo>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_statefulset_pods(&client, &namespace, &name).await
 }
 
 #[tauri::command]

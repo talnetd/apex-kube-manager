@@ -108,6 +108,47 @@ pub struct StatefulSetInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatefulSetDetail {
+    pub name: String,
+    pub namespace: String,
+    pub uid: String,
+    pub creation_timestamp: String,
+    pub labels: std::collections::BTreeMap<String, String>,
+    pub annotations: std::collections::BTreeMap<String, String>,
+    pub replicas: i32,
+    pub ready_replicas: i32,
+    pub current_replicas: i32,
+    pub updated_replicas: i32,
+    pub service_name: String,
+    pub pod_management_policy: String,
+    pub update_strategy: String,
+    pub revision_history_limit: Option<i32>,
+    pub selector: std::collections::BTreeMap<String, String>,
+    pub conditions: Vec<StatefulSetCondition>,
+    pub container_images: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatefulSetCondition {
+    pub condition_type: String,
+    pub status: String,
+    pub reason: Option<String>,
+    pub message: Option<String>,
+    pub last_transition_time: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatefulSetEvent {
+    pub event_type: String,
+    pub reason: String,
+    pub message: String,
+    pub count: i32,
+    pub first_timestamp: Option<String>,
+    pub last_timestamp: Option<String>,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DaemonSetInfo {
     pub name: String,
     pub namespace: String,
@@ -827,6 +868,250 @@ pub async fn list_statefulsets(client: &Client, namespace: Option<&str>) -> Resu
         .collect();
 
     Ok(sts_infos)
+}
+
+// ============ StatefulSet Operations ============
+
+pub async fn scale_statefulset(client: &Client, namespace: &str, name: &str, replicas: i32) -> Result<()> {
+    let statefulsets: Api<StatefulSet> = Api::namespaced(client.clone(), namespace);
+
+    let patch = serde_json::json!({
+        "spec": {
+            "replicas": replicas
+        }
+    });
+
+    statefulsets.patch(name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
+    Ok(())
+}
+
+pub async fn restart_statefulset(client: &Client, namespace: &str, name: &str) -> Result<()> {
+    let statefulsets: Api<StatefulSet> = Api::namespaced(client.clone(), namespace);
+
+    // Rollout restart is done by updating the pod template annotation
+    let now = chrono::Utc::now().to_rfc3339();
+    let patch = serde_json::json!({
+        "spec": {
+            "template": {
+                "metadata": {
+                    "annotations": {
+                        "kubectl.kubernetes.io/restartedAt": now
+                    }
+                }
+            }
+        }
+    });
+
+    statefulsets.patch(name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
+    Ok(())
+}
+
+pub async fn get_statefulset_detail(client: &Client, namespace: &str, name: &str) -> Result<StatefulSetDetail> {
+    let statefulsets: Api<StatefulSet> = Api::namespaced(client.clone(), namespace);
+    let sts = statefulsets.get(name).await?;
+
+    let metadata = &sts.metadata;
+    let spec = sts.spec.as_ref();
+    let status = sts.status.as_ref();
+
+    // Get container images from pod template
+    let container_images = spec
+        .and_then(|s| s.template.spec.as_ref())
+        .map(|ps| {
+            ps.containers
+                .iter()
+                .map(|c| c.image.clone().unwrap_or_default())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    // Get update strategy
+    let update_strategy = spec
+        .and_then(|s| s.update_strategy.as_ref())
+        .and_then(|s| s.type_.as_ref())
+        .cloned()
+        .unwrap_or_else(|| "RollingUpdate".to_string());
+
+    // Get pod management policy
+    let pod_management_policy = spec
+        .and_then(|s| s.pod_management_policy.clone())
+        .unwrap_or_else(|| "OrderedReady".to_string());
+
+    // Get selector labels
+    let selector = spec
+        .and_then(|s| s.selector.match_labels.as_ref())
+        .cloned()
+        .unwrap_or_default();
+
+    // Get conditions
+    let conditions = status
+        .and_then(|s| s.conditions.as_ref())
+        .map(|conds| {
+            conds
+                .iter()
+                .map(|c| StatefulSetCondition {
+                    condition_type: c.type_.clone(),
+                    status: c.status.clone(),
+                    reason: c.reason.clone(),
+                    message: c.message.clone(),
+                    last_transition_time: c.last_transition_time.as_ref().map(|t| t.0.to_rfc3339()),
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Ok(StatefulSetDetail {
+        name: metadata.name.clone().unwrap_or_default(),
+        namespace: metadata.namespace.clone().unwrap_or_default(),
+        uid: metadata.uid.clone().unwrap_or_default(),
+        creation_timestamp: metadata
+            .creation_timestamp
+            .as_ref()
+            .map(|t| t.0.to_rfc3339())
+            .unwrap_or_default(),
+        labels: metadata.labels.clone().unwrap_or_default(),
+        annotations: metadata.annotations.clone().unwrap_or_default(),
+        replicas: spec.and_then(|s| s.replicas).unwrap_or(0),
+        ready_replicas: status.and_then(|s| s.ready_replicas).unwrap_or(0),
+        current_replicas: status.and_then(|s| s.current_replicas).unwrap_or(0),
+        updated_replicas: status.and_then(|s| s.updated_replicas).unwrap_or(0),
+        service_name: spec.map(|s| s.service_name.clone()).unwrap_or_default(),
+        pod_management_policy,
+        update_strategy,
+        revision_history_limit: spec.and_then(|s| s.revision_history_limit),
+        selector,
+        conditions,
+        container_images,
+    })
+}
+
+pub async fn get_statefulset_yaml(client: &Client, namespace: &str, name: &str) -> Result<String> {
+    let statefulsets: Api<StatefulSet> = Api::namespaced(client.clone(), namespace);
+    let sts = statefulsets.get(name).await?;
+    let yaml = serde_yaml::to_string(&sts)
+        .map_err(|e| AppError::Custom(format!("Failed to serialize statefulset to YAML: {}", e)))?;
+    Ok(yaml)
+}
+
+pub async fn get_statefulset_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<StatefulSetEvent>> {
+    use k8s_openapi::api::core::v1::Event;
+
+    let events: Api<Event> = Api::namespaced(client.clone(), namespace);
+    let lp = ListParams::default()
+        .fields(&format!("involvedObject.name={},involvedObject.kind=StatefulSet", name));
+    let event_list = events.list(&lp).await?;
+
+    let sts_events: Vec<StatefulSetEvent> = event_list
+        .items
+        .iter()
+        .map(|e| StatefulSetEvent {
+            event_type: e.type_.clone().unwrap_or_default(),
+            reason: e.reason.clone().unwrap_or_default(),
+            message: e.message.clone().unwrap_or_default(),
+            count: e.count.unwrap_or(1),
+            first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            source: e
+                .source
+                .as_ref()
+                .map(|s| s.component.clone().unwrap_or_default())
+                .unwrap_or_default(),
+        })
+        .collect();
+
+    Ok(sts_events)
+}
+
+pub async fn get_statefulset_pods(client: &Client, namespace: &str, name: &str) -> Result<Vec<PodInfo>> {
+    // First get the statefulset to find its selector
+    let statefulsets: Api<StatefulSet> = Api::namespaced(client.clone(), namespace);
+    let sts = statefulsets.get(name).await?;
+
+    // Get selector labels
+    let selector = sts
+        .spec
+        .as_ref()
+        .and_then(|s| s.selector.match_labels.as_ref())
+        .map(|labels| {
+            labels
+                .iter()
+                .map(|(k, v)| format!("{}={}", k, v))
+                .collect::<Vec<_>>()
+                .join(",")
+        })
+        .unwrap_or_default();
+
+    // List pods with matching labels
+    let pods: Api<Pod> = Api::namespaced(client.clone(), namespace);
+    let lp = ListParams::default().labels(&selector);
+    let pod_list = pods.list(&lp).await?;
+
+    let pod_infos: Vec<PodInfo> = pod_list
+        .items
+        .iter()
+        .map(|pod| {
+            let metadata = &pod.metadata;
+            let status = pod.status.as_ref();
+            let spec = pod.spec.as_ref();
+
+            let phase = status
+                .and_then(|s| s.phase.clone())
+                .unwrap_or_else(|| "Unknown".to_string());
+
+            let container_statuses = status.and_then(|s| s.container_statuses.clone());
+
+            let (ready_count, total_count, restarts) = container_statuses
+                .as_ref()
+                .map(|statuses| {
+                    let total = statuses.len();
+                    let ready = statuses.iter().filter(|s| s.ready).count();
+                    let restarts: i32 = statuses.iter().map(|s| s.restart_count).sum();
+                    (ready, total, restarts)
+                })
+                .unwrap_or((0, 0, 0));
+
+            let containers: Vec<ContainerInfo> = container_statuses
+                .map(|statuses| {
+                    statuses
+                        .iter()
+                        .map(|cs| {
+                            let state = if cs.state.as_ref().and_then(|s| s.running.as_ref()).is_some() {
+                                "Running".to_string()
+                            } else if let Some(waiting) = cs.state.as_ref().and_then(|s| s.waiting.as_ref()) {
+                                waiting.reason.clone().unwrap_or_else(|| "Waiting".to_string())
+                            } else if let Some(terminated) = cs.state.as_ref().and_then(|s| s.terminated.as_ref()) {
+                                terminated.reason.clone().unwrap_or_else(|| "Terminated".to_string())
+                            } else {
+                                "Unknown".to_string()
+                            };
+
+                            ContainerInfo {
+                                name: cs.name.clone(),
+                                image: cs.image.clone(),
+                                ready: cs.ready,
+                                restart_count: cs.restart_count,
+                                state,
+                            }
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            PodInfo {
+                name: metadata.name.clone().unwrap_or_default(),
+                namespace: metadata.namespace.clone().unwrap_or_default(),
+                status: phase,
+                ready: format!("{}/{}", ready_count, total_count),
+                restarts,
+                age: get_age(metadata.creation_timestamp.as_ref()),
+                node: spec.and_then(|s| s.node_name.clone()),
+                ip: status.and_then(|s| s.pod_ip.clone()),
+                containers,
+            }
+        })
+        .collect();
+
+    Ok(pod_infos)
 }
 
 pub async fn list_daemonsets(client: &Client, namespace: Option<&str>) -> Result<Vec<DaemonSetInfo>> {

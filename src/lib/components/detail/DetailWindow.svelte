@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import PodDetail from './PodDetail.svelte';
   import DeploymentDetail from './DeploymentDetail.svelte';
+  import StatefulSetDetail from './StatefulSetDetail.svelte';
 
   // Resource types that can be displayed
   type ResourceType = 'pod' | 'deployment' | 'statefulset' | 'daemonset' | 'replicaset' |
@@ -124,6 +125,12 @@
       />
     {:else if resourceType === 'deployment'}
       <DeploymentDetail
+        context={lockedContext}
+        namespace={lockedNamespace}
+        name={resourceName}
+      />
+    {:else if resourceType === 'statefulset'}
+      <StatefulSetDetail
         context={lockedContext}
         namespace={lockedNamespace}
         name={resourceName}

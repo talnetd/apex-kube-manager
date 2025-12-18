@@ -412,6 +412,16 @@ export async function loadStatefulSets(namespace?: string | null) {
   }
 }
 
+export async function scaleStatefulSet(namespace: string, name: string, replicas: number) {
+  if (!isContextReady()) return;
+  await tauriInvoke('scale_statefulset', { namespace, name, replicas });
+}
+
+export async function restartStatefulSet(namespace: string, name: string) {
+  if (!isContextReady()) return;
+  await tauriInvoke('restart_statefulset', { namespace, name });
+}
+
 export async function loadDaemonSets(namespace?: string | null) {
   if (!isContextReady()) return;
   try {

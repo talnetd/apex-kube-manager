@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { invoke } from '@tauri-apps/api/core';
   import SortableHeader from '../ui/SortableHeader.svelte';
   import { sortData, toggleSort, type SortState } from '../../utils/sort';
   import {
@@ -8,6 +9,7 @@
     currentContext,
     refreshTrigger,
     loadStatefulSets,
+    type StatefulSetInfo,
   } from '../../stores/kubernetes';
 
   let sort = $state<SortState>({ field: 'name', direction: 'asc' });
@@ -17,6 +19,15 @@
   function handleSort(field: string) {
     sort = toggleSort(sort, field);
   }
+
+  // Scale modal state
+  let showScaleModal = $state<boolean>(false);
+  let scaleTarget = $state<StatefulSetInfo | null>(null);
+  let scaleReplicas = $state<number>(0);
+  let isScaling = $state<boolean>(false);
+
+  // Restart state
+  let restartingStatefulSet = $state<string | null>(null);
 
   onMount(() => {
     loadStatefulSets($selectedNamespace);
@@ -30,6 +41,67 @@
     if (!ctx) return;
     loadStatefulSets($selectedNamespace);
   });
+
+  async function openStatefulSetDetail(sts: StatefulSetInfo) {
+    try {
+      await invoke('open_resource_detail', {
+        resourceType: 'statefulset',
+        name: sts.name,
+        namespace: sts.namespace,
+        context: $currentContext,
+      });
+    } catch (e) {
+      console.error('Failed to open statefulset detail:', e);
+    }
+  }
+
+  function openScaleModal(sts: StatefulSetInfo, e: Event) {
+    e.stopPropagation();
+    scaleTarget = sts;
+    scaleReplicas = sts.replicas;
+    showScaleModal = true;
+  }
+
+  async function handleScale() {
+    if (!scaleTarget) return;
+
+    try {
+      isScaling = true;
+      await invoke('scale_statefulset', {
+        namespace: scaleTarget.namespace,
+        name: scaleTarget.name,
+        replicas: scaleReplicas
+      });
+      showScaleModal = false;
+      scaleTarget = null;
+      await loadStatefulSets($selectedNamespace);
+    } catch (e) {
+      alert(`Failed to scale: ${e}`);
+    } finally {
+      isScaling = false;
+    }
+  }
+
+  async function handleRestart(sts: StatefulSetInfo, e: Event) {
+    e.stopPropagation();
+
+    if (!confirm(`Are you sure you want to restart statefulset "${sts.name}"?`)) {
+      return;
+    }
+
+    try {
+      restartingStatefulSet = sts.name;
+      await invoke('restart_statefulset', {
+        namespace: sts.namespace,
+        name: sts.name
+      });
+      await loadStatefulSets($selectedNamespace);
+    } catch (e) {
+      alert(`Failed to restart: ${e}`);
+    } finally {
+      restartingStatefulSet = null;
+    }
+  }
 
   function getReadyStatus(ready: string): 'healthy' | 'degraded' | 'down' {
     const [current, total] = ready.split('/').map(Number);
@@ -63,7 +135,10 @@
       <tbody>
         {#each sortedData as sts}
           {@const status = getReadyStatus(sts.ready)}
-          <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer">
+          <tr
+            class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer"
+            onclick={() => openStatefulSetDetail(sts)}
+          >
             <td class="py-3 pr-2">
               <div class="w-2 h-2 rounded-full {status === 'healthy' ? 'bg-accent-success' : status === 'degraded' ? 'bg-accent-warning' : 'bg-accent-error'}"></div>
             </td>
@@ -88,6 +163,7 @@
             <td class="py-3">
               <div class="flex items-center gap-1">
                 <button
+                  onclick={(e) => openScaleModal(sts, e)}
                   class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors"
                   title="Scale"
                 >
@@ -96,10 +172,12 @@
                   </svg>
                 </button>
                 <button
-                  class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-warning transition-colors"
+                  onclick={(e) => handleRestart(sts, e)}
+                  disabled={restartingStatefulSet === sts.name}
+                  class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-warning transition-colors disabled:opacity-50"
                   title="Restart"
                 >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="w-4 h-4 {restartingStatefulSet === sts.name ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
                 </button>
@@ -122,3 +200,54 @@
     {/if}
   </div>
 </div>
+
+<!-- Scale Modal -->
+{#if showScaleModal && scaleTarget}
+  <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-bg-secondary rounded-lg p-6 w-96 shadow-xl">
+      <h3 class="text-lg font-semibold text-text-primary mb-4">Scale StatefulSet</h3>
+      <p class="text-sm text-text-secondary mb-4">
+        Set the number of replicas for <span class="text-accent-primary">{scaleTarget.name}</span>
+      </p>
+      <div class="flex items-center justify-center gap-3 mb-6">
+        <button
+          onclick={() => scaleReplicas = Math.max(0, scaleReplicas - 1)}
+          class="w-12 h-12 rounded-lg bg-bg-tertiary hover:bg-accent-error/20 hover:text-accent-error border border-border-subtle text-text-primary transition-colors flex items-center justify-center"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
+          </svg>
+        </button>
+        <input
+          type="number"
+          bind:value={scaleReplicas}
+          min="0"
+          class="w-24 text-center text-3xl font-bold bg-bg-primary border border-border-subtle rounded-lg py-3 text-text-primary focus:outline-none focus:border-accent-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        />
+        <button
+          onclick={() => scaleReplicas++}
+          class="w-12 h-12 rounded-lg bg-bg-tertiary hover:bg-accent-success/20 hover:text-accent-success border border-border-subtle text-text-primary transition-colors flex items-center justify-center"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+        </button>
+      </div>
+      <div class="flex justify-end gap-3">
+        <button
+          onclick={() => { showScaleModal = false; scaleTarget = null; }}
+          class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          onclick={handleScale}
+          disabled={isScaling}
+          class="px-4 py-2 text-sm bg-accent-primary text-white rounded hover:bg-accent-primary/90 transition-colors disabled:opacity-50"
+        >
+          {isScaling ? 'Scaling...' : 'Scale'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
