@@ -16,11 +16,14 @@
     isLoading,
   } from '../../stores/kubernetes';
   import type { PodInfo } from '../../stores/kubernetes';
+  import { filterBySearch } from '../../stores/search';
+  import ViewFilter from '../ui/ViewFilter.svelte';
 
   let activeFilter = $state('all');
   let showDeleteConfirm = $state(false);
   let podToDelete = $state<PodInfo | null>(null);
   let sort = $state<SortState>({ field: 'name', direction: 'asc' });
+  let filterQuery = $state('');
 
   const filters = $derived([
     { id: 'all', label: 'All', count: $podsByStatus.all.length },
@@ -44,7 +47,9 @@
       default:
         data = $podsByStatus.all;
     }
-    return sortData(data, sort.field, sort.direction);
+    // Apply text search filter
+    const searched = filterBySearch(data, filterQuery, ['name', 'namespace', 'status', 'node']);
+    return sortData(searched, sort.field, sort.direction);
   });
 
   function handleSort(field: string) {
@@ -97,20 +102,24 @@
   <div class="px-6 py-4 border-b border-border-subtle">
     <div class="flex items-center justify-between">
       <h1 class="text-xl font-semibold text-text-primary">Pods</h1>
-      <!-- Filter Pills -->
-      <div class="flex items-center gap-1">
-        {#each filters as filter}
-          <button
-            onclick={() => activeFilter = filter.id}
-            class="px-2.5 py-1 text-sm rounded-md transition-colors
-              {activeFilter === filter.id
-                ? 'bg-accent-primary/20 text-accent-primary border border-accent-primary/30'
-                : 'bg-bg-tertiary text-text-secondary hover:text-text-primary border border-transparent'}"
-          >
-            {filter.label}
-            <span class="ml-1 text-xs opacity-70">({filter.count})</span>
-          </button>
-        {/each}
+      <div class="flex items-center gap-3">
+        <!-- Filter Pills -->
+        <div class="flex items-center gap-1">
+          {#each filters as filter}
+            <button
+              onclick={() => activeFilter = filter.id}
+              class="px-2.5 py-1 text-sm rounded-md transition-colors
+                {activeFilter === filter.id
+                  ? 'bg-accent-primary/20 text-accent-primary border border-accent-primary/30'
+                  : 'bg-bg-tertiary text-text-secondary hover:text-text-primary border border-transparent'}"
+            >
+              {filter.label}
+              <span class="ml-1 text-xs opacity-70">({filter.count})</span>
+            </button>
+          {/each}
+        </div>
+        <!-- Text Filter -->
+        <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter pods..." />
       </div>
     </div>
   </div>

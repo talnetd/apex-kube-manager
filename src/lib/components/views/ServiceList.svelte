@@ -11,10 +11,16 @@
     refreshTrigger,
     loadServices,
   } from '../../stores/kubernetes';
+  import { filterBySearch } from '../../stores/search';
+  import ViewFilter from '../ui/ViewFilter.svelte';
 
   let sort = $state<SortState>({ field: 'name', direction: 'asc' });
+  let filterQuery = $state('');
 
-  const sortedData = $derived(sortData($services, sort.field, sort.direction));
+  const sortedData = $derived(() => {
+    const filtered = filterBySearch($services, filterQuery, ['name', 'namespace', 'service_type', 'cluster_ip']);
+    return sortData(filtered, sort.field, sort.direction);
+  });
 
   function handleSort(field: string) {
     sort = toggleSort(sort, field);
@@ -63,7 +69,10 @@
 <div class="h-full flex flex-col overflow-hidden">
   <!-- Toolbar -->
   <div class="px-6 py-4 border-b border-border-subtle">
-    <h1 class="text-xl font-semibold text-text-primary">Services</h1>
+    <div class="flex items-center justify-between">
+      <h1 class="text-xl font-semibold text-text-primary">Services</h1>
+      <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter services..." />
+    </div>
   </div>
 
   <!-- Table -->
@@ -82,7 +91,7 @@
         </tr>
       </thead>
       <tbody>
-        {#each sortedData as service}
+        {#each sortedData() as service}
           <tr
             class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer"
             onclick={() => openServiceDetail(service)}
@@ -122,7 +131,7 @@
       </tbody>
     </table>
 
-    {#if sortedData.length === 0}
+    {#if sortedData().length === 0}
       <div class="flex items-center justify-center h-48">
         <div class="text-center">
           <svg class="w-12 h-12 text-text-muted mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

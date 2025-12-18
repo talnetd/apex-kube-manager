@@ -15,10 +15,14 @@
     startContextPolling,
     stopContextPolling,
   } from '../stores/kubernetes';
+  import { searchQuery, globalSearchOpen } from '../stores/search';
 
-  let searchQuery = $state('');
   let showContextDropdown = $state(false);
   let showNamespaceDropdown = $state(false);
+
+  function openGlobalSearch() {
+    globalSearchOpen.set(true);
+  }
 
   onMount(async () => {
     await loadContexts();
@@ -194,20 +198,20 @@
   <div class="flex-1"></div>
 
   <!-- Search -->
-  <div class="relative">
+  <button
+    type="button"
+    onclick={openGlobalSearch}
+    class="relative flex items-center w-56 pl-9 pr-4 py-1.5 bg-bg-tertiary border border-border-subtle rounded-lg text-sm text-text-muted hover:border-accent-primary transition-colors cursor-pointer"
+  >
     <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
     </svg>
-    <input
-      type="text"
-      bind:value={searchQuery}
-      placeholder="Search resources..."
-      class="w-56 pl-9 pr-4 py-1.5 bg-bg-tertiary border border-border-subtle rounded-lg text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent-primary transition-colors"
-    />
-    <kbd class="absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 bg-bg-secondary border border-border-subtle rounded text-xs text-text-muted">
-      /
-    </kbd>
-  </div>
+    <span>Search resources...</span>
+    <div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+      <kbd class="px-1 py-0.5 bg-bg-secondary border border-border-subtle rounded text-xs">⌘</kbd>
+      <kbd class="px-1.5 py-0.5 bg-bg-secondary border border-border-subtle rounded text-xs">K</kbd>
+    </div>
+  </button>
 
   <!-- Refresh Button -->
   <button

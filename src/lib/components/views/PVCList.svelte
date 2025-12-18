@@ -4,8 +4,11 @@
   import SortableHeader from '../ui/SortableHeader.svelte';
   import { sortData, toggleSort, type SortState } from '../../utils/sort';
   import { pvcs, selectedNamespace, currentContext, refreshTrigger, loadPVCs } from '../../stores/kubernetes';
+  import { filterBySearch } from '../../stores/search';
+  import ViewFilter from '../ui/ViewFilter.svelte';
 
   let sort = $state<SortState>({ field: 'name', direction: 'asc' });
+  let filterQuery = $state('');
 
   async function openDetail(pvc: { name: string; namespace: string }) {
     try {
@@ -20,7 +23,10 @@
     }
   }
 
-  const sortedData = $derived(sortData($pvcs, sort.field, sort.direction));
+  const sortedData = $derived(() => {
+    const filtered = filterBySearch($pvcs, filterQuery, ['name', 'namespace', 'status', 'volume']);
+    return sortData(filtered, sort.field, sort.direction);
+  });
 
   function handleSort(field: string) {
     sort = toggleSort(sort, field);
@@ -52,7 +58,10 @@
 <div class="h-full flex flex-col overflow-hidden">
   <!-- Toolbar -->
   <div class="px-6 py-4 border-b border-border-subtle">
-    <h1 class="text-xl font-semibold text-text-primary">Persistent Volume Claims</h1>
+    <div class="flex items-center justify-between">
+      <h1 class="text-xl font-semibold text-text-primary">Persistent Volume Claims</h1>
+      <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter claims..." />
+    </div>
   </div>
 
   <!-- Table -->
@@ -72,7 +81,7 @@
         </tr>
       </thead>
       <tbody>
-        {#each sortedData as pvc}
+        {#each sortedData() as pvc}
           {@const statusDot = pvc.status === 'Bound' ? 'bg-accent-success' : pvc.status === 'Pending' ? 'bg-accent-warning' : 'bg-accent-error'}
           <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer" onclick={() => openDetail(pvc)}>
             <td class="py-3 pr-2">
@@ -107,7 +116,7 @@
       </tbody>
     </table>
 
-    {#if sortedData.length === 0}
+    {#if sortedData().length === 0}
       <div class="flex items-center justify-center h-48">
         <div class="text-center">
           <svg class="w-12 h-12 text-text-muted mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -4,8 +4,11 @@
   import SortableHeader from '../ui/SortableHeader.svelte';
   import { sortData, toggleSort, type SortState } from '../../utils/sort';
   import { hpas, selectedNamespace, currentContext, refreshTrigger, loadHPAs } from '../../stores/kubernetes';
+  import { filterBySearch } from '../../stores/search';
+  import ViewFilter from '../ui/ViewFilter.svelte';
 
   let sort = $state<SortState>({ field: 'name', direction: 'asc' });
+  let filterQuery = $state('');
 
   async function openDetail(hpa: { name: string; namespace: string }) {
     try {
@@ -20,7 +23,10 @@
     }
   }
 
-  const sortedData = $derived(sortData($hpas, sort.field, sort.direction));
+  const sortedData = $derived(() => {
+    const filtered = filterBySearch($hpas, filterQuery, ['name', 'namespace', 'reference']);
+    return sortData(filtered, sort.field, sort.direction);
+  });
 
   function handleSort(field: string) {
     sort = toggleSort(sort, field);
@@ -43,7 +49,10 @@
 <div class="h-full flex flex-col overflow-hidden">
   <!-- Toolbar -->
   <div class="px-6 py-4 border-b border-border-subtle">
-    <h1 class="text-xl font-semibold text-text-primary">Horizontal Pod Autoscalers</h1>
+    <div class="flex items-center justify-between">
+      <h1 class="text-xl font-semibold text-text-primary">Horizontal Pod Autoscalers</h1>
+      <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter HPAs..." />
+    </div>
   </div>
 
   <!-- Table -->
@@ -62,7 +71,7 @@
         </tr>
       </thead>
       <tbody>
-        {#each sortedData as hpa}
+        {#each sortedData() as hpa}
           <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer" onclick={() => openDetail(hpa)}>
             <td class="py-3 pr-2">
               <div class="w-2 h-2 rounded-full bg-accent-success"></div>
@@ -93,7 +102,7 @@
       </tbody>
     </table>
 
-    {#if sortedData.length === 0}
+    {#if sortedData().length === 0}
       <div class="flex items-center justify-center h-48">
         <div class="text-center">
           <svg class="w-12 h-12 text-text-muted mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

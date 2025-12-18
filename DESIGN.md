@@ -1034,3 +1034,167 @@ This makes the PodList toolbar height consistent with other views that don't hav
 4. **Semantic hover colors**: Action buttons change to colors that match their intent (red for delete, green for trigger, amber for restart).
 
 5. **Compact filter pills**: Reduced padding keeps toolbar height consistent whether or not filters are present.
+
+---
+
+## Session: December 2025 - Unified Resource Detail Views
+
+### Problem
+
+Initial implementation had 18 separate detail view components (one per resource type), resulting in:
+- ~18,000 lines of duplicated code
+- Inconsistent patterns between components
+- Maintenance burden for UI changes
+- Large bundle size (~672KB for detail chunk)
+
+### Solution: Unified ResourceDetail Component
+
+Created a single `ResourceDetail.svelte` component (~1100 lines) that handles 15 resource types dynamically.
+
+#### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     DetailWindow.svelte                          │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │ Route by resourceType:                                      │ │
+│  │  - 'pod' → PodDetail.svelte (logs, exec, containers)       │ │
+│  │  - 'deployment' → DeploymentDetail.svelte (scale, restart) │ │
+│  │  - 'statefulset' → StatefulSetDetail.svelte (scale, restart)│ │
+│  │  - All others → ResourceDetail.svelte                       │ │
+│  └────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Config-Driven Design
+
+```typescript
+const resourceConfig: Record<ResourceType, ResourceConfig> = {
+  daemonset:      { displayName: 'DaemonSet',         tabs: ['overview', 'pods', 'events', 'yaml'] },
+  replicaset:     { displayName: 'ReplicaSet',        tabs: ['overview', 'pods', 'events', 'yaml'] },
+  job:            { displayName: 'Job',               tabs: ['overview', 'pods', 'events', 'yaml'] },
+  cronjob:        { displayName: 'CronJob',           tabs: ['overview', 'events', 'yaml'] },
+  service:        { displayName: 'Service',           tabs: ['overview', 'events', 'yaml'] },
+  ingress:        { displayName: 'Ingress',           tabs: ['overview', 'events', 'yaml'] },
+  configmap:      { displayName: 'ConfigMap',         tabs: ['overview', 'data', 'events', 'yaml'] },
+  secret:         { displayName: 'Secret',            tabs: ['overview', 'data', 'events', 'yaml'] },
+  networkpolicy:  { displayName: 'NetworkPolicy',     tabs: ['overview', 'ingress', 'egress', 'events', 'yaml'] },
+  hpa:            { displayName: 'HPA',               tabs: ['overview', 'metrics', 'events', 'yaml'] },
+  pv:             { displayName: 'PersistentVolume',  tabs: ['overview', 'events', 'yaml'], clusterScoped: true },
+  pvc:            { displayName: 'PersistentVolumeClaim', tabs: ['overview', 'events', 'yaml'] },
+  namespace:      { displayName: 'Namespace',         tabs: ['overview', 'events', 'yaml'], clusterScoped: true },
+  node:           { displayName: 'Node',              tabs: ['overview', 'pods', 'resources', 'events', 'yaml'], clusterScoped: true },
+  serviceaccount: { displayName: 'ServiceAccount',    tabs: ['overview', 'events', 'yaml'] },
+};
+```
+
+#### Dynamic Backend Calls
+
+Uses template literal pattern for dynamic command invocation:
+```typescript
+// Instead of: invoke('get_configmap_detail', params)
+// Generic:    invoke(`get_${resourceType}_detail`, getInvokeParams())
+
+function getInvokeParams() {
+  const config = resourceConfig[resourceType];
+  if (config?.clusterScoped) {
+    return { contextName: context, name };  // No namespace
+  }
+  return { contextName: context, namespace, name };
+}
+```
+
+#### Tab Content Strategy
+
+| Tab | Content Source | Notes |
+|-----|---------------|-------|
+| Overview | `detail` state | Conditional blocks per resourceType |
+| Pods | `pods` state | For workloads + nodes |
+| Data | `detail.data` / `secretData` | ConfigMaps direct, Secrets on-demand |
+| Events | `events` state | Shared EventsTable component |
+| YAML | `yaml` state | Shared YamlEditorPanel component |
+| Ingress/Egress | `detail.ingress_rules/egress_rules` | NetworkPolicy only |
+| Metrics | `detail.metrics` | HPA only |
+| Resources | `detail.capacity/allocatable` | Node only |
+
+### Shared UI Components
+
+Extracted reusable components to reduce duplication:
+
+| Component | Props | Usage |
+|-----------|-------|-------|
+| `EventsTable.svelte` | `events, resourceType, isLoading, isDeleted, onRefresh` | All detail views |
+| `YamlEditorPanel.svelte` | `yaml, resourceType, name, isDeleted` | All detail views |
+| `MetadataSection.svelte` | `labels, annotations` | All detail views |
+| `ConditionsTable.svelte` | `conditions` | Most detail views |
+
+### EventsTable Redesign
+
+Original EventsTable used tabular layout. PodDetail used card-based layout.
+
+**Unified to card-based design:**
+```
+┌──────────────────────────────────────────────────────────────┐
+│ Service Events                                    [↻ Refresh]│
+├──────────────────────────────────────────────────────────────┤
+│ ┌─────────────────────────────────────────────────────────┐  │
+│ │ [Normal]  Scheduled  ×3           2m ago                │  │
+│ │ Successfully assigned default/nginx to node-1           │  │
+│ │ Source: default-scheduler                               │  │
+│ └─────────────────────────────────────────────────────────┘  │
+│ ┌─────────────────────────────────────────────────────────┐  │
+│ │ [Warning] FailedMount  ×1         5m ago                │  │
+│ │ Unable to attach or mount volumes...                    │  │
+│ │ Source: kubelet                                         │  │
+│ └─────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Results
+
+| Metric | Before | After | Improvement |
+|--------|--------|-------|-------------|
+| Detail components | 18 files | 5 files | -13 files |
+| Total lines | ~18,000 | ~3,500 | ~80% reduction |
+| Bundle size (detail chunk) | 672KB | 561KB | ~17% smaller |
+| Patterns to maintain | 18 | 1 | Unified |
+
+### Design Decisions
+
+1. **Keep 3 components separate**: Pod, Deployment, StatefulSet have complex features (logs, exec, scaling, restart) that would bloat the unified component.
+
+2. **Config object over switch statements**: Easier to add new resources, clearer at-a-glance view of capabilities.
+
+3. **Dynamic invoke over explicit mappings**: Template literals `get_${type}_detail` reduce boilerplate while maintaining type safety via TypeScript.
+
+4. **Conditional rendering per resource**: `{#if resourceType === 'xxx'}` blocks within unified component keeps resource-specific UI co-located.
+
+5. **clusterScoped flag**: Simple boolean flag cleaner than separate routing logic for PV/Namespace/Node.
+
+### Files Changed
+
+**Added:**
+- `src/lib/components/detail/ResourceDetail.svelte` - Unified component
+
+**Modified:**
+- `src/lib/components/detail/DetailWindow.svelte` - Simplified routing
+- `src/lib/components/ui/EventsTable.svelte` - Rewritten to card-based style
+- All 17 list views - Added click handlers for detail windows
+
+**Deleted:**
+- 15 individual detail components (ConfigMapDetail, SecretDetail, JobDetail, etc.)
+
+---
+
+## Resolved: Resource Detail Phased Rollout
+
+**Original plan** (from earlier in this doc):
+- Phase 1: Pods
+- Phase 2: Deployments, StatefulSets, DaemonSets
+- Phase 3: Other resources
+
+**Actual implementation**: All 18 resource types implemented in two sessions.
+- Session 1: Backend commands + individual components for all types
+- Session 2: Consolidated to unified ResourceDetail component
+
+**Decision**: Skip phased rollout, implement all at once with unified architecture from the start for consistency.

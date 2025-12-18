@@ -34,7 +34,13 @@ apex-kube-manager/
 │   │   │   ├── Terminal.svelte  # xterm.js pod exec terminal
 │   │   │   ├── LogViewer.svelte # Pod logs viewer with auto-refresh
 │   │   │   ├── ui/              # Reusable UI components
-│   │   │   └── views/           # All resource listing views (20+ components)
+│   │   │   ├── views/           # All resource listing views (17 components)
+│   │   │   └── detail/          # Resource detail window components
+│   │   │       ├── DetailWindow.svelte    # Window shell + router
+│   │   │       ├── ResourceDetail.svelte  # Unified component for 15 resource types
+│   │   │       ├── PodDetail.svelte       # Pod detail (logs, exec, containers)
+│   │   │       ├── DeploymentDetail.svelte # Deployment detail (scale, restart)
+│   │   │       └── StatefulSetDetail.svelte # StatefulSet detail (scale, restart)
 │   │   └── stores/
 │   │       ├── startup.ts       # App initialization state
 │   │       ├── kubernetes.ts    # All K8s state (contexts, all resources, metrics)
@@ -201,9 +207,37 @@ All commands defined in `src-tauri/src/commands.rs`:
 ### Pod Operations
 | Command | Parameters | Returns |
 |---------|------------|---------|
-| `get_pod_logs` | `namespace, pod_name, container?, tail_lines?` | `String` |
+| `get_pod_logs` | `namespace, pod_name, container?, tail_lines?, previous?` | `String` |
 | `delete_pod` | `namespace, pod_name` | `()` |
 | `exec_pod` | `namespace, pod_name, container?` | `String` (placeholder) |
+
+### Resource Detail Commands
+All resources have detail/yaml/events commands following this pattern:
+
+| Pattern | Parameters | Returns |
+|---------|------------|---------|
+| `get_{resource}_detail` | `context_name, namespace?, name` | `{Resource}Detail` |
+| `get_{resource}_yaml` | `context_name, namespace?, name` | `String` |
+| `get_{resource}_events` | `context_name, namespace?, name` | `Vec<{Resource}Event>` |
+
+Resources with related pods also have:
+| Command | Parameters | Returns |
+|---------|------------|---------|
+| `get_{resource}_pods` | `context_name, namespace?, {resource}Name` | `Vec<PodInfo>` |
+
+**Supported resources**: pod, deployment, statefulset, daemonset, replicaset, job, cronjob, service, ingress, configmap, secret, networkpolicy, hpa, pv, pvc, namespace, node, serviceaccount
+
+**Cluster-scoped resources** (no namespace param): pv, namespace, node
+
+**Additional commands**:
+| Command | Parameters | Returns |
+|---------|------------|---------|
+| `scale_deployment` | `namespace, name, replicas` | `()` |
+| `restart_deployment` | `namespace, name` | `()` |
+| `scale_statefulset` | `namespace, name, replicas` | `()` |
+| `restart_statefulset` | `namespace, name` | `()` |
+| `get_secret_data` | `context_name, namespace, name` | `HashMap<String, String>` |
+| `open_resource_detail` | `context_name, resourceType, namespace, name` | `()` |
 
 ## Frontend Stores (src/lib/stores/)
 
@@ -300,6 +334,45 @@ colors: {
 </script>
 ```
 
+### Resource Detail Architecture
+
+Detail views open in new windows via `open_resource_detail` command.
+
+**Routing** (`DetailWindow.svelte`):
+- 3 special cases: Pod, Deployment, StatefulSet (complex features)
+- 15 unified cases: Use `ResourceDetail.svelte` component
+
+**ResourceDetail.svelte** - Unified component handling 15 resource types:
+```typescript
+// Config-driven tabs per resource type
+const resourceConfig: Record<ResourceType, ResourceConfig> = {
+  daemonset: { displayName: 'DaemonSet', tabs: ['overview', 'pods', 'events', 'yaml'] },
+  service: { displayName: 'Service', tabs: ['overview', 'events', 'yaml'] },
+  configmap: { displayName: 'ConfigMap', tabs: ['overview', 'data', 'events', 'yaml'] },
+  node: { displayName: 'Node', tabs: ['overview', 'pods', 'resources', 'events', 'yaml'], clusterScoped: true },
+  // ... 11 more
+};
+
+// Dynamic backend calls via template literals
+const detail = await invoke(`get_${resourceType}_detail`, getInvokeParams());
+const yaml = await invoke(`get_${resourceType}_yaml`, getInvokeParams());
+const events = await invoke(`get_${resourceType}_events`, getInvokeParams());
+```
+
+**Key patterns**:
+- `clusterScoped: true` flag omits namespace from invoke params
+- Conditional `{#if resourceType === 'xxx'}` blocks for resource-specific UI
+- Shared tabs: overview, events, yaml
+- Resource-specific tabs: pods, data, ingress/egress, metrics, resources
+
+**Shared UI Components** (`src/lib/components/ui/`):
+| Component | Purpose |
+|-----------|---------|
+| `YamlEditorPanel.svelte` | YAML viewer with copy button |
+| `EventsTable.svelte` | Card-based events display with refresh |
+| `MetadataSection.svelte` | Labels + Annotations grid |
+| `ConditionsTable.svelte` | Resource conditions table |
+
 ## Implementation Status
 
 ### Completed
@@ -309,18 +382,20 @@ colors: {
 - [x] Pulse dashboard with OK:FAIL metrics
 - [x] CPU/Memory animated gauges
 - [x] Categorized sidebar navigation
-- [x] Pod logs viewer
+- [x] Pod logs viewer (with search, download, previous logs)
 - [x] Pod deletion
 - [x] Status indicators (colored dots, badges)
 - [x] Auto-refresh (10s intervals)
-- [x] Resource detail panels (Pod, Deployment, StatefulSet, Service, Ingress)
-- [x] Shared YamlEditorPanel component (UI ready, editing broken)
+- [x] Resource detail panels for all 18 resource types
+- [x] Unified ResourceDetail component (handles 15 types)
+- [x] Shared UI components (YamlEditorPanel, EventsTable, MetadataSection, ConditionsTable)
+- [x] Click-to-open detail from all list views
+- [x] Deployment scaling and restart
+- [x] StatefulSet scaling and restart
+- [x] Secret data reveal/hide toggle
 
 ### TODO (Next Features)
 - [ ] Pod exec WebSocket streaming (xterm.js ready)
-- [ ] Resource detail panels for remaining types (ConfigMap, Secret, Job, CronJob, etc.)
-- [ ] Deployment scaling
-- [ ] Deployment/StatefulSet restart
 - [ ] Fix YAML editor - typing/editing not working in CodeMirror (YamlEditorPanel.svelte)
 - [ ] Real-time watch streams (K8s watch API)
 - [ ] Search/filter within tables
