@@ -1,15 +1,23 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  // Complex components with special features (logs, exec, scaling)
   import PodDetail from './PodDetail.svelte';
   import DeploymentDetail from './DeploymentDetail.svelte';
   import StatefulSetDetail from './StatefulSetDetail.svelte';
-  import ServiceDetail from './ServiceDetail.svelte';
-  import IngressDetail from './IngressDetail.svelte';
+  // Unified component for all other resource types
+  import ResourceDetail from './ResourceDetail.svelte';
 
   // Resource types that can be displayed
   type ResourceType = 'pod' | 'deployment' | 'statefulset' | 'daemonset' | 'replicaset' |
                       'job' | 'cronjob' | 'service' | 'ingress' | 'configmap' | 'secret' |
                       'pv' | 'pvc' | 'node' | 'namespace' | 'serviceaccount' | 'hpa' | 'networkpolicy';
+
+  // Resource types that use the unified ResourceDetail component
+  const unifiedResourceTypes = new Set<ResourceType>([
+    'daemonset', 'replicaset', 'job', 'cronjob', 'service', 'ingress',
+    'configmap', 'secret', 'networkpolicy', 'hpa', 'pv', 'pvc',
+    'namespace', 'node', 'serviceaccount'
+  ]);
 
   // Locked context from URL params - never changes after mount
   let lockedContext = $state<string>('');
@@ -119,6 +127,7 @@
           <p class="text-text-muted">Loading...</p>
         </div>
       </div>
+    <!-- Special components with complex features -->
     {:else if resourceType === 'pod'}
       <PodDetail
         context={lockedContext}
@@ -137,20 +146,16 @@
         namespace={lockedNamespace}
         name={resourceName}
       />
-    {:else if resourceType === 'service'}
-      <ServiceDetail
-        context={lockedContext}
-        namespace={lockedNamespace}
-        name={resourceName}
-      />
-    {:else if resourceType === 'ingress'}
-      <IngressDetail
+    <!-- Unified component for all other resource types -->
+    {:else if unifiedResourceTypes.has(resourceType)}
+      <ResourceDetail
+        resourceType={resourceType}
         context={lockedContext}
         namespace={lockedNamespace}
         name={resourceName}
       />
     {:else}
-      <!-- Placeholder for other resource types -->
+      <!-- Fallback for unknown resource types -->
       <div class="flex items-center justify-center h-full">
         <div class="text-center">
           <svg class="w-16 h-16 text-text-muted mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

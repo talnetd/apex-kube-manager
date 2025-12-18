@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { invoke } from '@tauri-apps/api/core';
   import SortableHeader from '../ui/SortableHeader.svelte';
   import { sortData, toggleSort, type SortState } from '../../utils/sort';
   import {
@@ -11,6 +12,19 @@
   } from '../../stores/kubernetes';
 
   let sort = $state<SortState>({ field: 'name', direction: 'asc' });
+
+  async function openDetail(job: { name: string; namespace: string }) {
+    try {
+      await invoke('open_resource_detail', {
+        resourceType: 'job',
+        name: job.name,
+        namespace: job.namespace,
+        context: $currentContext
+      });
+    } catch (e) {
+      console.error('Failed to open detail:', e);
+    }
+  }
 
   const sortedData = $derived(sortData($jobs, sort.field, sort.direction));
 
@@ -81,7 +95,7 @@
       </thead>
       <tbody>
         {#each sortedData as job}
-          <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer">
+          <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer" onclick={() => openDetail(job)}>
             <td class="py-3 pr-2">
               <div class="w-2 h-2 rounded-full {getStatusDot(job.status)}"></div>
             </td>

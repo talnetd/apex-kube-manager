@@ -1,10 +1,22 @@
 use crate::error::Result;
 use crate::kubernetes::{
-    self, ClusterMetrics, ConfigMapInfo, CronJobInfo, DaemonSetInfo, DeploymentDetail,
-    DeploymentEvent, DeploymentInfo, HPAInfo, IngressInfo, IngressDetail, IngressEvent,
-    JobInfo, KubeContext, NamespaceInfo, NetworkPolicyInfo, NodeInfo, PersistentVolumeClaimInfo,
-    PersistentVolumeInfo, PodDetail, PodEvent, PodInfo, PulseMetrics, ReplicaSetInfo, SecretInfo,
-    ServiceAccountInfo, ServiceInfo, ServiceDetail, ServiceEndpoint, ServiceEvent,
+    self, ClusterMetrics, ConfigMapInfo, ConfigMapDetail, ConfigMapEvent,
+    CronJobInfo, CronJobDetail, CronJobEvent,
+    DaemonSetInfo, DaemonSetDetail, DaemonSetCondition, DaemonSetEvent,
+    DeploymentDetail, DeploymentEvent, DeploymentInfo,
+    HPAInfo, HPADetail, HPAMetric, HPACondition, HPAEvent,
+    IngressInfo, IngressDetail, IngressEvent,
+    JobInfo, JobDetail, JobCondition, JobEvent,
+    KubeContext, NamespaceInfo, NamespaceDetail, NamespaceCondition, NamespaceEvent,
+    NetworkPolicyInfo, NetworkPolicyDetail, NetworkPolicyEvent,
+    NodeInfo, NodeDetail, NodeCondition, NodeTaint, NodeAddress, NodeResources, NodeSystemInfo, NodeEvent,
+    PersistentVolumeClaimInfo, PVCDetail, PVCCondition, PVCEvent,
+    PersistentVolumeInfo, PVDetail, PVEvent,
+    PodDetail, PodEvent, PodInfo, PulseMetrics,
+    ReplicaSetInfo, ReplicaSetDetail, ReplicaSetCondition, ReplicaSetEvent, OwnerRef,
+    SecretInfo, SecretDetail, SecretEvent,
+    ServiceAccountInfo, ServiceAccountDetail, ServiceAccountEvent,
+    ServiceInfo, ServiceDetail, ServiceEndpoint, ServiceEvent,
     StatefulSetDetail, StatefulSetEvent, StatefulSetInfo,
 };
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
@@ -556,6 +568,296 @@ pub async fn open_terminal_window(
     .map_err(|e| crate::error::AppError::Custom(format!("Failed to create terminal window: {}", e)))?;
 
     Ok(())
+}
+
+// ============ ConfigMap Detail Commands ============
+
+#[tauri::command]
+pub async fn get_configmap_detail(context_name: String, namespace: String, name: String) -> Result<ConfigMapDetail> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_configmap_detail(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_configmap_yaml(context_name: String, namespace: String, name: String) -> Result<String> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_configmap_yaml(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_configmap_events(context_name: String, namespace: String, name: String) -> Result<Vec<ConfigMapEvent>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_configmap_events(&client, &namespace, &name).await
+}
+
+// ============ Secret Detail Commands ============
+
+#[tauri::command]
+pub async fn get_secret_detail(context_name: String, namespace: String, name: String) -> Result<SecretDetail> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_secret_detail(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_secret_yaml(context_name: String, namespace: String, name: String) -> Result<String> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_secret_yaml(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_secret_data(context_name: String, namespace: String, name: String) -> Result<std::collections::BTreeMap<String, String>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_secret_data(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_secret_events(context_name: String, namespace: String, name: String) -> Result<Vec<SecretEvent>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_secret_events(&client, &namespace, &name).await
+}
+
+// ============ Job Detail Commands ============
+
+#[tauri::command]
+pub async fn get_job_detail(context_name: String, namespace: String, name: String) -> Result<JobDetail> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_job_detail(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_job_yaml(context_name: String, namespace: String, name: String) -> Result<String> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_job_yaml(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_job_events(context_name: String, namespace: String, name: String) -> Result<Vec<JobEvent>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_job_events(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_job_pods(context_name: String, namespace: String, job_name: String) -> Result<Vec<PodInfo>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_job_pods(&client, &namespace, &job_name).await
+}
+
+// ============ CronJob Detail Commands ============
+
+#[tauri::command]
+pub async fn get_cronjob_detail(context_name: String, namespace: String, name: String) -> Result<CronJobDetail> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_cronjob_detail(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_cronjob_yaml(context_name: String, namespace: String, name: String) -> Result<String> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_cronjob_yaml(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_cronjob_events(context_name: String, namespace: String, name: String) -> Result<Vec<CronJobEvent>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_cronjob_events(&client, &namespace, &name).await
+}
+
+// ============ DaemonSet Detail Commands ============
+
+#[tauri::command]
+pub async fn get_daemonset_detail(context_name: String, namespace: String, name: String) -> Result<DaemonSetDetail> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_daemonset_detail(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_daemonset_yaml(context_name: String, namespace: String, name: String) -> Result<String> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_daemonset_yaml(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_daemonset_events(context_name: String, namespace: String, name: String) -> Result<Vec<DaemonSetEvent>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_daemonset_events(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_daemonset_pods(context_name: String, namespace: String, daemonset_name: String) -> Result<Vec<PodInfo>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_daemonset_pods(&client, &namespace, &daemonset_name).await
+}
+
+// ============ ReplicaSet Detail Commands ============
+
+#[tauri::command]
+pub async fn get_replicaset_detail(context_name: String, namespace: String, name: String) -> Result<ReplicaSetDetail> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_replicaset_detail(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_replicaset_yaml(context_name: String, namespace: String, name: String) -> Result<String> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_replicaset_yaml(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_replicaset_events(context_name: String, namespace: String, name: String) -> Result<Vec<ReplicaSetEvent>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_replicaset_events(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_replicaset_pods(context_name: String, namespace: String, replicaset_name: String) -> Result<Vec<PodInfo>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_replicaset_pods(&client, &namespace, &replicaset_name).await
+}
+
+// ============ NetworkPolicy Detail Commands ============
+
+#[tauri::command]
+pub async fn get_networkpolicy_detail(context_name: String, namespace: String, name: String) -> Result<NetworkPolicyDetail> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_networkpolicy_detail(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_networkpolicy_yaml(context_name: String, namespace: String, name: String) -> Result<String> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_networkpolicy_yaml(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_networkpolicy_events(context_name: String, namespace: String, name: String) -> Result<Vec<NetworkPolicyEvent>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_networkpolicy_events(&client, &namespace, &name).await
+}
+
+// ============ HPA Detail Commands ============
+
+#[tauri::command]
+pub async fn get_hpa_detail(context_name: String, namespace: String, name: String) -> Result<HPADetail> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_hpa_detail(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_hpa_yaml(context_name: String, namespace: String, name: String) -> Result<String> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_hpa_yaml(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_hpa_events(context_name: String, namespace: String, name: String) -> Result<Vec<HPAEvent>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_hpa_events(&client, &namespace, &name).await
+}
+
+// ============ PV Detail Commands ============
+
+#[tauri::command]
+pub async fn get_pv_detail(context_name: String, name: String) -> Result<PVDetail> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_pv_detail(&client, &name).await
+}
+
+#[tauri::command]
+pub async fn get_pv_yaml(context_name: String, name: String) -> Result<String> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_pv_yaml(&client, &name).await
+}
+
+#[tauri::command]
+pub async fn get_pv_events(context_name: String, name: String) -> Result<Vec<PVEvent>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_pv_events(&client, &name).await
+}
+
+// ============ PVC Detail Commands ============
+
+#[tauri::command]
+pub async fn get_pvc_detail(context_name: String, namespace: String, name: String) -> Result<PVCDetail> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_pvc_detail(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_pvc_yaml(context_name: String, namespace: String, name: String) -> Result<String> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_pvc_yaml(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_pvc_events(context_name: String, namespace: String, name: String) -> Result<Vec<PVCEvent>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_pvc_events(&client, &namespace, &name).await
+}
+
+// ============ Namespace Detail Commands ============
+
+#[tauri::command]
+pub async fn get_namespace_detail(context_name: String, name: String) -> Result<NamespaceDetail> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_namespace_detail(&client, &name).await
+}
+
+#[tauri::command]
+pub async fn get_namespace_yaml(context_name: String, name: String) -> Result<String> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_namespace_yaml(&client, &name).await
+}
+
+#[tauri::command]
+pub async fn get_namespace_events(context_name: String, name: String) -> Result<Vec<NamespaceEvent>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_namespace_events(&client, &name).await
+}
+
+// ============ Node Detail Commands ============
+
+#[tauri::command]
+pub async fn get_node_detail(context_name: String, name: String) -> Result<NodeDetail> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_node_detail(&client, &name).await
+}
+
+#[tauri::command]
+pub async fn get_node_yaml(context_name: String, name: String) -> Result<String> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_node_yaml(&client, &name).await
+}
+
+#[tauri::command]
+pub async fn get_node_events(context_name: String, name: String) -> Result<Vec<NodeEvent>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_node_events(&client, &name).await
+}
+
+#[tauri::command]
+pub async fn get_node_pods(context_name: String, node_name: String) -> Result<Vec<PodInfo>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_node_pods(&client, &node_name).await
+}
+
+// ============ ServiceAccount Detail Commands ============
+
+#[tauri::command]
+pub async fn get_serviceaccount_detail(context_name: String, namespace: String, name: String) -> Result<ServiceAccountDetail> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_serviceaccount_detail(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_serviceaccount_yaml(context_name: String, namespace: String, name: String) -> Result<String> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_serviceaccount_yaml(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn get_serviceaccount_events(context_name: String, namespace: String, name: String) -> Result<Vec<ServiceAccountEvent>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::get_serviceaccount_events(&client, &namespace, &name).await
 }
 
 // ============ PTY Commands ============

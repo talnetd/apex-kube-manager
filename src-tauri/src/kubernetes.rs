@@ -2467,6 +2467,53 @@ fn get_container_state(status: Option<&k8s_openapi::api::core::v1::ContainerStat
         .unwrap_or_else(|| "Unknown".to_string())
 }
 
+fn pod_to_pod_info(pod: &Pod) -> PodInfo {
+    let metadata = &pod.metadata;
+    let spec = pod.spec.as_ref();
+    let status = pod.status.as_ref();
+
+    let containers: Vec<ContainerInfo> = spec
+        .map(|s| {
+            s.containers
+                .iter()
+                .map(|c| {
+                    let container_status = status
+                        .and_then(|st| st.container_statuses.as_ref())
+                        .and_then(|statuses| {
+                            statuses.iter().find(|cs| cs.name == c.name)
+                        });
+
+                    ContainerInfo {
+                        name: c.name.clone(),
+                        image: c.image.clone().unwrap_or_default(),
+                        ready: container_status.map(|cs| cs.ready).unwrap_or(false),
+                        restart_count: container_status
+                            .map(|cs| cs.restart_count)
+                            .unwrap_or(0),
+                        state: get_container_state(container_status),
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let ready_count = containers.iter().filter(|c| c.ready).count();
+    let total_count = containers.len();
+    let total_restarts: i32 = containers.iter().map(|c| c.restart_count).sum();
+
+    PodInfo {
+        name: metadata.name.clone().unwrap_or_default(),
+        namespace: metadata.namespace.clone().unwrap_or_default(),
+        status: get_pod_phase(status),
+        ready: format!("{}/{}", ready_count, total_count),
+        restarts: total_restarts,
+        age: get_age(metadata.creation_timestamp.as_ref()),
+        node: spec.and_then(|s| s.node_name.clone()),
+        ip: status.and_then(|s| s.pod_ip.clone()),
+        containers,
+    }
+}
+
 fn get_age(timestamp: Option<&k8s_openapi::apimachinery::pkg::apis::meta::v1::Time>) -> String {
     timestamp
         .map(|ts| {
@@ -3002,6 +3049,1605 @@ pub async fn get_pod_events(client: &Client, namespace: &str, pod_name: &str) ->
         .collect();
 
     Ok(pod_events)
+}
+
+// ============ ConfigMap Detail ============
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigMapDetail {
+    pub name: String,
+    pub namespace: String,
+    pub uid: String,
+    pub creation_timestamp: String,
+    pub labels: std::collections::BTreeMap<String, String>,
+    pub annotations: std::collections::BTreeMap<String, String>,
+    pub data: std::collections::BTreeMap<String, String>,
+    pub binary_data_keys: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigMapEvent {
+    pub event_type: String,
+    pub reason: String,
+    pub message: String,
+    pub count: i32,
+    pub first_timestamp: Option<String>,
+    pub last_timestamp: Option<String>,
+    pub source: String,
+}
+
+pub async fn get_configmap_detail(client: &Client, namespace: &str, name: &str) -> Result<ConfigMapDetail> {
+    let cms: Api<ConfigMap> = Api::namespaced(client.clone(), namespace);
+    let cm = cms.get(name).await?;
+
+    let metadata = cm.metadata;
+
+    Ok(ConfigMapDetail {
+        name: metadata.name.unwrap_or_default(),
+        namespace: metadata.namespace.unwrap_or_default(),
+        uid: metadata.uid.unwrap_or_default(),
+        creation_timestamp: metadata.creation_timestamp
+            .map(|t| t.0.to_rfc3339())
+            .unwrap_or_default(),
+        labels: metadata.labels.unwrap_or_default(),
+        annotations: metadata.annotations.unwrap_or_default(),
+        data: cm.data.unwrap_or_default(),
+        binary_data_keys: cm.binary_data.map(|b| b.keys().cloned().collect()).unwrap_or_default(),
+    })
+}
+
+pub async fn get_configmap_yaml(client: &Client, namespace: &str, name: &str) -> Result<String> {
+    let cms: Api<ConfigMap> = Api::namespaced(client.clone(), namespace);
+    let cm = cms.get(name).await?;
+    Ok(serde_yaml::to_string(&cm)?)
+}
+
+pub async fn get_configmap_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<ConfigMapEvent>> {
+    let events: Api<k8s_openapi::api::core::v1::Event> = Api::namespaced(client.clone(), namespace);
+    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=ConfigMap", name));
+    let event_list = events.list(&lp).await?;
+
+    Ok(event_list.items.iter().map(|e| ConfigMapEvent {
+        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+        reason: e.reason.clone().unwrap_or_default(),
+        message: e.message.clone().unwrap_or_default(),
+        count: e.count.unwrap_or(1),
+        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
+    }).collect())
+}
+
+// ============ Secret Detail ============
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecretDetail {
+    pub name: String,
+    pub namespace: String,
+    pub uid: String,
+    pub creation_timestamp: String,
+    pub labels: std::collections::BTreeMap<String, String>,
+    pub annotations: std::collections::BTreeMap<String, String>,
+    pub secret_type: String,
+    pub data_keys: Vec<String>,
+    pub immutable: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecretEvent {
+    pub event_type: String,
+    pub reason: String,
+    pub message: String,
+    pub count: i32,
+    pub first_timestamp: Option<String>,
+    pub last_timestamp: Option<String>,
+    pub source: String,
+}
+
+pub async fn get_secret_detail(client: &Client, namespace: &str, name: &str) -> Result<SecretDetail> {
+    let secrets: Api<k8s_openapi::api::core::v1::Secret> = Api::namespaced(client.clone(), namespace);
+    let secret = secrets.get(name).await?;
+
+    let metadata = secret.metadata;
+
+    Ok(SecretDetail {
+        name: metadata.name.unwrap_or_default(),
+        namespace: metadata.namespace.unwrap_or_default(),
+        uid: metadata.uid.unwrap_or_default(),
+        creation_timestamp: metadata.creation_timestamp
+            .map(|t| t.0.to_rfc3339())
+            .unwrap_or_default(),
+        labels: metadata.labels.unwrap_or_default(),
+        annotations: metadata.annotations.unwrap_or_default(),
+        secret_type: secret.type_.unwrap_or_else(|| "Opaque".to_string()),
+        data_keys: secret.data.map(|d| d.keys().cloned().collect()).unwrap_or_default(),
+        immutable: secret.immutable.unwrap_or(false),
+    })
+}
+
+pub async fn get_secret_yaml(client: &Client, namespace: &str, name: &str) -> Result<String> {
+    let secrets: Api<k8s_openapi::api::core::v1::Secret> = Api::namespaced(client.clone(), namespace);
+    let secret = secrets.get(name).await?;
+    Ok(serde_yaml::to_string(&secret)?)
+}
+
+pub async fn get_secret_data(client: &Client, namespace: &str, name: &str) -> Result<std::collections::BTreeMap<String, String>> {
+    let secrets: Api<k8s_openapi::api::core::v1::Secret> = Api::namespaced(client.clone(), namespace);
+    let secret = secrets.get(name).await?;
+
+    let data = secret.data.unwrap_or_default();
+    let mut decoded = std::collections::BTreeMap::new();
+    for (key, value) in data {
+        let decoded_value = String::from_utf8(value.0).unwrap_or_else(|_| "<binary data>".to_string());
+        decoded.insert(key, decoded_value);
+    }
+    Ok(decoded)
+}
+
+pub async fn get_secret_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<SecretEvent>> {
+    let events: Api<k8s_openapi::api::core::v1::Event> = Api::namespaced(client.clone(), namespace);
+    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=Secret", name));
+    let event_list = events.list(&lp).await?;
+
+    Ok(event_list.items.iter().map(|e| SecretEvent {
+        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+        reason: e.reason.clone().unwrap_or_default(),
+        message: e.message.clone().unwrap_or_default(),
+        count: e.count.unwrap_or(1),
+        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
+    }).collect())
+}
+
+// ============ Job Detail ============
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobDetail {
+    pub name: String,
+    pub namespace: String,
+    pub uid: String,
+    pub creation_timestamp: String,
+    pub labels: std::collections::BTreeMap<String, String>,
+    pub annotations: std::collections::BTreeMap<String, String>,
+    pub completions: Option<i32>,
+    pub parallelism: Option<i32>,
+    pub backoff_limit: Option<i32>,
+    pub active_deadline_seconds: Option<i64>,
+    pub ttl_seconds_after_finished: Option<i32>,
+    pub completion_mode: String,
+    pub suspend: bool,
+    pub active: i32,
+    pub succeeded: i32,
+    pub failed: i32,
+    pub start_time: Option<String>,
+    pub completion_time: Option<String>,
+    pub conditions: Vec<JobCondition>,
+    pub selector: std::collections::BTreeMap<String, String>,
+    pub container_images: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobCondition {
+    pub condition_type: String,
+    pub status: String,
+    pub reason: Option<String>,
+    pub message: Option<String>,
+    pub last_transition_time: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobEvent {
+    pub event_type: String,
+    pub reason: String,
+    pub message: String,
+    pub count: i32,
+    pub first_timestamp: Option<String>,
+    pub last_timestamp: Option<String>,
+    pub source: String,
+}
+
+pub async fn get_job_detail(client: &Client, namespace: &str, name: &str) -> Result<JobDetail> {
+    use k8s_openapi::api::batch::v1::Job;
+    let jobs: Api<Job> = Api::namespaced(client.clone(), namespace);
+    let job = jobs.get(name).await?;
+
+    let metadata = job.metadata;
+    let spec = job.spec.unwrap_or_default();
+    let status = job.status.unwrap_or_default();
+
+    let container_images: Vec<String> = spec.template.spec
+        .map(|s| s.containers.iter().map(|c| c.image.clone().unwrap_or_default()).collect())
+        .unwrap_or_default();
+
+    let conditions = status.conditions.unwrap_or_default().iter().map(|c| JobCondition {
+        condition_type: c.type_.clone(),
+        status: c.status.clone(),
+        reason: c.reason.clone(),
+        message: c.message.clone(),
+        last_transition_time: c.last_transition_time.as_ref().map(|t| t.0.to_rfc3339()),
+    }).collect();
+
+    Ok(JobDetail {
+        name: metadata.name.unwrap_or_default(),
+        namespace: metadata.namespace.unwrap_or_default(),
+        uid: metadata.uid.unwrap_or_default(),
+        creation_timestamp: metadata.creation_timestamp
+            .map(|t| t.0.to_rfc3339())
+            .unwrap_or_default(),
+        labels: metadata.labels.unwrap_or_default(),
+        annotations: metadata.annotations.unwrap_or_default(),
+        completions: spec.completions,
+        parallelism: spec.parallelism,
+        backoff_limit: spec.backoff_limit,
+        active_deadline_seconds: spec.active_deadline_seconds,
+        ttl_seconds_after_finished: spec.ttl_seconds_after_finished,
+        completion_mode: spec.completion_mode.unwrap_or_else(|| "NonIndexed".to_string()),
+        suspend: spec.suspend.unwrap_or(false),
+        active: status.active.unwrap_or(0),
+        succeeded: status.succeeded.unwrap_or(0),
+        failed: status.failed.unwrap_or(0),
+        start_time: status.start_time.as_ref().map(|t| t.0.to_rfc3339()),
+        completion_time: status.completion_time.as_ref().map(|t| t.0.to_rfc3339()),
+        conditions,
+        selector: spec.selector.map(|s| s.match_labels.unwrap_or_default()).unwrap_or_default(),
+        container_images,
+    })
+}
+
+pub async fn get_job_yaml(client: &Client, namespace: &str, name: &str) -> Result<String> {
+    use k8s_openapi::api::batch::v1::Job;
+    let jobs: Api<Job> = Api::namespaced(client.clone(), namespace);
+    let job = jobs.get(name).await?;
+    Ok(serde_yaml::to_string(&job)?)
+}
+
+pub async fn get_job_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<JobEvent>> {
+    let events: Api<k8s_openapi::api::core::v1::Event> = Api::namespaced(client.clone(), namespace);
+    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=Job", name));
+    let event_list = events.list(&lp).await?;
+
+    Ok(event_list.items.iter().map(|e| JobEvent {
+        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+        reason: e.reason.clone().unwrap_or_default(),
+        message: e.message.clone().unwrap_or_default(),
+        count: e.count.unwrap_or(1),
+        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
+    }).collect())
+}
+
+pub async fn get_job_pods(client: &Client, namespace: &str, job_name: &str) -> Result<Vec<PodInfo>> {
+    let pods: Api<Pod> = Api::namespaced(client.clone(), namespace);
+    let lp = ListParams::default().labels(&format!("job-name={}", job_name));
+    let pod_list = pods.list(&lp).await?;
+    Ok(pod_list.items.iter().map(pod_to_pod_info).collect())
+}
+
+// ============ CronJob Detail ============
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CronJobDetail {
+    pub name: String,
+    pub namespace: String,
+    pub uid: String,
+    pub creation_timestamp: String,
+    pub labels: std::collections::BTreeMap<String, String>,
+    pub annotations: std::collections::BTreeMap<String, String>,
+    pub schedule: String,
+    pub timezone: Option<String>,
+    pub suspend: bool,
+    pub concurrency_policy: String,
+    pub starting_deadline_seconds: Option<i64>,
+    pub successful_jobs_history_limit: i32,
+    pub failed_jobs_history_limit: i32,
+    pub last_schedule_time: Option<String>,
+    pub last_successful_time: Option<String>,
+    pub active_jobs: Vec<String>,
+    pub container_images: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CronJobEvent {
+    pub event_type: String,
+    pub reason: String,
+    pub message: String,
+    pub count: i32,
+    pub first_timestamp: Option<String>,
+    pub last_timestamp: Option<String>,
+    pub source: String,
+}
+
+pub async fn get_cronjob_detail(client: &Client, namespace: &str, name: &str) -> Result<CronJobDetail> {
+    use k8s_openapi::api::batch::v1::CronJob;
+    let cronjobs: Api<CronJob> = Api::namespaced(client.clone(), namespace);
+    let cj = cronjobs.get(name).await?;
+
+    let metadata = cj.metadata;
+    let spec = cj.spec.unwrap_or_default();
+    let status = cj.status.unwrap_or_default();
+
+    let container_images: Vec<String> = spec.job_template.spec
+        .and_then(|js| js.template.spec)
+        .map(|s| s.containers.iter().map(|c| c.image.clone().unwrap_or_default()).collect())
+        .unwrap_or_default();
+
+    let active_jobs: Vec<String> = status.active.unwrap_or_default()
+        .iter()
+        .map(|r| r.name.clone().unwrap_or_default())
+        .collect();
+
+    Ok(CronJobDetail {
+        name: metadata.name.unwrap_or_default(),
+        namespace: metadata.namespace.unwrap_or_default(),
+        uid: metadata.uid.unwrap_or_default(),
+        creation_timestamp: metadata.creation_timestamp
+            .map(|t| t.0.to_rfc3339())
+            .unwrap_or_default(),
+        labels: metadata.labels.unwrap_or_default(),
+        annotations: metadata.annotations.unwrap_or_default(),
+        schedule: spec.schedule,
+        timezone: spec.time_zone,
+        suspend: spec.suspend.unwrap_or(false),
+        concurrency_policy: spec.concurrency_policy.unwrap_or_else(|| "Allow".to_string()),
+        starting_deadline_seconds: spec.starting_deadline_seconds,
+        successful_jobs_history_limit: spec.successful_jobs_history_limit.unwrap_or(3),
+        failed_jobs_history_limit: spec.failed_jobs_history_limit.unwrap_or(1),
+        last_schedule_time: status.last_schedule_time.as_ref().map(|t| t.0.to_rfc3339()),
+        last_successful_time: status.last_successful_time.as_ref().map(|t| t.0.to_rfc3339()),
+        active_jobs,
+        container_images,
+    })
+}
+
+pub async fn get_cronjob_yaml(client: &Client, namespace: &str, name: &str) -> Result<String> {
+    use k8s_openapi::api::batch::v1::CronJob;
+    let cronjobs: Api<CronJob> = Api::namespaced(client.clone(), namespace);
+    let cj = cronjobs.get(name).await?;
+    Ok(serde_yaml::to_string(&cj)?)
+}
+
+pub async fn get_cronjob_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<CronJobEvent>> {
+    let events: Api<k8s_openapi::api::core::v1::Event> = Api::namespaced(client.clone(), namespace);
+    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=CronJob", name));
+    let event_list = events.list(&lp).await?;
+
+    Ok(event_list.items.iter().map(|e| CronJobEvent {
+        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+        reason: e.reason.clone().unwrap_or_default(),
+        message: e.message.clone().unwrap_or_default(),
+        count: e.count.unwrap_or(1),
+        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
+    }).collect())
+}
+
+// ============ DaemonSet Detail ============
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DaemonSetDetail {
+    pub name: String,
+    pub namespace: String,
+    pub uid: String,
+    pub creation_timestamp: String,
+    pub labels: std::collections::BTreeMap<String, String>,
+    pub annotations: std::collections::BTreeMap<String, String>,
+    pub desired_number_scheduled: i32,
+    pub current_number_scheduled: i32,
+    pub number_ready: i32,
+    pub number_available: i32,
+    pub number_misscheduled: i32,
+    pub updated_number_scheduled: i32,
+    pub update_strategy: String,
+    pub min_ready_seconds: i32,
+    pub selector: std::collections::BTreeMap<String, String>,
+    pub conditions: Vec<DaemonSetCondition>,
+    pub container_images: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DaemonSetCondition {
+    pub condition_type: String,
+    pub status: String,
+    pub reason: Option<String>,
+    pub message: Option<String>,
+    pub last_transition_time: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DaemonSetEvent {
+    pub event_type: String,
+    pub reason: String,
+    pub message: String,
+    pub count: i32,
+    pub first_timestamp: Option<String>,
+    pub last_timestamp: Option<String>,
+    pub source: String,
+}
+
+pub async fn get_daemonset_detail(client: &Client, namespace: &str, name: &str) -> Result<DaemonSetDetail> {
+    let daemonsets: Api<DaemonSet> = Api::namespaced(client.clone(), namespace);
+    let ds = daemonsets.get(name).await?;
+
+    let metadata = ds.metadata;
+    let spec = ds.spec.unwrap_or_default();
+    let status = ds.status.unwrap_or_default();
+
+    let container_images: Vec<String> = spec.template.spec
+        .map(|s| s.containers.iter().map(|c| c.image.clone().unwrap_or_default()).collect())
+        .unwrap_or_default();
+
+    let conditions = status.conditions.unwrap_or_default().iter().map(|c| DaemonSetCondition {
+        condition_type: c.type_.clone(),
+        status: c.status.clone(),
+        reason: c.reason.clone(),
+        message: c.message.clone(),
+        last_transition_time: c.last_transition_time.as_ref().map(|t| t.0.to_rfc3339()),
+    }).collect();
+
+    let update_strategy = spec.update_strategy
+        .and_then(|s| s.type_)
+        .unwrap_or_else(|| "RollingUpdate".to_string());
+
+    Ok(DaemonSetDetail {
+        name: metadata.name.unwrap_or_default(),
+        namespace: metadata.namespace.unwrap_or_default(),
+        uid: metadata.uid.unwrap_or_default(),
+        creation_timestamp: metadata.creation_timestamp
+            .map(|t| t.0.to_rfc3339())
+            .unwrap_or_default(),
+        labels: metadata.labels.unwrap_or_default(),
+        annotations: metadata.annotations.unwrap_or_default(),
+        desired_number_scheduled: status.desired_number_scheduled,
+        current_number_scheduled: status.current_number_scheduled,
+        number_ready: status.number_ready,
+        number_available: status.number_available.unwrap_or(0),
+        number_misscheduled: status.number_misscheduled,
+        updated_number_scheduled: status.updated_number_scheduled.unwrap_or(0),
+        update_strategy,
+        min_ready_seconds: spec.min_ready_seconds.unwrap_or(0),
+        selector: spec.selector.match_labels.unwrap_or_default(),
+        conditions,
+        container_images,
+    })
+}
+
+pub async fn get_daemonset_yaml(client: &Client, namespace: &str, name: &str) -> Result<String> {
+    let daemonsets: Api<DaemonSet> = Api::namespaced(client.clone(), namespace);
+    let ds = daemonsets.get(name).await?;
+    Ok(serde_yaml::to_string(&ds)?)
+}
+
+pub async fn get_daemonset_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<DaemonSetEvent>> {
+    let events: Api<k8s_openapi::api::core::v1::Event> = Api::namespaced(client.clone(), namespace);
+    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=DaemonSet", name));
+    let event_list = events.list(&lp).await?;
+
+    Ok(event_list.items.iter().map(|e| DaemonSetEvent {
+        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+        reason: e.reason.clone().unwrap_or_default(),
+        message: e.message.clone().unwrap_or_default(),
+        count: e.count.unwrap_or(1),
+        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
+    }).collect())
+}
+
+pub async fn get_daemonset_pods(client: &Client, namespace: &str, daemonset_name: &str) -> Result<Vec<PodInfo>> {
+    let daemonsets: Api<DaemonSet> = Api::namespaced(client.clone(), namespace);
+    let ds = daemonsets.get(daemonset_name).await?;
+
+    let selector = ds.spec
+        .and_then(|s| s.selector.match_labels)
+        .unwrap_or_default();
+
+    if selector.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let label_selector = selector.iter()
+        .map(|(k, v)| format!("{}={}", k, v))
+        .collect::<Vec<_>>()
+        .join(",");
+
+    let pods: Api<Pod> = Api::namespaced(client.clone(), namespace);
+    let lp = ListParams::default().labels(&label_selector);
+    let pod_list = pods.list(&lp).await?;
+    Ok(pod_list.items.iter().map(pod_to_pod_info).collect())
+}
+
+// ============ ReplicaSet Detail ============
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReplicaSetDetail {
+    pub name: String,
+    pub namespace: String,
+    pub uid: String,
+    pub creation_timestamp: String,
+    pub labels: std::collections::BTreeMap<String, String>,
+    pub annotations: std::collections::BTreeMap<String, String>,
+    pub replicas: i32,
+    pub ready_replicas: i32,
+    pub available_replicas: i32,
+    pub fully_labeled_replicas: i32,
+    pub owner_references: Vec<OwnerRef>,
+    pub selector: std::collections::BTreeMap<String, String>,
+    pub conditions: Vec<ReplicaSetCondition>,
+    pub container_images: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OwnerRef {
+    pub kind: String,
+    pub name: String,
+    pub uid: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReplicaSetCondition {
+    pub condition_type: String,
+    pub status: String,
+    pub reason: Option<String>,
+    pub message: Option<String>,
+    pub last_transition_time: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReplicaSetEvent {
+    pub event_type: String,
+    pub reason: String,
+    pub message: String,
+    pub count: i32,
+    pub first_timestamp: Option<String>,
+    pub last_timestamp: Option<String>,
+    pub source: String,
+}
+
+pub async fn get_replicaset_detail(client: &Client, namespace: &str, name: &str) -> Result<ReplicaSetDetail> {
+    let replicasets: Api<ReplicaSet> = Api::namespaced(client.clone(), namespace);
+    let rs = replicasets.get(name).await?;
+
+    let metadata = rs.metadata;
+    let spec = rs.spec.unwrap_or_default();
+    let status = rs.status.unwrap_or_default();
+
+    let container_images: Vec<String> = spec.template
+        .and_then(|t| t.spec)
+        .map(|s| s.containers.iter().map(|c| c.image.clone().unwrap_or_default()).collect())
+        .unwrap_or_default();
+
+    let owner_references = metadata.owner_references.clone().unwrap_or_default()
+        .iter()
+        .map(|o| OwnerRef {
+            kind: o.kind.clone(),
+            name: o.name.clone(),
+            uid: o.uid.clone(),
+        })
+        .collect();
+
+    let conditions = status.conditions.unwrap_or_default().iter().map(|c| ReplicaSetCondition {
+        condition_type: c.type_.clone(),
+        status: c.status.clone(),
+        reason: c.reason.clone(),
+        message: c.message.clone(),
+        last_transition_time: c.last_transition_time.as_ref().map(|t| t.0.to_rfc3339()),
+    }).collect();
+
+    Ok(ReplicaSetDetail {
+        name: metadata.name.unwrap_or_default(),
+        namespace: metadata.namespace.unwrap_or_default(),
+        uid: metadata.uid.unwrap_or_default(),
+        creation_timestamp: metadata.creation_timestamp
+            .map(|t| t.0.to_rfc3339())
+            .unwrap_or_default(),
+        labels: metadata.labels.unwrap_or_default(),
+        annotations: metadata.annotations.unwrap_or_default(),
+        replicas: status.replicas,
+        ready_replicas: status.ready_replicas.unwrap_or(0),
+        available_replicas: status.available_replicas.unwrap_or(0),
+        fully_labeled_replicas: status.fully_labeled_replicas.unwrap_or(0),
+        owner_references,
+        selector: spec.selector.match_labels.unwrap_or_default(),
+        conditions,
+        container_images,
+    })
+}
+
+pub async fn get_replicaset_yaml(client: &Client, namespace: &str, name: &str) -> Result<String> {
+    let replicasets: Api<ReplicaSet> = Api::namespaced(client.clone(), namespace);
+    let rs = replicasets.get(name).await?;
+    Ok(serde_yaml::to_string(&rs)?)
+}
+
+pub async fn get_replicaset_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<ReplicaSetEvent>> {
+    let events: Api<k8s_openapi::api::core::v1::Event> = Api::namespaced(client.clone(), namespace);
+    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=ReplicaSet", name));
+    let event_list = events.list(&lp).await?;
+
+    Ok(event_list.items.iter().map(|e| ReplicaSetEvent {
+        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+        reason: e.reason.clone().unwrap_or_default(),
+        message: e.message.clone().unwrap_or_default(),
+        count: e.count.unwrap_or(1),
+        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
+    }).collect())
+}
+
+pub async fn get_replicaset_pods(client: &Client, namespace: &str, replicaset_name: &str) -> Result<Vec<PodInfo>> {
+    let replicasets: Api<ReplicaSet> = Api::namespaced(client.clone(), namespace);
+    let rs = replicasets.get(replicaset_name).await?;
+
+    let selector = rs.spec
+        .and_then(|s| s.selector.match_labels)
+        .unwrap_or_default();
+
+    if selector.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let label_selector = selector.iter()
+        .map(|(k, v)| format!("{}={}", k, v))
+        .collect::<Vec<_>>()
+        .join(",");
+
+    let pods: Api<Pod> = Api::namespaced(client.clone(), namespace);
+    let lp = ListParams::default().labels(&label_selector);
+    let pod_list = pods.list(&lp).await?;
+    Ok(pod_list.items.iter().map(pod_to_pod_info).collect())
+}
+
+// ============ NetworkPolicy Detail ============
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkPolicyDetail {
+    pub name: String,
+    pub namespace: String,
+    pub uid: String,
+    pub creation_timestamp: String,
+    pub labels: std::collections::BTreeMap<String, String>,
+    pub annotations: std::collections::BTreeMap<String, String>,
+    pub pod_selector: std::collections::BTreeMap<String, String>,
+    pub policy_types: Vec<String>,
+    pub ingress_rules: Vec<NetworkPolicyIngressRule>,
+    pub egress_rules: Vec<NetworkPolicyEgressRule>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkPolicyIngressRule {
+    pub from: Vec<NetworkPolicyPeer>,
+    pub ports: Vec<NetworkPolicyPort>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkPolicyEgressRule {
+    pub to: Vec<NetworkPolicyPeer>,
+    pub ports: Vec<NetworkPolicyPort>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkPolicyPeer {
+    pub peer_type: String,
+    pub namespace_selector: std::collections::BTreeMap<String, String>,
+    pub pod_selector: std::collections::BTreeMap<String, String>,
+    pub ip_block: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkPolicyPort {
+    pub protocol: String,
+    pub port: String,
+    pub end_port: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkPolicyEvent {
+    pub event_type: String,
+    pub reason: String,
+    pub message: String,
+    pub count: i32,
+    pub first_timestamp: Option<String>,
+    pub last_timestamp: Option<String>,
+    pub source: String,
+}
+
+pub async fn get_networkpolicy_detail(client: &Client, namespace: &str, name: &str) -> Result<NetworkPolicyDetail> {
+    use k8s_openapi::api::networking::v1::NetworkPolicy;
+    let netpols: Api<NetworkPolicy> = Api::namespaced(client.clone(), namespace);
+    let np = netpols.get(name).await?;
+
+    let metadata = np.metadata;
+    let spec = np.spec.unwrap_or_default();
+
+    let pod_selector = spec.pod_selector.match_labels.unwrap_or_default();
+    let policy_types = spec.policy_types.unwrap_or_default();
+
+    let ingress_rules = spec.ingress.unwrap_or_default().iter().map(|r| {
+        let from = r.from.clone().unwrap_or_default().iter().map(|p| {
+            let peer_type = if p.ip_block.is_some() {
+                "IPBlock".to_string()
+            } else if p.namespace_selector.is_some() && p.pod_selector.is_some() {
+                "NamespaceAndPod".to_string()
+            } else if p.namespace_selector.is_some() {
+                "Namespace".to_string()
+            } else if p.pod_selector.is_some() {
+                "Pod".to_string()
+            } else {
+                "Unknown".to_string()
+            };
+
+            NetworkPolicyPeer {
+                peer_type,
+                namespace_selector: p.namespace_selector.as_ref()
+                    .and_then(|s| s.match_labels.clone())
+                    .unwrap_or_default(),
+                pod_selector: p.pod_selector.as_ref()
+                    .and_then(|s| s.match_labels.clone())
+                    .unwrap_or_default(),
+                ip_block: p.ip_block.as_ref().map(|b| {
+                    let excepts = b.except.as_ref()
+                        .map(|e| format!(" (except: {})", e.join(", ")))
+                        .unwrap_or_default();
+                    format!("{}{}", b.cidr, excepts)
+                }),
+            }
+        }).collect();
+
+        let ports = r.ports.clone().unwrap_or_default().iter().map(|p| {
+            NetworkPolicyPort {
+                protocol: p.protocol.clone().unwrap_or_else(|| "TCP".to_string()),
+                port: p.port.as_ref().map(|p| format!("{:?}", p)).unwrap_or_else(|| "All".to_string()),
+                end_port: p.end_port,
+            }
+        }).collect();
+
+        NetworkPolicyIngressRule { from, ports }
+    }).collect();
+
+    let egress_rules = spec.egress.unwrap_or_default().iter().map(|r| {
+        let to = r.to.clone().unwrap_or_default().iter().map(|p| {
+            let peer_type = if p.ip_block.is_some() {
+                "IPBlock".to_string()
+            } else if p.namespace_selector.is_some() && p.pod_selector.is_some() {
+                "NamespaceAndPod".to_string()
+            } else if p.namespace_selector.is_some() {
+                "Namespace".to_string()
+            } else if p.pod_selector.is_some() {
+                "Pod".to_string()
+            } else {
+                "Unknown".to_string()
+            };
+
+            NetworkPolicyPeer {
+                peer_type,
+                namespace_selector: p.namespace_selector.as_ref()
+                    .and_then(|s| s.match_labels.clone())
+                    .unwrap_or_default(),
+                pod_selector: p.pod_selector.as_ref()
+                    .and_then(|s| s.match_labels.clone())
+                    .unwrap_or_default(),
+                ip_block: p.ip_block.as_ref().map(|b| {
+                    let excepts = b.except.as_ref()
+                        .map(|e| format!(" (except: {})", e.join(", ")))
+                        .unwrap_or_default();
+                    format!("{}{}", b.cidr, excepts)
+                }),
+            }
+        }).collect();
+
+        let ports = r.ports.clone().unwrap_or_default().iter().map(|p| {
+            NetworkPolicyPort {
+                protocol: p.protocol.clone().unwrap_or_else(|| "TCP".to_string()),
+                port: p.port.as_ref().map(|p| format!("{:?}", p)).unwrap_or_else(|| "All".to_string()),
+                end_port: p.end_port,
+            }
+        }).collect();
+
+        NetworkPolicyEgressRule { to, ports }
+    }).collect();
+
+    Ok(NetworkPolicyDetail {
+        name: metadata.name.unwrap_or_default(),
+        namespace: metadata.namespace.unwrap_or_default(),
+        uid: metadata.uid.unwrap_or_default(),
+        creation_timestamp: metadata.creation_timestamp
+            .map(|t| t.0.to_rfc3339())
+            .unwrap_or_default(),
+        labels: metadata.labels.unwrap_or_default(),
+        annotations: metadata.annotations.unwrap_or_default(),
+        pod_selector,
+        policy_types,
+        ingress_rules,
+        egress_rules,
+    })
+}
+
+pub async fn get_networkpolicy_yaml(client: &Client, namespace: &str, name: &str) -> Result<String> {
+    use k8s_openapi::api::networking::v1::NetworkPolicy;
+    let netpols: Api<NetworkPolicy> = Api::namespaced(client.clone(), namespace);
+    let np = netpols.get(name).await?;
+    Ok(serde_yaml::to_string(&np)?)
+}
+
+pub async fn get_networkpolicy_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<NetworkPolicyEvent>> {
+    let events: Api<k8s_openapi::api::core::v1::Event> = Api::namespaced(client.clone(), namespace);
+    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=NetworkPolicy", name));
+    let event_list = events.list(&lp).await?;
+
+    Ok(event_list.items.iter().map(|e| NetworkPolicyEvent {
+        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+        reason: e.reason.clone().unwrap_or_default(),
+        message: e.message.clone().unwrap_or_default(),
+        count: e.count.unwrap_or(1),
+        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
+    }).collect())
+}
+
+// ============ HPA Detail ============
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HPADetail {
+    pub name: String,
+    pub namespace: String,
+    pub uid: String,
+    pub creation_timestamp: String,
+    pub labels: std::collections::BTreeMap<String, String>,
+    pub annotations: std::collections::BTreeMap<String, String>,
+    pub scale_target_ref: String,
+    pub min_replicas: i32,
+    pub max_replicas: i32,
+    pub current_replicas: i32,
+    pub desired_replicas: i32,
+    pub metrics: Vec<HPAMetric>,
+    pub conditions: Vec<HPACondition>,
+    pub last_scale_time: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HPAMetric {
+    pub metric_type: String,
+    pub name: String,
+    pub current_value: String,
+    pub target_value: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HPACondition {
+    pub condition_type: String,
+    pub status: String,
+    pub reason: Option<String>,
+    pub message: Option<String>,
+    pub last_transition_time: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HPAEvent {
+    pub event_type: String,
+    pub reason: String,
+    pub message: String,
+    pub count: i32,
+    pub first_timestamp: Option<String>,
+    pub last_timestamp: Option<String>,
+    pub source: String,
+}
+
+pub async fn get_hpa_detail(client: &Client, namespace: &str, name: &str) -> Result<HPADetail> {
+    use k8s_openapi::api::autoscaling::v2::HorizontalPodAutoscaler;
+    let hpas: Api<HorizontalPodAutoscaler> = Api::namespaced(client.clone(), namespace);
+    let hpa = hpas.get(name).await?;
+
+    let metadata = hpa.metadata;
+    let spec = hpa.spec.unwrap_or_default();
+    let status = hpa.status.unwrap_or_default();
+
+    let scale_target_ref = format!("{}/{}",
+        spec.scale_target_ref.kind,
+        spec.scale_target_ref.name
+    );
+
+    let metrics: Vec<HPAMetric> = spec.metrics.unwrap_or_default().iter().map(|m| {
+        match m.type_.as_str() {
+            "Resource" => {
+                let resource = m.resource.as_ref();
+                HPAMetric {
+                    metric_type: "Resource".to_string(),
+                    name: resource.map(|r| r.name.clone()).unwrap_or_default(),
+                    current_value: "-".to_string(),
+                    target_value: resource
+                        .and_then(|r| r.target.average_utilization.map(|v| format!("{}%", v)))
+                        .or_else(|| resource.and_then(|r| r.target.average_value.as_ref().map(|v| v.0.clone())))
+                        .unwrap_or_else(|| "-".to_string()),
+                }
+            },
+            "Pods" => {
+                let pods = m.pods.as_ref();
+                HPAMetric {
+                    metric_type: "Pods".to_string(),
+                    name: pods.map(|p| p.metric.name.clone()).unwrap_or_default(),
+                    current_value: "-".to_string(),
+                    target_value: pods
+                        .and_then(|p| p.target.average_value.as_ref().map(|v| v.0.clone()))
+                        .unwrap_or_else(|| "-".to_string()),
+                }
+            },
+            "Object" => {
+                let obj = m.object.as_ref();
+                HPAMetric {
+                    metric_type: "Object".to_string(),
+                    name: obj.map(|o| o.metric.name.clone()).unwrap_or_default(),
+                    current_value: "-".to_string(),
+                    target_value: obj
+                        .and_then(|o| o.target.value.as_ref().map(|v| v.0.clone()))
+                        .unwrap_or_else(|| "-".to_string()),
+                }
+            },
+            "External" => {
+                let ext = m.external.as_ref();
+                HPAMetric {
+                    metric_type: "External".to_string(),
+                    name: ext.map(|e| e.metric.name.clone()).unwrap_or_default(),
+                    current_value: "-".to_string(),
+                    target_value: ext
+                        .and_then(|e| e.target.value.as_ref().map(|v| v.0.clone()))
+                        .unwrap_or_else(|| "-".to_string()),
+                }
+            },
+            _ => HPAMetric {
+                metric_type: m.type_.clone(),
+                name: "-".to_string(),
+                current_value: "-".to_string(),
+                target_value: "-".to_string(),
+            }
+        }
+    }).collect();
+
+    let conditions = status.conditions.unwrap_or_default().iter().map(|c| HPACondition {
+        condition_type: c.type_.clone(),
+        status: c.status.clone(),
+        reason: c.reason.clone(),
+        message: c.message.clone(),
+        last_transition_time: c.last_transition_time.as_ref().map(|t| t.0.to_rfc3339()),
+    }).collect();
+
+    Ok(HPADetail {
+        name: metadata.name.unwrap_or_default(),
+        namespace: metadata.namespace.unwrap_or_default(),
+        uid: metadata.uid.unwrap_or_default(),
+        creation_timestamp: metadata.creation_timestamp
+            .map(|t| t.0.to_rfc3339())
+            .unwrap_or_default(),
+        labels: metadata.labels.unwrap_or_default(),
+        annotations: metadata.annotations.unwrap_or_default(),
+        scale_target_ref,
+        min_replicas: spec.min_replicas.unwrap_or(1),
+        max_replicas: spec.max_replicas,
+        current_replicas: status.current_replicas.unwrap_or(0),
+        desired_replicas: status.desired_replicas,
+        metrics,
+        conditions,
+        last_scale_time: status.last_scale_time.as_ref().map(|t| t.0.to_rfc3339()),
+    })
+}
+
+pub async fn get_hpa_yaml(client: &Client, namespace: &str, name: &str) -> Result<String> {
+    use k8s_openapi::api::autoscaling::v2::HorizontalPodAutoscaler;
+    let hpas: Api<HorizontalPodAutoscaler> = Api::namespaced(client.clone(), namespace);
+    let hpa = hpas.get(name).await?;
+    Ok(serde_yaml::to_string(&hpa)?)
+}
+
+pub async fn get_hpa_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<HPAEvent>> {
+    let events: Api<k8s_openapi::api::core::v1::Event> = Api::namespaced(client.clone(), namespace);
+    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=HorizontalPodAutoscaler", name));
+    let event_list = events.list(&lp).await?;
+
+    Ok(event_list.items.iter().map(|e| HPAEvent {
+        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+        reason: e.reason.clone().unwrap_or_default(),
+        message: e.message.clone().unwrap_or_default(),
+        count: e.count.unwrap_or(1),
+        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
+    }).collect())
+}
+
+// ============ PersistentVolume Detail ============
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PVDetail {
+    pub name: String,
+    pub uid: String,
+    pub creation_timestamp: String,
+    pub labels: std::collections::BTreeMap<String, String>,
+    pub annotations: std::collections::BTreeMap<String, String>,
+    pub capacity: String,
+    pub access_modes: Vec<String>,
+    pub reclaim_policy: String,
+    pub status: String,
+    pub claim: Option<String>,
+    pub storage_class: String,
+    pub volume_mode: String,
+    pub mount_options: Vec<String>,
+    pub source_type: String,
+    pub source_details: std::collections::BTreeMap<String, String>,
+    pub node_affinity: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PVEvent {
+    pub event_type: String,
+    pub reason: String,
+    pub message: String,
+    pub count: i32,
+    pub first_timestamp: Option<String>,
+    pub last_timestamp: Option<String>,
+    pub source: String,
+}
+
+pub async fn get_pv_detail(client: &Client, name: &str) -> Result<PVDetail> {
+    let pvs: Api<PersistentVolume> = Api::all(client.clone());
+    let pv = pvs.get(name).await?;
+
+    let metadata = pv.metadata;
+    let spec = pv.spec.unwrap_or_default();
+    let status = pv.status.unwrap_or_default();
+
+    let capacity = spec.capacity.as_ref()
+        .and_then(|c| c.get("storage").map(|q| q.0.clone()))
+        .unwrap_or_default();
+
+    let claim = spec.claim_ref.as_ref().map(|c| {
+        format!("{}/{}", c.namespace.clone().unwrap_or_default(), c.name.clone().unwrap_or_default())
+    });
+
+    let (source_type, source_details) = get_pv_source_info(&spec);
+
+    let node_affinity = spec.node_affinity.as_ref().map(|_| "Configured".to_string());
+
+    Ok(PVDetail {
+        name: metadata.name.unwrap_or_default(),
+        uid: metadata.uid.unwrap_or_default(),
+        creation_timestamp: metadata.creation_timestamp
+            .map(|t| t.0.to_rfc3339())
+            .unwrap_or_default(),
+        labels: metadata.labels.unwrap_or_default(),
+        annotations: metadata.annotations.unwrap_or_default(),
+        capacity,
+        access_modes: spec.access_modes.unwrap_or_default(),
+        reclaim_policy: spec.persistent_volume_reclaim_policy.unwrap_or_default(),
+        status: status.phase.unwrap_or_default(),
+        claim,
+        storage_class: spec.storage_class_name.unwrap_or_default(),
+        volume_mode: spec.volume_mode.unwrap_or_else(|| "Filesystem".to_string()),
+        mount_options: spec.mount_options.unwrap_or_default(),
+        source_type,
+        source_details,
+        node_affinity,
+    })
+}
+
+fn get_pv_source_info(spec: &k8s_openapi::api::core::v1::PersistentVolumeSpec) -> (String, std::collections::BTreeMap<String, String>) {
+    let mut details = std::collections::BTreeMap::new();
+
+    if let Some(h) = &spec.host_path {
+        details.insert("path".to_string(), h.path.clone());
+        if let Some(t) = &h.type_ {
+            details.insert("type".to_string(), t.clone());
+        }
+        return ("HostPath".to_string(), details);
+    }
+
+    if let Some(n) = &spec.nfs {
+        details.insert("server".to_string(), n.server.clone());
+        details.insert("path".to_string(), n.path.clone());
+        return ("NFS".to_string(), details);
+    }
+
+    if let Some(c) = &spec.csi {
+        details.insert("driver".to_string(), c.driver.clone());
+        details.insert("volumeHandle".to_string(), c.volume_handle.clone());
+        return ("CSI".to_string(), details);
+    }
+
+    if let Some(l) = &spec.local {
+        details.insert("path".to_string(), l.path.clone());
+        return ("Local".to_string(), details);
+    }
+
+    if spec.aws_elastic_block_store.is_some() {
+        return ("AWSElasticBlockStore".to_string(), details);
+    }
+
+    if spec.gce_persistent_disk.is_some() {
+        return ("GCEPersistentDisk".to_string(), details);
+    }
+
+    if spec.azure_disk.is_some() {
+        return ("AzureDisk".to_string(), details);
+    }
+
+    ("Unknown".to_string(), details)
+}
+
+pub async fn get_pv_yaml(client: &Client, name: &str) -> Result<String> {
+    let pvs: Api<PersistentVolume> = Api::all(client.clone());
+    let pv = pvs.get(name).await?;
+    Ok(serde_yaml::to_string(&pv)?)
+}
+
+pub async fn get_pv_events(client: &Client, name: &str) -> Result<Vec<PVEvent>> {
+    let events: Api<k8s_openapi::api::core::v1::Event> = Api::all(client.clone());
+    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=PersistentVolume", name));
+    let event_list = events.list(&lp).await?;
+
+    Ok(event_list.items.iter().map(|e| PVEvent {
+        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+        reason: e.reason.clone().unwrap_or_default(),
+        message: e.message.clone().unwrap_or_default(),
+        count: e.count.unwrap_or(1),
+        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
+    }).collect())
+}
+
+// ============ PersistentVolumeClaim Detail ============
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PVCDetail {
+    pub name: String,
+    pub namespace: String,
+    pub uid: String,
+    pub creation_timestamp: String,
+    pub labels: std::collections::BTreeMap<String, String>,
+    pub annotations: std::collections::BTreeMap<String, String>,
+    pub status: String,
+    pub volume_name: Option<String>,
+    pub storage_class: Option<String>,
+    pub access_modes: Vec<String>,
+    pub volume_mode: String,
+    pub requested_storage: String,
+    pub capacity: String,
+    pub conditions: Vec<PVCCondition>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PVCCondition {
+    pub condition_type: String,
+    pub status: String,
+    pub reason: Option<String>,
+    pub message: Option<String>,
+    pub last_transition_time: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PVCEvent {
+    pub event_type: String,
+    pub reason: String,
+    pub message: String,
+    pub count: i32,
+    pub first_timestamp: Option<String>,
+    pub last_timestamp: Option<String>,
+    pub source: String,
+}
+
+pub async fn get_pvc_detail(client: &Client, namespace: &str, name: &str) -> Result<PVCDetail> {
+    let pvcs: Api<PersistentVolumeClaim> = Api::namespaced(client.clone(), namespace);
+    let pvc = pvcs.get(name).await?;
+
+    let metadata = pvc.metadata;
+    let spec = pvc.spec.unwrap_or_default();
+    let status = pvc.status.unwrap_or_default();
+
+    let requested_storage = spec.resources
+        .and_then(|r| r.requests)
+        .and_then(|req| req.get("storage").map(|q| q.0.clone()))
+        .unwrap_or_default();
+
+    let capacity = status.capacity
+        .and_then(|c| c.get("storage").map(|q| q.0.clone()))
+        .unwrap_or_default();
+
+    let conditions = status.conditions.unwrap_or_default().iter().map(|c| PVCCondition {
+        condition_type: c.type_.clone(),
+        status: c.status.clone(),
+        reason: c.reason.clone(),
+        message: c.message.clone(),
+        last_transition_time: c.last_probe_time.as_ref().map(|t| t.0.to_rfc3339()),
+    }).collect();
+
+    Ok(PVCDetail {
+        name: metadata.name.unwrap_or_default(),
+        namespace: metadata.namespace.unwrap_or_default(),
+        uid: metadata.uid.unwrap_or_default(),
+        creation_timestamp: metadata.creation_timestamp
+            .map(|t| t.0.to_rfc3339())
+            .unwrap_or_default(),
+        labels: metadata.labels.unwrap_or_default(),
+        annotations: metadata.annotations.unwrap_or_default(),
+        status: status.phase.unwrap_or_default(),
+        volume_name: spec.volume_name,
+        storage_class: spec.storage_class_name,
+        access_modes: spec.access_modes.unwrap_or_default(),
+        volume_mode: spec.volume_mode.unwrap_or_else(|| "Filesystem".to_string()),
+        requested_storage,
+        capacity,
+        conditions,
+    })
+}
+
+pub async fn get_pvc_yaml(client: &Client, namespace: &str, name: &str) -> Result<String> {
+    let pvcs: Api<PersistentVolumeClaim> = Api::namespaced(client.clone(), namespace);
+    let pvc = pvcs.get(name).await?;
+    Ok(serde_yaml::to_string(&pvc)?)
+}
+
+pub async fn get_pvc_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<PVCEvent>> {
+    let events: Api<k8s_openapi::api::core::v1::Event> = Api::namespaced(client.clone(), namespace);
+    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=PersistentVolumeClaim", name));
+    let event_list = events.list(&lp).await?;
+
+    Ok(event_list.items.iter().map(|e| PVCEvent {
+        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+        reason: e.reason.clone().unwrap_or_default(),
+        message: e.message.clone().unwrap_or_default(),
+        count: e.count.unwrap_or(1),
+        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
+    }).collect())
+}
+
+// ============ Namespace Detail ============
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NamespaceDetail {
+    pub name: String,
+    pub uid: String,
+    pub creation_timestamp: String,
+    pub labels: std::collections::BTreeMap<String, String>,
+    pub annotations: std::collections::BTreeMap<String, String>,
+    pub status: String,
+    pub conditions: Vec<NamespaceCondition>,
+    pub finalizers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NamespaceCondition {
+    pub condition_type: String,
+    pub status: String,
+    pub reason: Option<String>,
+    pub message: Option<String>,
+    pub last_transition_time: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NamespaceEvent {
+    pub event_type: String,
+    pub reason: String,
+    pub message: String,
+    pub count: i32,
+    pub first_timestamp: Option<String>,
+    pub last_timestamp: Option<String>,
+    pub source: String,
+}
+
+pub async fn get_namespace_detail(client: &Client, name: &str) -> Result<NamespaceDetail> {
+    let namespaces: Api<Namespace> = Api::all(client.clone());
+    let ns = namespaces.get(name).await?;
+
+    let metadata = ns.metadata;
+    let status = ns.status.unwrap_or_default();
+
+    let conditions = status.conditions.unwrap_or_default().iter().map(|c| NamespaceCondition {
+        condition_type: c.type_.clone(),
+        status: c.status.clone(),
+        reason: c.reason.clone(),
+        message: c.message.clone(),
+        last_transition_time: c.last_transition_time.as_ref().map(|t| t.0.to_rfc3339()),
+    }).collect();
+
+    Ok(NamespaceDetail {
+        name: metadata.name.unwrap_or_default(),
+        uid: metadata.uid.unwrap_or_default(),
+        creation_timestamp: metadata.creation_timestamp
+            .map(|t| t.0.to_rfc3339())
+            .unwrap_or_default(),
+        labels: metadata.labels.unwrap_or_default(),
+        annotations: metadata.annotations.unwrap_or_default(),
+        status: status.phase.unwrap_or_else(|| "Active".to_string()),
+        conditions,
+        finalizers: metadata.finalizers.unwrap_or_default(),
+    })
+}
+
+pub async fn get_namespace_yaml(client: &Client, name: &str) -> Result<String> {
+    let namespaces: Api<Namespace> = Api::all(client.clone());
+    let ns = namespaces.get(name).await?;
+    Ok(serde_yaml::to_string(&ns)?)
+}
+
+pub async fn get_namespace_events(client: &Client, name: &str) -> Result<Vec<NamespaceEvent>> {
+    let events: Api<k8s_openapi::api::core::v1::Event> = Api::all(client.clone());
+    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=Namespace", name));
+    let event_list = events.list(&lp).await?;
+
+    Ok(event_list.items.iter().map(|e| NamespaceEvent {
+        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+        reason: e.reason.clone().unwrap_or_default(),
+        message: e.message.clone().unwrap_or_default(),
+        count: e.count.unwrap_or(1),
+        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
+    }).collect())
+}
+
+// ============ Node Detail ============
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeDetail {
+    pub name: String,
+    pub uid: String,
+    pub creation_timestamp: String,
+    pub labels: std::collections::BTreeMap<String, String>,
+    pub annotations: std::collections::BTreeMap<String, String>,
+    pub taints: Vec<NodeTaint>,
+    pub conditions: Vec<NodeCondition>,
+    pub addresses: Vec<NodeAddress>,
+    pub capacity: NodeResources,
+    pub allocatable: NodeResources,
+    pub node_info: NodeSystemInfo,
+    pub pod_cidr: Option<String>,
+    pub unschedulable: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeTaint {
+    pub key: String,
+    pub value: Option<String>,
+    pub effect: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeCondition {
+    pub condition_type: String,
+    pub status: String,
+    pub reason: Option<String>,
+    pub message: Option<String>,
+    pub last_transition_time: Option<String>,
+    pub last_heartbeat_time: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeAddress {
+    pub address_type: String,
+    pub address: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeResources {
+    pub cpu: String,
+    pub memory: String,
+    pub pods: String,
+    pub ephemeral_storage: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeSystemInfo {
+    pub machine_id: String,
+    pub system_uuid: String,
+    pub boot_id: String,
+    pub kernel_version: String,
+    pub os_image: String,
+    pub container_runtime_version: String,
+    pub kubelet_version: String,
+    pub kube_proxy_version: String,
+    pub operating_system: String,
+    pub architecture: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeEvent {
+    pub event_type: String,
+    pub reason: String,
+    pub message: String,
+    pub count: i32,
+    pub first_timestamp: Option<String>,
+    pub last_timestamp: Option<String>,
+    pub source: String,
+}
+
+pub async fn get_node_detail(client: &Client, name: &str) -> Result<NodeDetail> {
+    let nodes: Api<Node> = Api::all(client.clone());
+    let node = nodes.get(name).await?;
+
+    let metadata = node.metadata;
+    let spec = node.spec.unwrap_or_default();
+    let status = node.status.unwrap_or_default();
+
+    let taints = spec.taints.unwrap_or_default().iter().map(|t| NodeTaint {
+        key: t.key.clone(),
+        value: t.value.clone(),
+        effect: t.effect.clone(),
+    }).collect();
+
+    let conditions = status.conditions.unwrap_or_default().iter().map(|c| NodeCondition {
+        condition_type: c.type_.clone(),
+        status: c.status.clone(),
+        reason: c.reason.clone(),
+        message: c.message.clone(),
+        last_transition_time: c.last_transition_time.as_ref().map(|t| t.0.to_rfc3339()),
+        last_heartbeat_time: c.last_heartbeat_time.as_ref().map(|t| t.0.to_rfc3339()),
+    }).collect();
+
+    let addresses = status.addresses.unwrap_or_default().iter().map(|a| NodeAddress {
+        address_type: a.type_.clone(),
+        address: a.address.clone(),
+    }).collect();
+
+    let capacity_map = status.capacity.clone().unwrap_or_default();
+    let capacity = NodeResources {
+        cpu: capacity_map.get("cpu").map(|q| q.0.clone()).unwrap_or_default(),
+        memory: capacity_map.get("memory").map(|q| q.0.clone()).unwrap_or_default(),
+        pods: capacity_map.get("pods").map(|q| q.0.clone()).unwrap_or_default(),
+        ephemeral_storage: capacity_map.get("ephemeral-storage").map(|q| q.0.clone()).unwrap_or_default(),
+    };
+
+    let allocatable_map = status.allocatable.clone().unwrap_or_default();
+    let allocatable = NodeResources {
+        cpu: allocatable_map.get("cpu").map(|q| q.0.clone()).unwrap_or_default(),
+        memory: allocatable_map.get("memory").map(|q| q.0.clone()).unwrap_or_default(),
+        pods: allocatable_map.get("pods").map(|q| q.0.clone()).unwrap_or_default(),
+        ephemeral_storage: allocatable_map.get("ephemeral-storage").map(|q| q.0.clone()).unwrap_or_default(),
+    };
+
+    let info = status.node_info.unwrap_or_default();
+    let node_info = NodeSystemInfo {
+        machine_id: info.machine_id,
+        system_uuid: info.system_uuid,
+        boot_id: info.boot_id,
+        kernel_version: info.kernel_version,
+        os_image: info.os_image,
+        container_runtime_version: info.container_runtime_version,
+        kubelet_version: info.kubelet_version,
+        kube_proxy_version: info.kube_proxy_version,
+        operating_system: info.operating_system,
+        architecture: info.architecture,
+    };
+
+    Ok(NodeDetail {
+        name: metadata.name.unwrap_or_default(),
+        uid: metadata.uid.unwrap_or_default(),
+        creation_timestamp: metadata.creation_timestamp
+            .map(|t| t.0.to_rfc3339())
+            .unwrap_or_default(),
+        labels: metadata.labels.unwrap_or_default(),
+        annotations: metadata.annotations.unwrap_or_default(),
+        taints,
+        conditions,
+        addresses,
+        capacity,
+        allocatable,
+        node_info,
+        pod_cidr: spec.pod_cidr,
+        unschedulable: spec.unschedulable.unwrap_or(false),
+    })
+}
+
+pub async fn get_node_yaml(client: &Client, name: &str) -> Result<String> {
+    let nodes: Api<Node> = Api::all(client.clone());
+    let node = nodes.get(name).await?;
+    Ok(serde_yaml::to_string(&node)?)
+}
+
+pub async fn get_node_events(client: &Client, name: &str) -> Result<Vec<NodeEvent>> {
+    let events: Api<k8s_openapi::api::core::v1::Event> = Api::all(client.clone());
+    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=Node", name));
+    let event_list = events.list(&lp).await?;
+
+    Ok(event_list.items.iter().map(|e| NodeEvent {
+        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+        reason: e.reason.clone().unwrap_or_default(),
+        message: e.message.clone().unwrap_or_default(),
+        count: e.count.unwrap_or(1),
+        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
+    }).collect())
+}
+
+pub async fn get_node_pods(client: &Client, node_name: &str) -> Result<Vec<PodInfo>> {
+    let pods: Api<Pod> = Api::all(client.clone());
+    let lp = ListParams::default().fields(&format!("spec.nodeName={}", node_name));
+    let pod_list = pods.list(&lp).await?;
+    Ok(pod_list.items.iter().map(pod_to_pod_info).collect())
+}
+
+// ============ ServiceAccount Detail ============
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServiceAccountDetail {
+    pub name: String,
+    pub namespace: String,
+    pub uid: String,
+    pub creation_timestamp: String,
+    pub labels: std::collections::BTreeMap<String, String>,
+    pub annotations: std::collections::BTreeMap<String, String>,
+    pub secrets: Vec<String>,
+    pub image_pull_secrets: Vec<String>,
+    pub automount_service_account_token: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServiceAccountEvent {
+    pub event_type: String,
+    pub reason: String,
+    pub message: String,
+    pub count: i32,
+    pub first_timestamp: Option<String>,
+    pub last_timestamp: Option<String>,
+    pub source: String,
+}
+
+pub async fn get_serviceaccount_detail(client: &Client, namespace: &str, name: &str) -> Result<ServiceAccountDetail> {
+    let sas: Api<ServiceAccount> = Api::namespaced(client.clone(), namespace);
+    let sa = sas.get(name).await?;
+
+    let metadata = sa.metadata;
+
+    let secrets: Vec<String> = sa.secrets.unwrap_or_default()
+        .iter()
+        .map(|s| s.name.clone().unwrap_or_default())
+        .collect();
+
+    let image_pull_secrets: Vec<String> = sa.image_pull_secrets.unwrap_or_default()
+        .iter()
+        .map(|s| s.name.clone())
+        .collect();
+
+    Ok(ServiceAccountDetail {
+        name: metadata.name.unwrap_or_default(),
+        namespace: metadata.namespace.unwrap_or_default(),
+        uid: metadata.uid.unwrap_or_default(),
+        creation_timestamp: metadata.creation_timestamp
+            .map(|t| t.0.to_rfc3339())
+            .unwrap_or_default(),
+        labels: metadata.labels.unwrap_or_default(),
+        annotations: metadata.annotations.unwrap_or_default(),
+        secrets,
+        image_pull_secrets,
+        automount_service_account_token: sa.automount_service_account_token,
+    })
+}
+
+pub async fn get_serviceaccount_yaml(client: &Client, namespace: &str, name: &str) -> Result<String> {
+    let sas: Api<ServiceAccount> = Api::namespaced(client.clone(), namespace);
+    let sa = sas.get(name).await?;
+    Ok(serde_yaml::to_string(&sa)?)
+}
+
+pub async fn get_serviceaccount_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<ServiceAccountEvent>> {
+    let events: Api<k8s_openapi::api::core::v1::Event> = Api::namespaced(client.clone(), namespace);
+    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=ServiceAccount", name));
+    let event_list = events.list(&lp).await?;
+
+    Ok(event_list.items.iter().map(|e| ServiceAccountEvent {
+        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+        reason: e.reason.clone().unwrap_or_default(),
+        message: e.message.clone().unwrap_or_default(),
+        count: e.count.unwrap_or(1),
+        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
+    }).collect())
 }
 
 /// Create a client for a specific context

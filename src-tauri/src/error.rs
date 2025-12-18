@@ -18,6 +18,9 @@ pub enum AppError {
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
 
+    #[error("YAML serialization error: {0}")]
+    YamlSerialization(#[from] serde_yaml::Error),
+
     #[error("{0}")]
     Custom(String),
 }
