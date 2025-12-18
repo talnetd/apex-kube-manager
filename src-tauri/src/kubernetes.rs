@@ -469,14 +469,90 @@ pub struct PulseMetrics {
 }
 
 fn get_kubeconfig_path() -> PathBuf {
-    std::env::var("KUBECONFIG")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| {
-            dirs::home_dir()
-                .unwrap_or_default()
-                .join(".kube")
-                .join("config")
-        })
+    // 1. Check KUBECONFIG env var first
+    if let Ok(path) = std::env::var("KUBECONFIG") {
+        let path = PathBuf::from(path);
+        if path.exists() {
+            return path;
+        }
+    }
+
+    // 2. Check native path (works on macOS, Linux, and Windows native)
+    let native_path = dirs::home_dir()
+        .unwrap_or_default()
+        .join(".kube")
+        .join("config");
+
+    if native_path.exists() {
+        return native_path;
+    }
+
+    // 3. On Windows, check WSL paths if native doesn't exist
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(wsl_path) = find_wsl_kubeconfig() {
+            return wsl_path;
+        }
+    }
+
+    // Return native path as default (even if doesn't exist, for error messaging)
+    native_path
+}
+
+/// Find kubeconfig in WSL filesystem (Windows only)
+#[cfg(target_os = "windows")]
+fn find_wsl_kubeconfig() -> Option<PathBuf> {
+    // Common WSL distro names
+    let distros = [
+        "Ubuntu",
+        "Ubuntu-24.04",
+        "Ubuntu-22.04",
+        "Ubuntu-20.04",
+        "Debian",
+        "kali-linux",
+        "openSUSE-Leap-15.5",
+        "OracleLinux_9_1",
+        "SLES-15",
+        "Alpine",
+    ];
+
+    // Try both \\wsl.localhost\ (newer) and \\wsl$\ (legacy) paths
+    let wsl_roots = ["\\\\wsl.localhost", "\\\\wsl$"];
+
+    for wsl_root in &wsl_roots {
+        for distro in &distros {
+            let home_path = PathBuf::from(format!("{}\\{}\\home", wsl_root, distro));
+
+            if home_path.exists() {
+                // Find user directories in /home
+                if let Ok(entries) = std::fs::read_dir(&home_path) {
+                    for entry in entries.flatten() {
+                        let kubeconfig = entry.path().join(".kube").join("config");
+                        if kubeconfig.exists() {
+                            tracing::info!("Found WSL kubeconfig at: {:?}", kubeconfig);
+                            return Some(kubeconfig);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Also check root home directory (some setups use /root)
+    for wsl_root in &wsl_roots {
+        for distro in &distros {
+            let root_kubeconfig = PathBuf::from(format!(
+                "{}\\{}\\root\\.kube\\config",
+                wsl_root, distro
+            ));
+            if root_kubeconfig.exists() {
+                tracing::info!("Found WSL root kubeconfig at: {:?}", root_kubeconfig);
+                return Some(root_kubeconfig);
+            }
+        }
+    }
+
+    None
 }
 
 // Startup check functions
