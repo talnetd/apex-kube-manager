@@ -17,6 +17,8 @@
     stopContextPolling,
   } from '../stores/kubernetes';
   import { searchQuery, globalSearchOpen } from '../stores/search';
+  import { activePortForwardCount, portForwardPanelOpen } from '../stores/portforward';
+  import PortForwardPanel from './PortForwardPanel.svelte';
 
   const appWindow = getCurrentWindow();
 
@@ -216,16 +218,11 @@
   <button
     type="button"
     onclick={openGlobalSearch}
-    class="relative flex items-center w-56 pl-9 pr-4 py-1.5 bg-bg-tertiary border border-border-subtle rounded-lg text-sm text-text-muted hover:border-accent-primary transition-colors cursor-pointer"
+    class="flex items-center gap-2 px-3 py-1.5 text-sm text-text-muted hover:text-text-primary transition-colors"
+    title="Search resources"
   >
-    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-    </svg>
-    <span>Search resources...</span>
-    <div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
-      <kbd class="px-1 py-0.5 bg-bg-secondary border border-border-subtle rounded text-xs">⌘</kbd>
-      <kbd class="px-1.5 py-0.5 bg-bg-secondary border border-border-subtle rounded text-xs">K</kbd>
-    </div>
+    <kbd class="px-1.5 py-0.5 bg-bg-tertiary border border-border-subtle rounded text-xs font-medium">⌘K</kbd>
+    <span class="text-text-muted">Search</span>
   </button>
 
   <!-- Refresh Button -->
@@ -238,6 +235,28 @@
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
     </svg>
   </button>
+
+  <!-- Port Forward Button -->
+  <div class="relative">
+    <button
+      onclick={() => portForwardPanelOpen.update(v => !v)}
+      class="relative p-2 rounded-lg hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors {$portForwardPanelOpen ? 'bg-bg-tertiary text-accent-primary' : ''}"
+      title="Port Forwards (⌘P)"
+    >
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+      </svg>
+      {#if $activePortForwardCount > 0}
+        <span class="absolute -top-1 -right-1 w-4 h-4 bg-accent-primary text-white text-xs rounded-full flex items-center justify-center">
+          {$activePortForwardCount}
+        </span>
+      {/if}
+    </button>
+    <PortForwardPanel
+      isOpen={$portForwardPanelOpen}
+      onClose={() => portForwardPanelOpen.set(false)}
+    />
+  </div>
 
   <!-- Window Controls -->
   <div class="flex items-center gap-1 ml-2 pl-2 border-l border-border-subtle">

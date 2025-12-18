@@ -1,8 +1,10 @@
 mod commands;
 mod error;
 mod kubernetes;
+mod portforward;
 mod pty;
 
+use portforward::PortForwardManager;
 use pty::PtyManager;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -117,6 +119,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .manage(PtyManager::new())
+        .manage(PortForwardManager::new())
         .invoke_handler(tauri::generate_handler![
             // Startup checks
             commands::check_kubeconfig,
@@ -232,6 +235,12 @@ pub fn run() {
             commands::pty_close,
             // YAML editing
             commands::apply_yaml,
+            // Port forwarding
+            commands::start_port_forward,
+            commands::stop_port_forward,
+            commands::list_port_forwards,
+            commands::stop_all_port_forwards,
+            commands::get_resource_ports,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

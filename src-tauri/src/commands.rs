@@ -19,6 +19,7 @@ use crate::kubernetes::{
     ServiceInfo, ServiceDetail, ServiceEndpoint, ServiceEvent,
     StatefulSetDetail, StatefulSetEvent, StatefulSetInfo,
 };
+use crate::portforward::{self, PortForwardManager, PortForwardInfo, ResourceType, AvailablePort};
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 // Startup check commands
@@ -911,4 +912,52 @@ pub async fn apply_yaml(
     yaml_content: String,
 ) -> Result<String> {
     kubernetes::apply_yaml(&context_name, &yaml_content).await
+}
+
+// ============ Port Forward Commands ============
+
+#[tauri::command]
+pub async fn start_port_forward(
+    pf_manager: tauri::State<'_, PortForwardManager>,
+    context: String,
+    namespace: String,
+    resource_type: ResourceType,
+    resource_name: String,
+    local_port: u16,
+    remote_port: u16,
+) -> Result<PortForwardInfo> {
+    pf_manager.start_forward(context, namespace, resource_type, resource_name, local_port, remote_port).await
+}
+
+#[tauri::command]
+pub async fn stop_port_forward(
+    pf_manager: tauri::State<'_, PortForwardManager>,
+    id: String,
+) -> Result<()> {
+    pf_manager.stop_forward(&id).await
+}
+
+#[tauri::command]
+pub async fn list_port_forwards(
+    pf_manager: tauri::State<'_, PortForwardManager>,
+) -> Result<Vec<PortForwardInfo>> {
+    Ok(pf_manager.list_forwards().await)
+}
+
+#[tauri::command]
+pub async fn stop_all_port_forwards(
+    pf_manager: tauri::State<'_, PortForwardManager>,
+) -> Result<()> {
+    pf_manager.stop_all().await;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_resource_ports(
+    context: String,
+    namespace: String,
+    resource_type: ResourceType,
+    resource_name: String,
+) -> Result<Vec<AvailablePort>> {
+    portforward::get_resource_ports(&context, &namespace, &resource_type, &resource_name).await
 }
