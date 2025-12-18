@@ -66,6 +66,38 @@ npm run tauri dev
 npm run tauri build
 ```
 
+## WSL Development Setup
+
+When developing in WSL but building/testing for Windows:
+
+### Prerequisites (Windows side)
+1. **Node.js** (LTS): https://nodejs.org
+2. **Rust**: https://rustup.rs (will prompt to install Visual Studio Build Tools)
+3. **PowerShell execution policy** (run as Administrator):
+   ```powershell
+   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+   ```
+
+### Copy kubeconfig from WSL to Windows
+
+```bash
+# Run from WSL - copies to Windows user's .kube folder
+mkdir -p /mnt/c/Users/$(whoami)/.kube && cp ~/.kube/config /mnt/c/Users/$(whoami)/.kube/config
+```
+
+### Build from Windows
+
+```powershell
+# Navigate to project (accessible via WSL path)
+cd \\wsl$\Ubuntu\home\YOUR_USERNAME\projects\apex-kube-manager
+
+# Install dependencies and build
+npm install
+npm run tauri build
+```
+
+The MSI installer will be generated at `src-tauri/target/release/bundle/msi/`.
+
 ## Implemented Resource Views
 
 All resource views are fully functional with listing, namespace filtering (where applicable), and auto-refresh.

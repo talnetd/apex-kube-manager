@@ -88,6 +88,14 @@ kubectl cluster-info
 2. Check kubeconfig: `~/.kube/config`
 3. For EKS/GKE/AKS: ensure CLI tools in PATH
 
+### Windows: Copy kubeconfig from WSL
+
+To use your WSL kubeconfig with the Windows app:
+```bash
+# Run from WSL
+mkdir -p /mnt/c/Users/$(whoami)/.kube && cp ~/.kube/config /mnt/c/Users/$(whoami)/.kube/config
+```
+
 ### Exec doesn't work
 
 1. Verify: `kubectl exec -it <pod> -- /bin/sh`
