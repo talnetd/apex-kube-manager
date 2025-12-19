@@ -85,7 +85,7 @@
   <!-- Context/Cluster Selector -->
   <div class="relative">
     <button
-      onclick={() => (showContextDropdown = !showContextDropdown)}
+      onclick={() => { showContextDropdown = !showContextDropdown; showNamespaceDropdown = false; }}
       class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-tertiary border border-border-subtle hover:border-accent-primary transition-colors"
     >
       <div class="w-2 h-2 rounded-full bg-accent-success"></div>
@@ -129,7 +129,7 @@
   <!-- Namespace Selector -->
   <div class="relative">
     <button
-      onclick={() => (showNamespaceDropdown = !showNamespaceDropdown)}
+      onclick={() => { showNamespaceDropdown = !showNamespaceDropdown; showContextDropdown = false; }}
       class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-tertiary border border-border-subtle hover:border-accent-primary transition-colors"
     >
       <span class="text-sm text-text-primary">{$selectedNamespace || '*'}</span>
