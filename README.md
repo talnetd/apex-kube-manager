@@ -1,12 +1,5 @@
 <a id="readme-top"></a>
 
-<!-- PROJECT SHIELDS -->
-[![Contributors][contributors-shield]][contributors-url]
-[![Forks][forks-shield]][forks-url]
-[![Stargazers][stars-shield]][stars-url]
-[![Issues][issues-shield]][issues-url]
-[![MIT License][license-shield]][license-url]
-
 <!-- PROJECT LOGO -->
 <br />
 <div align="center">
@@ -56,10 +49,10 @@ Apex Kube Manager provides a clean, fast interface for everyday Kubernetes opera
 
 ## Built With
 
-* [![Tauri][Tauri]][Tauri-url]
-* [![Svelte][Svelte.dev]][Svelte-url]
-* [![Rust][Rust]][Rust-url]
-* [![TailwindCSS][TailwindCSS]][TailwindCSS-url]
+[![Tauri][Tauri]][Tauri-url]
+[![Svelte][Svelte.dev]][Svelte-url]
+[![Rust][Rust]][Rust-url]
+[![TailwindCSS][TailwindCSS]][TailwindCSS-url]
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
