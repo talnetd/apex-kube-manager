@@ -206,7 +206,7 @@ Contributions are what make the open source community amazing. Any contributions
 ### Building from Source
 
 ```bash
-# Install dependencies
+# Install frontend dependencies
 npm install
 
 # Development mode
@@ -214,6 +214,13 @@ npm run tauri dev
 
 # Production build
 npm run tauri build
+```
+
+**Alternative**: Use Tauri CLI directly via cargo:
+```bash
+cargo install tauri-cli  # One-time setup
+cargo tauri dev          # Development mode
+cargo tauri build        # Production build
 ```
 
 See [CLAUDE.md](CLAUDE.md) for detailed architecture documentation.

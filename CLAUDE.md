@@ -56,7 +56,7 @@ apex-kube-manager/
 ## Commands
 
 ```bash
-# Install dependencies
+# Install frontend dependencies
 npm install
 
 # Development mode (hot-reload frontend + Tauri backend)
@@ -65,6 +65,19 @@ npm run tauri dev
 # Production build (creates native binary)
 npm run tauri build
 ```
+
+### Alternative: Using Cargo directly
+
+```bash
+# Install Tauri CLI globally via cargo (one-time setup)
+cargo install tauri-cli
+
+# Then run commands directly with cargo
+cargo tauri dev     # Development mode
+cargo tauri build   # Production build
+```
+
+> **Note**: `npm install` is still required for frontend dependencies. The cargo commands call npm/vite under the hood for the frontend build.
 
 ## WSL Development Setup
 
