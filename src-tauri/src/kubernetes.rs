@@ -722,18 +722,103 @@ pub async fn list_pods(client: &Client, namespace: Option<&str>) -> Result<Vec<P
 pub async fn get_logs(client: &Client, namespace: &str, pod_name: &str, container: Option<&str>, tail_lines: Option<i64>, previous: Option<bool>) -> Result<String> {
     let pods: Api<Pod> = Api::namespaced(client.clone(), namespace);
 
-    let mut log_params = LogParams {
-        tail_lines,
-        previous: previous.unwrap_or(false),
-        ..Default::default()
-    };
+    // Check if we need to fetch all containers
+    let fetch_all = container.is_none() || container == Some("__all__");
 
-    if let Some(c) = container {
-        log_params.container = Some(c.to_string());
+    if fetch_all {
+        // Get pod to find all container names
+        let pod = pods.get(pod_name).await?;
+        let spec = pod.spec.ok_or_else(|| crate::error::AppError::Custom("Pod has no spec".to_string()))?;
+
+        let mut all_containers: Vec<String> = Vec::new();
+
+        // Add init containers
+        if let Some(init_containers) = spec.init_containers {
+            for c in init_containers {
+                all_containers.push(c.name);
+            }
+        }
+
+        // Add regular containers
+        for c in spec.containers {
+            all_containers.push(c.name);
+        }
+
+        // Collect all log lines with timestamps for sorting
+        let mut all_log_lines: Vec<(String, String, String)> = Vec::new(); // (timestamp, container, message)
+        let per_container_lines = tail_lines.map(|t| t / all_containers.len() as i64).unwrap_or(100);
+
+        for container_name in &all_containers {
+            let log_params = LogParams {
+                tail_lines: Some(per_container_lines),
+                previous: previous.unwrap_or(false),
+                container: Some(container_name.clone()),
+                timestamps: true, // Request timestamps for sorting
+                ..Default::default()
+            };
+
+            match pods.logs(pod_name, &log_params).await {
+                Ok(logs) => {
+                    for line in logs.lines() {
+                        // Kubernetes timestamp format: 2024-01-15T10:30:45.123456789Z message
+                        // Split at first space to separate timestamp from message
+                        if let Some(space_idx) = line.find(' ') {
+                            let timestamp = &line[..space_idx];
+                            let message = &line[space_idx + 1..];
+                            all_log_lines.push((
+                                timestamp.to_string(),
+                                container_name.clone(),
+                                message.to_string(),
+                            ));
+                        } else {
+                            // No timestamp found, use empty string (will sort to beginning)
+                            all_log_lines.push((
+                                String::new(),
+                                container_name.clone(),
+                                line.to_string(),
+                            ));
+                        }
+                    }
+                }
+                Err(e) => {
+                    all_log_lines.push((
+                        String::new(),
+                        container_name.clone(),
+                        format!("Error fetching logs: {}", e),
+                    ));
+                }
+            }
+        }
+
+        // Sort by timestamp (ISO 8601 format sorts correctly as strings)
+        all_log_lines.sort_by(|a, b| a.0.cmp(&b.0));
+
+        // Build combined output
+        let mut combined_logs = String::new();
+        for (timestamp, container_name, message) in all_log_lines {
+            if timestamp.is_empty() {
+                combined_logs.push_str(&format!("[{}] {}\n", container_name, message));
+            } else {
+                combined_logs.push_str(&format!("{} [{}] {}\n", timestamp, container_name, message));
+            }
+        }
+
+        Ok(combined_logs)
+    } else {
+        // Single container - original behavior
+        let mut log_params = LogParams {
+            tail_lines,
+            previous: previous.unwrap_or(false),
+            ..Default::default()
+        };
+
+        if let Some(c) = container {
+            log_params.container = Some(c.to_string());
+        }
+
+        let logs = pods.logs(pod_name, &log_params).await?;
+        Ok(logs)
     }
-
-    let logs = pods.logs(pod_name, &log_params).await?;
-    Ok(logs)
 }
 
 pub async fn delete_pod_by_name(client: &Client, namespace: &str, pod_name: &str) -> Result<()> {
