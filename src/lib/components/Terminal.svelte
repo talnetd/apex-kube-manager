@@ -6,6 +6,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import '@xterm/xterm/css/xterm.css';
+  import CustomSelect from './ui/CustomSelect.svelte';
 
   interface Props {
     namespace: string;
@@ -251,16 +252,14 @@
     </div>
     <div class="flex items-center gap-2">
       <!-- Shell selector -->
-      <select
-        bind:value={selectedShell}
-        disabled={isConnected}
-        class="px-2 py-1 text-xs bg-bg-tertiary text-text-primary border border-border-subtle rounded focus:outline-none focus:border-accent-primary disabled:opacity-50 disabled:cursor-not-allowed"
-        title={isConnected ? 'Disconnect to change shell' : 'Select shell'}
-      >
-        {#each SHELLS as shell}
-          <option value={shell.value}>{shell.label}</option>
-        {/each}
-      </select>
+      <div class="w-36" title={isConnected ? 'Disconnect to change shell' : 'Select shell'}>
+        <CustomSelect
+          bind:value={selectedShell}
+          options={SHELLS}
+          disabled={isConnected}
+          placeholder="Shell..."
+        />
+      </div>
       {#if !isConnected}
         <button
           onclick={reconnect}

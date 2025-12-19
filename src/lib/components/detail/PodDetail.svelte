@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import YamlEditorPanel from '../ui/YamlEditorPanel.svelte';
+  import CustomSelect from '../ui/CustomSelect.svelte';
 
   interface Props {
     context: string;
@@ -771,31 +772,30 @@
         <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-2 bg-bg-secondary border-b border-border-subtle">
           <div class="flex items-center gap-3">
             <!-- Container selector -->
-            <select
-              bind:value={selectedContainer}
-              onchange={loadPodLogs}
-              disabled={isDeleted}
-              class="text-sm bg-bg-tertiary border border-border-subtle rounded px-3 py-1 text-text-primary disabled:opacity-50"
-            >
-              {#if podDetail}
-                {#each podDetail.containers as container}
-                  <option value={container.name}>{container.name}</option>
-                {/each}
-              {/if}
-            </select>
+            <div class="w-40">
+              <CustomSelect
+                bind:value={selectedContainer}
+                options={podDetail ? podDetail.containers.map(c => ({ value: c.name, label: c.name })) : []}
+                disabled={isDeleted}
+                placeholder="Container..."
+                onchange={() => loadPodLogs()}
+              />
+            </div>
 
             <!-- Tail lines selector -->
-            <select
-              bind:value={tailLines}
-              onchange={loadPodLogs}
-              disabled={isDeleted}
-              class="text-sm bg-bg-tertiary border border-border-subtle rounded px-3 py-1 text-text-primary disabled:opacity-50"
-            >
-              <option value={100}>100 lines</option>
-              <option value={500}>500 lines</option>
-              <option value={1000}>1000 lines</option>
-              <option value={5000}>5000 lines</option>
-            </select>
+            <div class="w-32">
+              <CustomSelect
+                value={String(tailLines)}
+                options={[
+                  { value: '100', label: '100 lines' },
+                  { value: '500', label: '500 lines' },
+                  { value: '1000', label: '1000 lines' },
+                  { value: '5000', label: '5000 lines' },
+                ]}
+                disabled={isDeleted}
+                onchange={(v) => { tailLines = Number(v); loadPodLogs(); }}
+              />
+            </div>
 
             <!-- Previous logs toggle -->
             <label class="flex items-center gap-2 text-sm text-text-muted cursor-pointer">

@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { getPodLogs } from '../stores/kubernetes';
+  import CustomSelect from './ui/CustomSelect.svelte';
 
   interface Props {
     namespace: string;
@@ -24,7 +25,8 @@
     logs = await getPodLogs(namespace, podName, container, tailLines, showPrevious);
     isLoading = false;
 
-    // Scroll to bottom
+    // Wait for DOM to update, then scroll to bottom
+    await tick();
     if (logContainer) {
       logContainer.scrollTop = logContainer.scrollHeight;
     }
@@ -110,16 +112,18 @@
 
     <div class="flex items-center gap-3">
       <!-- Tail Lines Selector -->
-      <select
-        bind:value={tailLines}
-        onchange={fetchLogs}
-        class="px-2 py-1 text-xs bg-bg-tertiary border border-border-subtle rounded text-text-primary focus:outline-none focus:border-accent-primary"
-      >
-        <option value={50}>Last 50 lines</option>
-        <option value={100}>Last 100 lines</option>
-        <option value={500}>Last 500 lines</option>
-        <option value={1000}>Last 1000 lines</option>
-      </select>
+      <div class="w-32">
+        <CustomSelect
+          value={String(tailLines)}
+          options={[
+            { value: '50', label: 'Last 50 lines' },
+            { value: '100', label: 'Last 100 lines' },
+            { value: '500', label: 'Last 500 lines' },
+            { value: '1000', label: 'Last 1000 lines' },
+          ]}
+          onchange={(v) => { tailLines = Number(v); fetchLogs(); }}
+        />
+      </div>
 
       <!-- Previous Logs Toggle -->
       <label class="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
