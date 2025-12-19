@@ -25,7 +25,7 @@
       height: '100%',
     },
     '.cm-content': {
-      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+      fontFamily: 'Hack, Menlo, Monaco, "Courier New", monospace',
       fontSize: '12px',
       caretColor: '#00d4aa',
     },
@@ -142,6 +142,6 @@
     height: 100%;
   }
   :global(.cm-scroller) {
-    font-family: Menlo, Monaco, 'Courier New', monospace !important;
+    font-family: Hack, Menlo, Monaco, 'Courier New', monospace !important;
   }
 </style>

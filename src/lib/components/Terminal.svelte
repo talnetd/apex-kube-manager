@@ -42,7 +42,7 @@
     terminal = new Terminal({
       cursorBlink: true,
       fontSize: 13,
-      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+      fontFamily: 'Hack, Menlo, Monaco, "Courier New", monospace',
       scrollback: 10000,
       theme: {
         background: '#0a0a0a',

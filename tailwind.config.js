@@ -3,6 +3,10 @@ export default {
   content: ['./src/**/*.{html,js,svelte,ts}', './index.html'],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        mono: ['Hack', 'Menlo', 'Monaco', 'Courier New', 'monospace'],
+      },
       colors: {
         bg: {
           primary: '#0a0a0a',
