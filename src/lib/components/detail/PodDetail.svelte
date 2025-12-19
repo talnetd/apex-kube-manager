@@ -772,10 +772,13 @@
         <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-2 bg-bg-secondary border-b border-border-subtle">
           <div class="flex items-center gap-3">
             <!-- Container selector -->
-            <div class="w-40">
+            <div class="w-44">
               <CustomSelect
                 bind:value={selectedContainer}
-                options={podDetail ? podDetail.containers.map(c => ({ value: c.name, label: c.name })) : []}
+                options={podDetail ? [
+                  ...(podDetail.containers.length > 1 ? [{ value: '__all__', label: 'All Containers' }] : []),
+                  ...podDetail.containers.map(c => ({ value: c.name, label: c.name }))
+                ] : []}
                 disabled={isDeleted}
                 placeholder="Container..."
                 onchange={() => loadPodLogs()}
