@@ -45,6 +45,10 @@ No Electron. No bundled Chromium. Just a ~15MB native app that connects directly
 
 Apex Kube Manager provides a clean, fast interface for everyday Kubernetes operations - viewing resources, reading logs, exec into pods, scaling deployments, and port forwarding - without the overhead of browser-based tools.
 
+<p align="center">
+  <img src="docs/screenshots/main.png" alt="Apex Kube Manager Screenshot" width="800">
+</p>
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Built With
