@@ -494,6 +494,7 @@ pub async fn open_resource_detail(
     .inner_size(900.0, 700.0)
     .min_inner_size(600.0, 400.0)
     .resizable(true)
+    .decorations(false)
     .build()
     .map_err(|e| crate::error::AppError::Custom(format!("Failed to create window: {}", e)))?;
 
@@ -565,6 +566,7 @@ pub async fn open_terminal_window(
     .inner_size(800.0, 500.0)
     .min_inner_size(500.0, 300.0)
     .resizable(true)
+    .decorations(false)
     .build()
     .map_err(|e| crate::error::AppError::Custom(format!("Failed to create terminal window: {}", e)))?;
 

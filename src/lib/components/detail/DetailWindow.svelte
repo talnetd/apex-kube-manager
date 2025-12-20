@@ -6,6 +6,8 @@
   import StatefulSetDetail from './StatefulSetDetail.svelte';
   // Unified component for all other resource types
   import ResourceDetail from './ResourceDetail.svelte';
+  // Window controls
+  import WindowControls from '../ui/WindowControls.svelte';
 
   // Resource types that can be displayed
   type ResourceType = 'pod' | 'deployment' | 'statefulset' | 'daemonset' | 'replicaset' |
@@ -74,12 +76,12 @@
 
 <div class="h-screen flex flex-col bg-bg-primary overflow-hidden">
   <!-- Header with locked context info -->
-  <header class="flex items-center justify-between px-4 py-3 bg-bg-secondary border-b border-border-subtle">
-    <div class="flex items-center gap-3">
-      <svg class="w-5 h-5 text-accent-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  <header class="flex items-center px-4 py-3 bg-bg-secondary border-b border-border-subtle">
+    <div class="flex items-center gap-3" data-tauri-drag-region>
+      <svg class="w-5 h-5 text-accent-primary pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={getResourceIcon(resourceType)} />
       </svg>
-      <div>
+      <div class="pointer-events-none">
         <h1 class="text-lg font-semibold text-text-primary"><span class="capitalize">{resourceType}</span>: {resourceName}</h1>
         <div class="flex items-center gap-2 text-xs text-text-muted">
           <span class="flex items-center gap-1">
@@ -100,10 +102,16 @@
         </div>
       </div>
     </div>
+    <!-- Drag region spacer -->
+    <div class="flex-1 h-full cursor-grab active:cursor-grabbing" data-tauri-drag-region></div>
+    <!-- Locked view badge and window controls -->
     <div class="flex items-center gap-2">
       <span class="text-xs px-2 py-1 bg-accent-primary/10 text-accent-primary rounded">
         Locked View
       </span>
+      <div class="ml-2 pl-2 border-l border-border-subtle">
+        <WindowControls />
+      </div>
     </div>
   </header>
 
