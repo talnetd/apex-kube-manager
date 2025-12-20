@@ -17,7 +17,7 @@ export type View =
   | 'hpas'
   | 'ingresses'
   | 'network_policies'
-  | 'service_accounts'
+  | 'serviceaccounts'
   | 'nodes'
   | 'namespaces';
 
