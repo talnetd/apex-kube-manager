@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import SortableHeader from '../ui/SortableHeader.svelte';
   import { sortData, toggleSort, type SortState } from '../../utils/sort';
-  import { nodes, currentContext, refreshTrigger, loadNodes } from '../../stores/kubernetes';
+  import { nodes, currentContext, refreshTrigger, startNodeWatch, stopNodeWatch } from '../../stores/kubernetes';
   import { filterBySearch } from '../../stores/search';
   import ViewFilter from '../ui/ViewFilter.svelte';
 
@@ -33,16 +33,18 @@
   }
 
   onMount(() => {
-    loadNodes();
-    const interval = setInterval(() => loadNodes(), 10000);
-    return () => clearInterval(interval);
+    startNodeWatch();
+  });
+
+  onDestroy(() => {
+    stopNodeWatch();
   });
 
   $effect(() => {
     const ctx = $currentContext;
     const trigger = $refreshTrigger;
     if (!ctx) return;
-    loadNodes();
+    startNodeWatch();
   });
 
   function getStatusColor(status: string): string {

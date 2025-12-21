@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import SortableHeader from '../ui/SortableHeader.svelte';
   import { sortData, toggleSort, type SortState } from '../../utils/sort';
@@ -8,7 +8,8 @@
     selectedNamespace,
     currentContext,
     refreshTrigger,
-    loadDeployments,
+    startDeploymentWatch,
+    stopDeploymentWatch,
     type DeploymentInfo,
   } from '../../stores/kubernetes';
   import { filterBySearch } from '../../stores/search';
@@ -36,16 +37,18 @@
   let restartingDeployment = $state<string | null>(null);
 
   onMount(() => {
-    loadDeployments($selectedNamespace);
-    const interval = setInterval(() => loadDeployments($selectedNamespace), 10000);
-    return () => clearInterval(interval);
+    startDeploymentWatch($selectedNamespace);
+  });
+
+  onDestroy(() => {
+    stopDeploymentWatch();
   });
 
   $effect(() => {
     const ctx = $currentContext;
     const trigger = $refreshTrigger;
     if (!ctx) return;
-    loadDeployments($selectedNamespace);
+    startDeploymentWatch($selectedNamespace);
   });
 
   async function openDeploymentDetail(deployment: DeploymentInfo) {
@@ -82,7 +85,7 @@
       });
       showScaleModal = false;
       scaleTarget = null;
-      await loadDeployments($selectedNamespace);
+      // Watch stream will automatically update the deployment
     } catch (e) {
       alert(`Failed to scale: ${e}`);
     } finally {
@@ -103,7 +106,7 @@
         namespace: deployment.namespace,
         name: deployment.name
       });
-      await loadDeployments($selectedNamespace);
+      // Watch stream will automatically update the deployment
     } catch (e) {
       alert(`Failed to restart: ${e}`);
     } finally {

@@ -257,6 +257,7 @@ impl PortForwardManager {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_port_forward(
     context: String,
     namespace: String,
