@@ -4,6 +4,9 @@
 <br />
 <div align="center">
   <h1>Apex Kube Manager</h1>
+
+  [![Release](https://github.com/talnetd/apex-kube-manager/actions/workflows/release.yml/badge.svg)](https://github.com/talnetd/apex-kube-manager/actions/workflows/release.yml)
+
   <p>
     A fast, native desktop application for managing Kubernetes clusters.
     <br />
