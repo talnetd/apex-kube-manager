@@ -75,7 +75,8 @@
 </script>
 
 <aside
-  class="flex flex-col bg-bg-secondary border-r border-border-subtle transition-all duration-200 {$sidebarCollapsed ? 'w-14' : 'w-52'}"
+  class="flex flex-col bg-bg-secondary border-r border-border-subtle transition-all duration-200 cursor-pointer {$sidebarCollapsed ? 'w-14' : 'w-52'}"
+  onclick={toggleSidebar}
 >
   <!-- Logo / Brand / Drag Region -->
   <div class="flex items-center h-14 px-3 border-b border-border-subtle cursor-grab active:cursor-grabbing select-none" data-tauri-drag-region>
@@ -111,8 +112,7 @@
       <ul class="space-y-0.5 px-2">
         {#each section.items as item}
           <li>
-            <button
-              onclick={() => navigateTo(item.id)}
+            <button onclick={(e) => { e.stopPropagation(); navigateTo(item.id); }}
               title={$sidebarCollapsed ? item.label : ''}
               class="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md transition-colors
                 {$currentView === item.id
@@ -158,7 +158,7 @@
         </div>
       {/if}
       <button
-        onclick={toggleSidebar}
+        onclick={(e) => { e.stopPropagation(); toggleSidebar(); }}
         class="p-1 rounded hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
         title={$sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       >

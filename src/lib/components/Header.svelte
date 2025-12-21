@@ -23,6 +23,11 @@
   let showContextDropdown = $state(false);
   let showNamespaceDropdown = $state(false);
 
+  function closeDropdowns() {
+    showContextDropdown = false;
+    showNamespaceDropdown = false;
+  }
+
   function openGlobalSearch() {
     globalSearchOpen.set(true);
   }
@@ -32,10 +37,12 @@
     await loadNamespaces();
     await loadPulseMetrics();
     startContextPolling();
+    window.addEventListener('click', closeDropdowns);
   });
 
   onDestroy(() => {
     stopContextPolling();
+    window.removeEventListener('click', closeDropdowns);
   });
 
   async function handleContextChange(contextName: string) {
@@ -54,8 +61,11 @@
 <header class="h-14 bg-bg-secondary border-b border-border-subtle flex items-center px-4 gap-3">
   <!-- Context/Cluster Selector -->
   <div class="relative">
-    <button
-      onclick={() => { showContextDropdown = !showContextDropdown; showNamespaceDropdown = false; }}
+    <button onclick={(e) => {
+        e.stopPropagation();
+        showContextDropdown = !showContextDropdown;
+        showNamespaceDropdown = false;
+      }}
       class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-tertiary border border-border-subtle hover:border-accent-primary transition-colors"
     >
       <div class="w-2 h-2 rounded-full bg-accent-success"></div>
@@ -98,8 +108,11 @@
 
   <!-- Namespace Selector -->
   <div class="relative">
-    <button
-      onclick={() => { showNamespaceDropdown = !showNamespaceDropdown; showContextDropdown = false; }}
+    <button onclick={(e) => {
+        e.stopPropagation();
+        showNamespaceDropdown = !showNamespaceDropdown;
+        showContextDropdown = false;
+      }}
       class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-tertiary border border-border-subtle hover:border-accent-primary transition-colors"
     >
       <span class="text-sm text-text-primary">{$selectedNamespace || '*'}</span>
