@@ -724,6 +724,190 @@ pub async fn list_pods(client: &Client, namespace: Option<&str>) -> Result<Vec<P
     Ok(pod_infos)
 }
 
+/// Convert a Pod to PodInfo - used by watch streams
+pub fn pod_to_info(pod: &Pod) -> Option<PodInfo> {
+    let metadata = &pod.metadata;
+    let spec = pod.spec.as_ref();
+    let status = pod.status.as_ref();
+
+    let containers: Vec<ContainerInfo> = spec
+        .map(|s| {
+            s.containers
+                .iter()
+                .map(|c| {
+                    let container_status = status
+                        .and_then(|st| st.container_statuses.as_ref())
+                        .and_then(|statuses| {
+                            statuses.iter().find(|cs| cs.name == c.name)
+                        });
+
+                    ContainerInfo {
+                        name: c.name.clone(),
+                        image: c.image.clone().unwrap_or_default(),
+                        ready: container_status.map(|cs| cs.ready).unwrap_or(false),
+                        restart_count: container_status
+                            .map(|cs| cs.restart_count)
+                            .unwrap_or(0),
+                        state: get_container_state(container_status),
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let ready_count = containers.iter().filter(|c| c.ready).count();
+    let total_count = containers.len();
+    let total_restarts: i32 = containers.iter().map(|c| c.restart_count).sum();
+
+    Some(PodInfo {
+        name: metadata.name.clone()?,
+        namespace: metadata.namespace.clone().unwrap_or_default(),
+        status: get_pod_phase(status),
+        ready: format!("{}/{}", ready_count, total_count),
+        restarts: total_restarts,
+        age: get_age(metadata.creation_timestamp.as_ref()),
+        node: spec.and_then(|s| s.node_name.clone()),
+        ip: status.and_then(|s| s.pod_ip.clone()),
+        containers,
+    })
+}
+
+/// Convert a Deployment to DeploymentInfo - used by watch streams
+pub fn deployment_to_info(deploy: &Deployment) -> Option<DeploymentInfo> {
+    let metadata = &deploy.metadata;
+    let status = deploy.status.as_ref();
+
+    let replicas = status.and_then(|s| s.replicas).unwrap_or(0);
+    let ready = status.and_then(|s| s.ready_replicas).unwrap_or(0);
+    let updated = status.and_then(|s| s.updated_replicas).unwrap_or(0);
+    let available = status.and_then(|s| s.available_replicas).unwrap_or(0);
+
+    Some(DeploymentInfo {
+        name: metadata.name.clone()?,
+        namespace: metadata.namespace.clone().unwrap_or_default(),
+        ready: format!("{}/{}", ready, replicas),
+        up_to_date: updated,
+        available,
+        age: get_age(metadata.creation_timestamp.as_ref()),
+    })
+}
+
+/// Convert a Job to JobInfo - used by watch streams
+pub fn job_to_info(job: &Job) -> Option<JobInfo> {
+    let metadata = &job.metadata;
+    let spec = job.spec.as_ref();
+    let status = job.status.as_ref();
+
+    let completions_spec = spec.and_then(|s| s.completions).unwrap_or(1);
+    let succeeded = status.and_then(|s| s.succeeded).unwrap_or(0);
+    let failed = status.and_then(|s| s.failed).unwrap_or(0);
+    let active = status.and_then(|s| s.active).unwrap_or(0);
+
+    let job_status = if succeeded >= completions_spec {
+        "Complete".to_string()
+    } else if failed > 0 {
+        "Failed".to_string()
+    } else if active > 0 {
+        "Running".to_string()
+    } else {
+        "Pending".to_string()
+    };
+
+    let duration = status
+        .and_then(|s| s.start_time.as_ref())
+        .map(|start| {
+            let end = status
+                .and_then(|s| s.completion_time.as_ref())
+                .and_then(|t| chrono::DateTime::parse_from_rfc3339(&t.0.to_rfc3339()).ok())
+                .unwrap_or_else(|| chrono::Utc::now().into());
+            let start_dt = chrono::DateTime::parse_from_rfc3339(&start.0.to_rfc3339())
+                .unwrap_or_else(|_| chrono::Utc::now().into());
+            let dur = end.signed_duration_since(start_dt);
+            if dur.num_hours() > 0 {
+                format!("{}h{}m", dur.num_hours(), dur.num_minutes() % 60)
+            } else if dur.num_minutes() > 0 {
+                format!("{}m{}s", dur.num_minutes(), dur.num_seconds() % 60)
+            } else {
+                format!("{}s", dur.num_seconds())
+            }
+        });
+
+    Some(JobInfo {
+        name: metadata.name.clone()?,
+        namespace: metadata.namespace.clone().unwrap_or_default(),
+        completions: format!("{}/{}", succeeded, completions_spec),
+        duration,
+        age: get_age(metadata.creation_timestamp.as_ref()),
+        status: job_status,
+    })
+}
+
+/// Convert a Node to NodeInfo - used by watch streams
+pub fn node_to_info(node: &Node) -> Option<NodeInfo> {
+    let metadata = &node.metadata;
+    let spec = node.spec.as_ref();
+    let status = node.status.as_ref();
+
+    // Get node roles from labels
+    let roles: Vec<String> = metadata
+        .labels
+        .as_ref()
+        .map(|labels| {
+            labels.iter()
+                .filter_map(|(k, _)| {
+                    if k.starts_with("node-role.kubernetes.io/") {
+                        Some(k.trim_start_matches("node-role.kubernetes.io/").to_string())
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    // Get node status
+    let node_status = status
+        .and_then(|s| s.conditions.as_ref())
+        .and_then(|conditions| {
+            conditions.iter().find(|c| c.type_ == "Ready")
+        })
+        .map(|c| {
+            if c.status == "True" { "Ready" } else { "NotReady" }
+        })
+        .unwrap_or("Unknown")
+        .to_string();
+
+    // Check if node is unschedulable
+    let is_unschedulable = spec.and_then(|s| s.unschedulable).unwrap_or(false);
+    let final_status = if is_unschedulable {
+        format!("{},SchedulingDisabled", node_status)
+    } else {
+        node_status
+    };
+
+    let node_info = status.and_then(|s| s.node_info.as_ref());
+
+    let internal_ip = status
+        .and_then(|s| s.addresses.as_ref())
+        .and_then(|addrs| {
+            addrs.iter()
+                .find(|a| a.type_ == "InternalIP")
+                .map(|a| a.address.clone())
+        });
+
+    Some(NodeInfo {
+        name: metadata.name.clone()?,
+        status: final_status,
+        roles: if roles.is_empty() { vec!["<none>".to_string()] } else { roles },
+        age: get_age(metadata.creation_timestamp.as_ref()),
+        version: node_info.map(|i| i.kubelet_version.clone()).unwrap_or_default(),
+        internal_ip,
+        os_image: node_info.map(|i| i.os_image.clone()).unwrap_or_default(),
+        kernel: node_info.map(|i| i.kernel_version.clone()).unwrap_or_default(),
+        container_runtime: node_info.map(|i| i.container_runtime_version.clone()).unwrap_or_default(),
+    })
+}
+
 pub async fn get_logs(client: &Client, namespace: &str, pod_name: &str, container: Option<&str>, tail_lines: Option<i64>, previous: Option<bool>) -> Result<String> {
     let pods: Api<Pod> = Api::namespaced(client.clone(), namespace);
 
@@ -1505,8 +1689,7 @@ pub async fn list_jobs(client: &Client, namespace: Option<&str>) -> Result<Vec<J
                 .map(|start| {
                     let end = status
                         .and_then(|s| s.completion_time.as_ref())
-                        .map(|t| chrono::DateTime::parse_from_rfc3339(&t.0.to_rfc3339()).ok())
-                        .flatten()
+                        .and_then(|t| chrono::DateTime::parse_from_rfc3339(&t.0.to_rfc3339()).ok())
                         .unwrap_or_else(|| chrono::Utc::now().into());
                     let start_dt = chrono::DateTime::parse_from_rfc3339(&start.0.to_rfc3339())
                         .unwrap_or_else(|_| chrono::Utc::now().into());
@@ -2747,12 +2930,12 @@ fn get_age(timestamp: Option<&k8s_openapi::apimachinery::pkg::apis::meta::v1::Ti
 /// Parse CPU quantity string to millicores (e.g., "4" -> 4000, "500m" -> 500)
 fn parse_cpu_quantity(quantity: &str) -> i64 {
     let quantity = quantity.trim();
-    if quantity.ends_with('m') {
+    if let Some(stripped) = quantity.strip_suffix('m') {
         // Already in millicores
-        quantity[..quantity.len() - 1].parse::<i64>().unwrap_or(0)
-    } else if quantity.ends_with('n') {
+        stripped.parse::<i64>().unwrap_or(0)
+    } else if let Some(stripped) = quantity.strip_suffix('n') {
         // Nanocores to millicores
-        quantity[..quantity.len() - 1].parse::<i64>().unwrap_or(0) / 1_000_000
+        stripped.parse::<i64>().unwrap_or(0) / 1_000_000
     } else {
         // Whole cores to millicores
         quantity.parse::<f64>().unwrap_or(0.0) as i64 * 1000
@@ -2764,31 +2947,31 @@ fn parse_memory_quantity(quantity: &str) -> i64 {
     let quantity = quantity.trim();
 
     // Binary suffixes (Ki, Mi, Gi, Ti, Pi, Ei)
-    if quantity.ends_with("Ki") {
-        return quantity[..quantity.len() - 2].parse::<i64>().unwrap_or(0) * 1024;
+    if let Some(stripped) = quantity.strip_suffix("Ki") {
+        return stripped.parse::<i64>().unwrap_or(0) * 1024;
     }
-    if quantity.ends_with("Mi") {
-        return quantity[..quantity.len() - 2].parse::<i64>().unwrap_or(0) * 1024 * 1024;
+    if let Some(stripped) = quantity.strip_suffix("Mi") {
+        return stripped.parse::<i64>().unwrap_or(0) * 1024 * 1024;
     }
-    if quantity.ends_with("Gi") {
-        return quantity[..quantity.len() - 2].parse::<i64>().unwrap_or(0) * 1024 * 1024 * 1024;
+    if let Some(stripped) = quantity.strip_suffix("Gi") {
+        return stripped.parse::<i64>().unwrap_or(0) * 1024 * 1024 * 1024;
     }
-    if quantity.ends_with("Ti") {
-        return quantity[..quantity.len() - 2].parse::<i64>().unwrap_or(0) * 1024 * 1024 * 1024 * 1024;
+    if let Some(stripped) = quantity.strip_suffix("Ti") {
+        return stripped.parse::<i64>().unwrap_or(0) * 1024 * 1024 * 1024 * 1024;
     }
 
     // Decimal suffixes (k, M, G, T)
-    if quantity.ends_with('k') {
-        return quantity[..quantity.len() - 1].parse::<i64>().unwrap_or(0) * 1000;
+    if let Some(stripped) = quantity.strip_suffix('k') {
+        return stripped.parse::<i64>().unwrap_or(0) * 1000;
     }
-    if quantity.ends_with('M') {
-        return quantity[..quantity.len() - 1].parse::<i64>().unwrap_or(0) * 1000 * 1000;
+    if let Some(stripped) = quantity.strip_suffix('M') {
+        return stripped.parse::<i64>().unwrap_or(0) * 1000 * 1000;
     }
-    if quantity.ends_with('G') {
-        return quantity[..quantity.len() - 1].parse::<i64>().unwrap_or(0) * 1000 * 1000 * 1000;
+    if let Some(stripped) = quantity.strip_suffix('G') {
+        return stripped.parse::<i64>().unwrap_or(0) * 1000 * 1000 * 1000;
     }
-    if quantity.ends_with('T') {
-        return quantity[..quantity.len() - 1].parse::<i64>().unwrap_or(0) * 1000 * 1000 * 1000 * 1000;
+    if let Some(stripped) = quantity.strip_suffix('T') {
+        return stripped.parse::<i64>().unwrap_or(0) * 1000 * 1000 * 1000 * 1000;
     }
 
     // Plain bytes
@@ -3138,10 +3321,8 @@ pub async fn get_pod_detail(client: &Client, namespace: &str, name: &str) -> Res
                     Some(pvc.claim_name.clone())
                 } else if let Some(hp) = &v.host_path {
                     Some(hp.path.clone())
-                } else if let Some(nfs) = &v.nfs {
-                    Some(format!("{}:{}", nfs.server, nfs.path))
                 } else {
-                    None
+                    v.nfs.as_ref().map(|nfs| format!("{}:{}", nfs.server, nfs.path))
                 };
                 VolumeInfo {
                     name: v.name.clone(),

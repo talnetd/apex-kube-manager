@@ -20,6 +20,7 @@ use crate::kubernetes::{
     StatefulSetDetail, StatefulSetEvent, StatefulSetInfo,
 };
 use crate::portforward::{self, PortForwardManager, PortForwardInfo, ResourceType, AvailablePort};
+use crate::watch::WatchManager;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 // Startup check commands
@@ -962,4 +963,57 @@ pub async fn get_resource_ports(
     resource_name: String,
 ) -> Result<Vec<AvailablePort>> {
     portforward::get_resource_ports(&context, &namespace, &resource_type, &resource_name).await
+}
+
+// ============ Watch Stream Commands ============
+
+#[tauri::command]
+pub async fn watch_pods(
+    app: AppHandle,
+    watch_manager: tauri::State<'_, WatchManager>,
+    namespace: Option<String>,
+) -> Result<String> {
+    watch_manager.start_pod_watch(app, namespace).await
+}
+
+#[tauri::command]
+pub async fn watch_deployments(
+    app: AppHandle,
+    watch_manager: tauri::State<'_, WatchManager>,
+    namespace: Option<String>,
+) -> Result<String> {
+    watch_manager.start_deployment_watch(app, namespace).await
+}
+
+#[tauri::command]
+pub async fn watch_jobs(
+    app: AppHandle,
+    watch_manager: tauri::State<'_, WatchManager>,
+    namespace: Option<String>,
+) -> Result<String> {
+    watch_manager.start_job_watch(app, namespace).await
+}
+
+#[tauri::command]
+pub async fn watch_nodes(
+    app: AppHandle,
+    watch_manager: tauri::State<'_, WatchManager>,
+) -> Result<String> {
+    watch_manager.start_node_watch(app).await
+}
+
+#[tauri::command]
+pub async fn stop_watch(
+    watch_manager: tauri::State<'_, WatchManager>,
+    watch_id: String,
+) -> Result<()> {
+    watch_manager.stop_watch(&watch_id).await
+}
+
+#[tauri::command]
+pub async fn stop_all_watches(
+    watch_manager: tauri::State<'_, WatchManager>,
+) -> Result<()> {
+    watch_manager.stop_all().await;
+    Ok(())
 }

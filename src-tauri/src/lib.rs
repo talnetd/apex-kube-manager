@@ -3,9 +3,11 @@ mod error;
 mod kubernetes;
 mod portforward;
 mod pty;
+mod watch;
 
 use portforward::PortForwardManager;
 use pty::PtyManager;
+use watch::WatchManager;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 /// Fix environment on macOS when launched from Finder (GUI apps don't inherit shell env)
@@ -120,6 +122,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .manage(PtyManager::new())
         .manage(PortForwardManager::new())
+        .manage(WatchManager::new())
         .invoke_handler(tauri::generate_handler![
             // Startup checks
             commands::check_kubeconfig,
@@ -241,6 +244,13 @@ pub fn run() {
             commands::list_port_forwards,
             commands::stop_all_port_forwards,
             commands::get_resource_ports,
+            // Watch streams
+            commands::watch_pods,
+            commands::watch_deployments,
+            commands::watch_jobs,
+            commands::watch_nodes,
+            commands::stop_watch,
+            commands::stop_all_watches,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

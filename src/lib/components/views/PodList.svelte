@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import StatusBadge from '../ui/StatusBadge.svelte';
   import SortableHeader from '../ui/SortableHeader.svelte';
@@ -10,10 +10,10 @@
     selectedNamespace,
     currentContext,
     refreshTrigger,
-    loadPods,
+    startPodWatch,
+    stopPodWatch,
     deletePod,
     openTerminalWindow,
-    isLoading,
   } from '../../stores/kubernetes';
   import type { PodInfo } from '../../stores/kubernetes';
   import { filterBySearch } from '../../stores/search';
@@ -57,9 +57,11 @@
   }
 
   onMount(() => {
-    loadPods($selectedNamespace);
-    const interval = setInterval(() => loadPods($selectedNamespace), 10000);
-    return () => clearInterval(interval);
+    startPodWatch($selectedNamespace);
+  });
+
+  onDestroy(() => {
+    stopPodWatch();
   });
 
   // React to namespace, context, and manual refresh trigger
@@ -67,7 +69,8 @@
     const ctx = $currentContext;
     const trigger = $refreshTrigger;
     if (!ctx) return;
-    loadPods($selectedNamespace);
+    // Restart watch when namespace changes
+    startPodWatch($selectedNamespace);
   });
 
   async function openPodDetail(pod: PodInfo) {

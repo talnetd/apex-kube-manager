@@ -84,8 +84,8 @@
           <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Namespace" field="namespace" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Type" field="service_type" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Cluster IP" field="cluster_ip" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="External IP" field="external_ip" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
+          <SortableHeader label="Cluster IP" field="cluster_ip" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} class="whitespace-nowrap" />
+          <SortableHeader label="External IP" field="external_ip" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} class="whitespace-nowrap" />
           <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium">Ports</th>
           <SortableHeader label="Age" field="age" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
         </tr>

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import SortableHeader from '../ui/SortableHeader.svelte';
   import { sortData, toggleSort, type SortState } from '../../utils/sort';
@@ -8,7 +8,8 @@
     selectedNamespace,
     currentContext,
     refreshTrigger,
-    loadJobs,
+    startJobWatch,
+    stopJobWatch,
   } from '../../stores/kubernetes';
   import { filterBySearch } from '../../stores/search';
   import ViewFilter from '../ui/ViewFilter.svelte';
@@ -39,16 +40,18 @@
   }
 
   onMount(() => {
-    loadJobs($selectedNamespace);
-    const interval = setInterval(() => loadJobs($selectedNamespace), 10000);
-    return () => clearInterval(interval);
+    startJobWatch($selectedNamespace);
+  });
+
+  onDestroy(() => {
+    stopJobWatch();
   });
 
   $effect(() => {
     const ctx = $currentContext;
     const trigger = $refreshTrigger;
     if (!ctx) return;
-    loadJobs($selectedNamespace);
+    startJobWatch($selectedNamespace);
   });
 
   function getStatusClass(status: string): string {
