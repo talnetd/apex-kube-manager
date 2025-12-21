@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
 
   interface Option {
     value: string;
@@ -17,13 +17,35 @@
   let { options, value = $bindable(), placeholder = 'Select...', disabled = false, onchange }: Props = $props();
 
   let isOpen = $state(false);
+  let openUpward = $state(false);
   let dropdownRef: HTMLDivElement;
   let buttonRef: HTMLButtonElement;
+  let menuRef: HTMLDivElement;
 
-  function toggle() {
+  async function toggle() {
     if (!disabled) {
-      isOpen = !isOpen;
+      if (!isOpen) {
+        // Calculate position before opening
+        isOpen = true;
+        await tick();
+        calculateDropdownPosition();
+      } else {
+        isOpen = false;
+      }
     }
+  }
+
+  function calculateDropdownPosition() {
+    if (!buttonRef || !menuRef) return;
+
+    const buttonRect = buttonRef.getBoundingClientRect();
+    const menuHeight = menuRef.offsetHeight;
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - buttonRect.bottom;
+    const spaceAbove = buttonRect.top;
+
+    // Open upward if not enough space below and more space above
+    openUpward = spaceBelow < menuHeight && spaceAbove > spaceBelow;
   }
 
   function select(optionValue: string) {
@@ -80,7 +102,12 @@
   {#if isOpen}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="absolute z-50 w-full mt-1 bg-bg-secondary border border-border-subtle rounded-lg shadow-xl overflow-hidden"
+      bind:this={menuRef}
+      class="absolute z-50 w-full bg-bg-secondary border border-border-subtle rounded-lg shadow-xl overflow-hidden"
+      class:bottom-full={openUpward}
+      class:mb-1={openUpward}
+      class:top-full={!openUpward}
+      class:mt-1={!openUpward}
       onkeydown={handleKeydown}
     >
       <div class="max-h-48 overflow-y-auto">

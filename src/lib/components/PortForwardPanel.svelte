@@ -213,7 +213,7 @@
   ></div>
 
   <!-- Panel -->
-  <div class="absolute top-full right-0 mt-2 w-80 bg-bg-secondary border border-border-subtle rounded-lg shadow-xl z-50 overflow-hidden">
+  <div class="absolute top-full right-0 mt-2 w-80 bg-bg-secondary border border-border-subtle rounded-lg shadow-xl z-50">
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-border-subtle">
       <span class="text-sm font-medium text-text-primary">Port Forwards</span>
@@ -287,7 +287,7 @@
           New Forward
         </button>
       {:else}
-        <div class="p-4 space-y-3 bg-bg-tertiary/30">
+        <div class="p-4 space-y-3 bg-bg-tertiary/30 overflow-visible">
           <!-- Error -->
           {#if formError}
             <div class="text-xs text-accent-error bg-accent-error/10 px-2 py-1.5 rounded">
