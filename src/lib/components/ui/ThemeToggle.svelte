@@ -75,7 +75,7 @@ const CheckIcon = () => `
 
 <div class="theme-toggle-container relative">
   <button
-    on:click={toggleDropdown}
+    onclick={toggleDropdown}
     class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors text-text-secondary hover:text-text-primary border border-border-subtle"
   >
     {#if $resolvedTheme === "light"}
@@ -98,7 +98,7 @@ const CheckIcon = () => `
       class="absolute right-0 mt-2 w-40 bg-bg-secondary border border-border-subtle rounded-lg shadow-xl overflow-hidden z-50"
     >
       <button
-        on:click={() => selectTheme("light")}
+        onclick={() => selectTheme("light")}
         class="w-full flex items-center justify-between px-4 py-2.5 text-sm text-text-primary hover:bg-bg-tertiary transition-colors"
       >
         <div class="flex items-center gap-2">
@@ -111,7 +111,7 @@ const CheckIcon = () => `
       </button>
 
       <button
-        on:click={() => selectTheme("dark")}
+        onclick={() => selectTheme("dark")}
         class="w-full flex items-center justify-between px-4 py-2.5 text-sm text-text-primary hover:bg-bg-tertiary transition-colors"
       >
         <div class="flex items-center gap-2">
@@ -124,7 +124,7 @@ const CheckIcon = () => `
       </button>
 
       <button
-        on:click={() => selectTheme("system")}
+        onclick={() => selectTheme("system")}
         class="w-full flex items-center justify-between px-4 py-2.5 text-sm text-text-primary hover:bg-bg-tertiary transition-colors"
       >
         <div class="flex items-center gap-2">
@@ -146,3 +146,4 @@ const CheckIcon = () => `
     z-index: 10;
   }
 </style>
+
