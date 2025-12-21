@@ -5,6 +5,7 @@
   import { yaml } from '@codemirror/lang-yaml';
   import { keymap } from '@codemirror/view';
   import { indentWithTab } from '@codemirror/commands';
+  import { resolvedTheme } from "../../stores/theme";
 
   interface Props {
     content: string;
@@ -17,11 +18,13 @@
   let editorContainer: HTMLDivElement;
   let editorView: EditorView | null = null;
 
-  // Dark theme for CodeMirror matching our app
-  const darkTheme = EditorView.theme({
+ // Get CodeMirror theme based on current theme
+	function getEditorTheme() {
+	const isDark = $resolvedTheme === "dark";
+	return EditorView.theme({
     '&': {
-      backgroundColor: '#0a0a0a',
-      color: '#e4e4e7',
+      backgroundColor: isDark ? "#0a0a0a" : "#ffffff",
+	  color: isDark ? "#e4e4e7" : "#1f2937",
       height: '100%',
     },
     '.cm-content': {
@@ -36,16 +39,16 @@
       borderLeftColor: '#00d4aa',
     },
     '.cm-gutters': {
-      backgroundColor: '#111111',
-      color: '#555555',
+      backgroundColor: isDark ? "#111111" : "#f9fafb",
+	  color: isDark ? "#555555" : "#9ca3af",
       border: 'none',
-      borderRight: '1px solid #222222',
+	  borderRight: isDark ? "1px solid #222222" : "1px solid #e5e7eb",
     },
     '.cm-activeLineGutter': {
-      backgroundColor: '#1a1a1a',
+	  backgroundColor: isDark ? "#1a1a1a" : "#f3f4f6",
     },
     '.cm-activeLine': {
-      backgroundColor: '#1a1a1a40',
+      backgroundColor: isDark ? "#1a1a40" : "#f3f4f6",
     },
     '.cm-selectionBackground': {
       backgroundColor: '#00d4aa30 !important',
@@ -61,9 +64,9 @@
     '.cm-string': { color: '#22c55e' },
     '.cm-number': { color: '#f59e0b' },
     '.cm-keyword': { color: '#00d4aa' },
-    '.cm-comment': { color: '#555555' },
+    '.cm-comment': { color: isDark ? '#555555' : '#9ca3af' },
     '.cm-propertyName': { color: '#3b82f6' },
-    '.cm-punctuation': { color: '#888888' },
+    '.cm-punctuation': { color: isDark ? '#888888' : '#6b7280' },
     '.cm-atom': { color: '#a855f7' },
     '.cm-meta': { color: '#ef4444' },
     // Scrollbar styling
@@ -75,22 +78,22 @@
       height: '8px',
     },
     '.cm-scroller::-webkit-scrollbar-track': {
-      background: '#111111',
+      background: isDark ? '#111111' : '#f5f5f5',
     },
     '.cm-scroller::-webkit-scrollbar-thumb': {
-      background: '#333333',
+      background: isDark ? '#333333' : '#d0d0d0',
       borderRadius: '4px',
     },
     '.cm-scroller::-webkit-scrollbar-thumb:hover': {
-      background: '#444444',
+      background: isDark ? '#444444' : '#b0b0b0',
     },
-  }, { dark: true });
+  }, { dark: isDark });
 
   onMount(() => {
     const extensions = [
       basicSetup,
       yaml(),
-      darkTheme,
+      getEditorTheme(),
       keymap.of([indentWithTab]),
       EditorView.lineWrapping,
     ];
@@ -120,19 +123,30 @@
 
   // Update content when prop changes
   $effect(() => {
-    if (editorView && content !== undefined) {
-      const currentContent = editorView.state.doc.toString();
-      if (content !== currentContent) {
-        editorView.dispatch({
-          changes: {
-            from: 0,
-            to: currentContent.length,
-            insert: content,
-          },
-        });
-      }
-    }
-  });
+	const theme = $resolvedTheme;
+	if (editorView) {
+		// Reconfigure editor with new theme
+		editorView.dispatch({
+		effects: [
+			// Remove old theme and add new one
+			EditorView.reconfigure([
+			basicSetup,
+			yaml(),
+			getEditorTheme(),
+			keymap.of([indentWithTab]),
+			EditorView.lineWrapping,
+			...(readonly ? [EditorState.readOnly.of(true)] : []),
+			...(onchange ? [EditorView.updateListener.of((update) => {
+				if (update.docChanged) {
+				onchange(update.state.doc.toString());
+				}
+			})] : []),
+			])
+		]
+		});
+	}
+});
+
 </script>
 
 <div bind:this={editorContainer} class="h-full w-full overflow-hidden"></div>
@@ -145,3 +159,4 @@
     font-family: Hack, Menlo, Monaco, 'Courier New', monospace !important;
   }
 </style>
+
