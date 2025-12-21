@@ -466,6 +466,11 @@ pub struct PulseMetrics {
     pub cpu_allocatable: i64,
     pub memory_capacity: i64,
     pub memory_allocatable: i64,
+
+    // Actual usage from metrics-server (None if metrics-server unavailable)
+    pub cpu_usage: Option<i64>,
+    pub memory_usage: Option<i64>,
+    pub metrics_available: bool,
 }
 
 fn get_kubeconfig_path() -> PathBuf {
@@ -2522,6 +2527,9 @@ pub async fn get_pulse_metrics(client: &Client, namespace: Option<&str>) -> Resu
         }
     }
 
+    // Try to get actual usage from metrics-server
+    let node_metrics = get_node_metrics(client).await;
+
     // Calculate OK/FAIL for pods
     let pods_ok = pods.items.iter().filter(|p| {
         p.status.as_ref()
@@ -2607,7 +2615,41 @@ pub async fn get_pulse_metrics(client: &Client, namespace: Option<&str>) -> Resu
         cpu_allocatable,
         memory_capacity,
         memory_allocatable,
+        cpu_usage: node_metrics.as_ref().map(|(cpu, _)| *cpu),
+        memory_usage: node_metrics.as_ref().map(|(_, mem)| *mem),
+        metrics_available: node_metrics.is_some(),
     })
+}
+
+/// Fetch node metrics from metrics-server API
+/// Returns (total_cpu_usage_millicores, total_memory_usage_bytes) or None if unavailable
+async fn get_node_metrics(client: &Client) -> Option<(i64, i64)> {
+    // Try to fetch from metrics.k8s.io/v1beta1/nodes
+    let url = "/apis/metrics.k8s.io/v1beta1/nodes";
+
+    let request = http::Request::get(url)
+        .body(Default::default())
+        .ok()?;
+
+    let response: serde_json::Value = client.request(request).await.ok()?;
+
+    let items = response.get("items")?.as_array()?;
+
+    let mut total_cpu: i64 = 0;
+    let mut total_memory: i64 = 0;
+
+    for item in items {
+        if let Some(usage) = item.get("usage") {
+            if let Some(cpu_str) = usage.get("cpu").and_then(|v| v.as_str()) {
+                total_cpu += parse_cpu_quantity(cpu_str);
+            }
+            if let Some(mem_str) = usage.get("memory").and_then(|v| v.as_str()) {
+                total_memory += parse_memory_quantity(mem_str);
+            }
+        }
+    }
+
+    Some((total_cpu, total_memory))
 }
 
 fn get_pod_phase(status: Option<&k8s_openapi::api::core::v1::PodStatus>) -> String {

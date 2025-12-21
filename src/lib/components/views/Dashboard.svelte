@@ -6,11 +6,22 @@
   let lastRefresh = $state(new Date());
   let refreshInterval: ReturnType<typeof setInterval>;
 
-  // Simulated usage percentages (animating for visual effect)
-  let cpuUsage = $state(0);
-  let memoryUsage = $state(0);
-  let targetCpuUsage = $state(45);
-  let targetMemoryUsage = $state(62);
+  // Calculate real CPU/Memory usage percentages from metrics
+  const cpuUsage = $derived(() => {
+    if (!$pulseMetrics?.metrics_available || !$pulseMetrics.cpu_usage) return 0;
+    const usage = $pulseMetrics.cpu_usage;
+    const allocatable = $pulseMetrics.cpu_allocatable;
+    if (allocatable <= 0) return 0;
+    return Math.min(100, (usage / allocatable) * 100);
+  });
+
+  const memoryUsage = $derived(() => {
+    if (!$pulseMetrics?.metrics_available || !$pulseMetrics.memory_usage) return 0;
+    const usage = $pulseMetrics.memory_usage;
+    const allocatable = $pulseMetrics.memory_allocatable;
+    if (allocatable <= 0) return 0;
+    return Math.min(100, (usage / allocatable) * 100);
+  });
 
   // React to namespace and context changes
   $effect(() => {
@@ -22,38 +33,13 @@
   });
 
   onMount(() => {
-    // Animate gauges on mount
-    const animateGauges = () => {
-      // Randomize target slightly for "live" feel
-      targetCpuUsage = Math.min(85, Math.max(25, targetCpuUsage + (Math.random() - 0.5) * 8));
-      targetMemoryUsage = Math.min(90, Math.max(35, targetMemoryUsage + (Math.random() - 0.5) * 6));
-    };
-
-    // Smooth animation towards target
-    const smoothAnimation = setInterval(() => {
-      cpuUsage += (targetCpuUsage - cpuUsage) * 0.1;
-      memoryUsage += (targetMemoryUsage - memoryUsage) * 0.1;
-    }, 50);
-
-    // Update targets periodically for "live" effect
-    const targetInterval = setInterval(animateGauges, 3000);
-
     refreshInterval = setInterval(() => {
       loadPulseMetrics($selectedNamespace);
       lastRefresh = new Date();
     }, 5000);
 
-    // Initial animation
-    setTimeout(() => {
-      cpuUsage = 0;
-      memoryUsage = 0;
-      animateGauges();
-    }, 100);
-
     return () => {
       clearInterval(refreshInterval);
-      clearInterval(smoothAnimation);
-      clearInterval(targetInterval);
     };
   });
 
@@ -180,145 +166,156 @@
 
     <!-- CPU & Memory Gauges -->
     <div class="px-6 pt-6">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        <!-- CPU Gauge -->
-        <div class="relative bg-bg-secondary rounded-xl border border-border-subtle p-6 overflow-hidden">
-          <!-- Animated background glow -->
-          <div class="absolute inset-0 opacity-20">
-            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-cyan-500 rounded-full blur-3xl animate-pulse"></div>
-          </div>
+      {#if $pulseMetrics.metrics_available}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <!-- CPU Gauge -->
+          <div class="relative bg-bg-secondary rounded-xl border border-border-subtle p-6 overflow-hidden">
+            <div class="relative flex items-center gap-6">
+              <!-- Ring Gauge -->
+              <div class="relative w-32 h-32 flex-shrink-0">
+                <svg class="w-full h-full -rotate-90" viewBox="0 0 120 120">
+                  <!-- Background ring -->
+                  <circle
+                    cx="60"
+                    cy="60"
+                    r="52"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="12"
+                    class="text-bg-tertiary"
+                  />
+                  <!-- Progress ring -->
+                  <circle
+                    cx="60"
+                    cy="60"
+                    r="52"
+                    fill="none"
+                    stroke="url(#cpuGradient)"
+                    stroke-width="12"
+                    stroke-linecap="round"
+                    stroke-dasharray={getStrokeDasharray(cpuUsage(), 52)}
+                    class="transition-all duration-300"
+                  />
+                  <defs>
+                    <linearGradient id="cpuGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stop-color="#06b6d4" />
+                      <stop offset="100%" stop-color="#3b82f6" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <!-- Center text -->
+                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                  <span class="text-2xl font-bold text-text-primary">{cpuUsage().toFixed(0)}%</span>
+                  <span class="text-xs text-text-muted">usage</span>
+                </div>
+              </div>
 
-          <div class="relative flex items-center gap-6">
-            <!-- Ring Gauge -->
-            <div class="relative w-32 h-32 flex-shrink-0">
-              <svg class="w-full h-full -rotate-90" viewBox="0 0 120 120">
-                <!-- Background ring -->
-                <circle
-                  cx="60"
-                  cy="60"
-                  r="52"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="12"
-                  class="text-bg-tertiary"
-                />
-                <!-- Progress ring -->
-                <circle
-                  cx="60"
-                  cy="60"
-                  r="52"
-                  fill="none"
-                  stroke="url(#cpuGradient)"
-                  stroke-width="12"
-                  stroke-linecap="round"
-                  stroke-dasharray={getStrokeDasharray(cpuUsage, 52)}
-                  class="transition-all duration-100"
-                />
-                <defs>
-                  <linearGradient id="cpuGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#06b6d4" />
-                    <stop offset="100%" stop-color="#3b82f6" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <!-- Center text -->
-              <div class="absolute inset-0 flex flex-col items-center justify-center">
-                <span class="text-2xl font-bold text-text-primary">{cpuUsage.toFixed(0)}%</span>
-                <span class="text-xs text-text-muted">usage</span>
+              <!-- Info -->
+              <div class="flex-1">
+                <div class="flex items-center gap-2 mb-2">
+                  <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                  </svg>
+                  <h3 class="text-lg font-semibold text-text-primary">CPU</h3>
+                </div>
+                <div class="space-y-1">
+                  <div class="flex justify-between text-sm">
+                    <span class="text-text-muted">Usage</span>
+                    <span class="text-cyan-400 font-mono">{formatCpu($pulseMetrics.cpu_usage ?? 0)} cores</span>
+                  </div>
+                  <div class="flex justify-between text-sm">
+                    <span class="text-text-muted">Allocatable</span>
+                    <span class="text-text-primary font-mono">{formatCpu($pulseMetrics.cpu_allocatable)} cores</span>
+                  </div>
+                </div>
               </div>
             </div>
+          </div>
 
-            <!-- Info -->
-            <div class="flex-1">
-              <div class="flex items-center gap-2 mb-2">
-                <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+          <!-- Memory Gauge -->
+          <div class="relative bg-bg-secondary rounded-xl border border-border-subtle p-6 overflow-hidden">
+            <div class="relative flex items-center gap-6">
+              <!-- Ring Gauge -->
+              <div class="relative w-32 h-32 flex-shrink-0">
+                <svg class="w-full h-full -rotate-90" viewBox="0 0 120 120">
+                  <!-- Background ring -->
+                  <circle
+                    cx="60"
+                    cy="60"
+                    r="52"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="12"
+                    class="text-bg-tertiary"
+                  />
+                  <!-- Progress ring -->
+                  <circle
+                    cx="60"
+                    cy="60"
+                    r="52"
+                    fill="none"
+                    stroke="url(#memGradient)"
+                    stroke-width="12"
+                    stroke-linecap="round"
+                    stroke-dasharray={getStrokeDasharray(memoryUsage(), 52)}
+                    class="transition-all duration-300"
+                  />
+                  <defs>
+                    <linearGradient id="memGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stop-color="#10b981" />
+                      <stop offset="100%" stop-color="#8b5cf6" />
+                    </linearGradient>
+                  </defs>
                 </svg>
-                <h3 class="text-lg font-semibold text-text-primary">CPU</h3>
-              </div>
-              <div class="space-y-1">
-                <div class="flex justify-between text-sm">
-                  <span class="text-text-muted">Allocatable</span>
-                  <span class="text-text-primary font-mono">{formatCpu($pulseMetrics.cpu_allocatable)} cores</span>
+                <!-- Center text -->
+                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                  <span class="text-2xl font-bold text-text-primary">{memoryUsage().toFixed(0)}%</span>
+                  <span class="text-xs text-text-muted">usage</span>
                 </div>
-                <div class="flex justify-between text-sm">
-                  <span class="text-text-muted">Capacity</span>
-                  <span class="text-text-primary font-mono">{formatCpu($pulseMetrics.cpu_capacity)} cores</span>
+              </div>
+
+              <!-- Info -->
+              <div class="flex-1">
+                <div class="flex items-center gap-2 mb-2">
+                  <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                  </svg>
+                  <h3 class="text-lg font-semibold text-text-primary">Memory</h3>
+                </div>
+                <div class="space-y-1">
+                  <div class="flex justify-between text-sm">
+                    <span class="text-text-muted">Usage</span>
+                    <span class="text-emerald-400 font-mono">{formatMemory($pulseMetrics.memory_usage ?? 0)} Gi</span>
+                  </div>
+                  <div class="flex justify-between text-sm">
+                    <span class="text-text-muted">Allocatable</span>
+                    <span class="text-text-primary font-mono">{formatMemory($pulseMetrics.memory_allocatable)} Gi</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-
-        <!-- Memory Gauge -->
-        <div class="relative bg-bg-secondary rounded-xl border border-border-subtle p-6 overflow-hidden">
-          <!-- Animated background glow -->
-          <div class="absolute inset-0 opacity-20">
-            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-emerald-500 rounded-full blur-3xl animate-pulse"></div>
-          </div>
-
-          <div class="relative flex items-center gap-6">
-            <!-- Ring Gauge -->
-            <div class="relative w-32 h-32 flex-shrink-0">
-              <svg class="w-full h-full -rotate-90" viewBox="0 0 120 120">
-                <!-- Background ring -->
-                <circle
-                  cx="60"
-                  cy="60"
-                  r="52"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="12"
-                  class="text-bg-tertiary"
-                />
-                <!-- Progress ring -->
-                <circle
-                  cx="60"
-                  cy="60"
-                  r="52"
-                  fill="none"
-                  stroke="url(#memGradient)"
-                  stroke-width="12"
-                  stroke-linecap="round"
-                  stroke-dasharray={getStrokeDasharray(memoryUsage, 52)}
-                  class="transition-all duration-100"
-                />
-                <defs>
-                  <linearGradient id="memGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#10b981" />
-                    <stop offset="100%" stop-color="#8b5cf6" />
-                  </linearGradient>
-                </defs>
+      {:else}
+        <!-- Metrics unavailable message -->
+        <div class="mb-6 bg-bg-secondary rounded-xl border border-border-subtle p-6">
+          <div class="flex items-center gap-4">
+            <div class="p-3 rounded-lg bg-amber-400/10">
+              <svg class="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <!-- Center text -->
-              <div class="absolute inset-0 flex flex-col items-center justify-center">
-                <span class="text-2xl font-bold text-text-primary">{memoryUsage.toFixed(0)}%</span>
-                <span class="text-xs text-text-muted">usage</span>
-              </div>
             </div>
-
-            <!-- Info -->
             <div class="flex-1">
-              <div class="flex items-center gap-2 mb-2">
-                <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
-                </svg>
-                <h3 class="text-lg font-semibold text-text-primary">Memory</h3>
-              </div>
-              <div class="space-y-1">
-                <div class="flex justify-between text-sm">
-                  <span class="text-text-muted">Allocatable</span>
-                  <span class="text-text-primary font-mono">{formatMemory($pulseMetrics.memory_allocatable)} Gi</span>
-                </div>
-                <div class="flex justify-between text-sm">
-                  <span class="text-text-muted">Capacity</span>
-                  <span class="text-text-primary font-mono">{formatMemory($pulseMetrics.memory_capacity)} Gi</span>
-                </div>
-              </div>
+              <h3 class="text-sm font-medium text-text-primary">Metrics Unavailable</h3>
+              <p class="text-sm text-text-muted">Install metrics-server to view cluster CPU and memory usage</p>
+            </div>
+            <div class="text-right text-sm">
+              <div class="text-text-muted">Allocatable</div>
+              <div class="text-text-primary font-mono">{formatCpu($pulseMetrics.cpu_allocatable)} cores, {formatMemory($pulseMetrics.memory_allocatable)} Gi</div>
             </div>
           </div>
         </div>
-      </div>
+      {/if}
     </div>
 
     <!-- Resource Grid -->

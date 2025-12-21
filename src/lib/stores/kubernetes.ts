@@ -247,6 +247,10 @@ export interface PulseMetrics {
   cpu_allocatable: number;
   memory_capacity: number;
   memory_allocatable: number;
+  // Actual usage from metrics-server (null if unavailable)
+  cpu_usage: number | null;
+  memory_usage: number | null;
+  metrics_available: boolean;
 }
 
 // Stores
