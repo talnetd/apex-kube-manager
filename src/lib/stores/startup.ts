@@ -1,5 +1,4 @@
 import { writable, derived } from 'svelte/store';
-import { tick } from 'svelte';
 
 export interface StartupCheck {
   id: string;
@@ -88,13 +87,7 @@ export async function runStartupChecks(): Promise<boolean> {
 
     // Brief pause to enjoy the completed state
     await delay(300);
-    
-    // Set initialized flag and ensure DOM updates
-    console.log('All checks complete, setting isInitialized to true');
     isInitialized.set(true);
-    await tick(); // Ensure Svelte processes the store update
-    console.log('isInitialized set to true, DOM should update');
-    
     return true;
   } catch (error) {
     const errorMessage = String(error);
