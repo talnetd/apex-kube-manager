@@ -134,6 +134,15 @@ kubectl cluster-info
 | `⌘K` | Global search across all resources |
 | `⌘P` | Open port forward panel |
 
+### Theme Support
+
+- **Dark Mode** - Optimized for low-light environments (default)
+- **Light Mode** - Clean, bright interface for daytime use
+- **System** - Automatically matches your OS theme preference
+- Theme toggle in header with instant switching
+- Persists across app restarts
+
+
 ### Multi-cluster
 
 - Context switching via dropdown

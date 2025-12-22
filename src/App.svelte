@@ -9,6 +9,8 @@
   import { isInitialized } from './lib/stores/startup';
   import { globalSearchOpen } from './lib/stores/search';
   import { portForwardPanelOpen } from './lib/stores/portforward';
+  // Intialize theme (subscribes to changes and applies to DOM)
+  import './lib/stores/theme';
 
   function handleKeydown(e: KeyboardEvent) {
     // Cmd+K (Mac) or Ctrl+K (Windows/Linux) to open global search

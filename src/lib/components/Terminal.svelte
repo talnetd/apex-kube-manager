@@ -7,6 +7,7 @@
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import '@xterm/xterm/css/xterm.css';
   import CustomSelect from './ui/CustomSelect.svelte';
+  import { resolvedTheme } from '../stores/theme';
 
   interface Props {
     namespace: string;
@@ -39,35 +40,41 @@
   let unlistenExit: UnlistenFn | null = null;
   let unlistenError: UnlistenFn | null = null;
 
+  // Get terminal theme based on the current theme
+  function getTerminalTheme() {
+    const isDark = $resolvedTheme === 'dark';
+    return {
+      background: isDark ? '#0a0a0a' : '#ffffff',
+      foreground: isDark ? '#ffffff' : '#1f2937',
+      cursor: '#00d4aa',
+      cursorAccent: isDark ? '#0a0a0a' : '#ffffff',
+      selectionBackground: 'rgba(0, 212, 170, 0.3)',
+      black: isDark ? '#000000' : '#1f2937',
+      red: '#ef4444',
+      green: '#22c55e',
+      yellow: '#f59e0b',
+      blue: '#3b82f6',
+      magenta: '#a855f7',
+      cyan: '#00d4aa',
+      white: isDark ? '#ffffff' : '#1f2937',
+      brightBlack: isDark ? '#555555' : '#6b7280',
+      brightRed: '#f87171',
+      brightGreen: '#4ade80',
+      brightYellow: '#fbbf24',
+      brightBlue: '#60a5fa',
+      brightMagenta: '#c084fc',
+      brightCyan: '#5eead4',
+      brightWhite: isDark ? '#ffffff' : '#111827',
+    };
+  }
+
   onMount(() => {
     terminal = new Terminal({
       cursorBlink: true,
       fontSize: 13,
       fontFamily: 'Hack, Menlo, Monaco, "Courier New", monospace',
       scrollback: 10000,
-      theme: {
-        background: '#0a0a0a',
-        foreground: '#ffffff',
-        cursor: '#00d4aa',
-        cursorAccent: '#0a0a0a',
-        selectionBackground: 'rgba(0, 212, 170, 0.3)',
-        black: '#000000',
-        red: '#ef4444',
-        green: '#22c55e',
-        yellow: '#f59e0b',
-        blue: '#3b82f6',
-        magenta: '#a855f7',
-        cyan: '#00d4aa',
-        white: '#ffffff',
-        brightBlack: '#555555',
-        brightRed: '#f87171',
-        brightGreen: '#4ade80',
-        brightYellow: '#fbbf24',
-        brightBlue: '#60a5fa',
-        brightMagenta: '#c084fc',
-        brightCyan: '#5eead4',
-        brightWhite: '#ffffff',
-      },
+      theme: getTerminalTheme(),
     });
 
     fitAddon = new FitAddon();
@@ -118,6 +125,14 @@
       window.removeEventListener('resize', handleResize);
       cleanup();
     };
+  });
+
+  // Update terminal theme when the theme changes
+  $effect(() => {
+    const theme = $resolvedTheme;
+	if (terminal) {
+	  terminal.options.theme = getTerminalTheme();
+	}
   });
 
   async function startPty() {
@@ -304,3 +319,4 @@
     border-radius: 4px;
   }
 </style>
+

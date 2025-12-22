@@ -19,6 +19,7 @@
   import { activePortForwardCount, portForwardPanelOpen } from '../stores/portforward';
   import PortForwardPanel from './PortForwardPanel.svelte';
   import WindowControls from './ui/WindowControls.svelte';
+  import ThemeToggle from './ui/ThemeToggle.svelte';
 
   let showContextDropdown = $state(false);
   let showNamespaceDropdown = $state(false);
@@ -211,6 +212,9 @@
       onClose={() => portForwardPanelOpen.set(false)}
     />
   </div>
+
+  <!-- Theme Toggle -->
+  <ThemeToggle />
 
   <!-- Window Controls -->
   <div class="ml-2 pl-2 border-l border-border-subtle">
