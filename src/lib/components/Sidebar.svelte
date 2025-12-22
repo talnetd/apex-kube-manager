@@ -81,13 +81,13 @@
   <div class="flex items-center h-14 px-3 border-b border-border-subtle cursor-grab active:cursor-grabbing select-none" data-tauri-drag-region>
     {#if !$sidebarCollapsed}
       <div class="flex items-center gap-2" data-tauri-drag-region>
-        <div class="w-7 h-7 bg-[#3b82f6] rounded-lg flex items-center justify-center" data-tauri-drag-region>
+        <div class="w-7 h-7 bg-[#20D4A9] rounded-lg flex items-center justify-center" data-tauri-drag-region>
           <span class="text-white font-bold text-xs" data-tauri-drag-region>K8</span>
         </div>
         <span class="text-text-primary font-semibold text-sm" data-tauri-drag-region>Apex Kube</span>
       </div>
     {:else}
-      <div class="w-7 h-7  bg-[#3b82f6] rounded-lg flex items-center justify-center mx-auto" data-tauri-drag-region>
+      <div class="w-7 h-7  bg-[#20D4A9] rounded-lg flex items-center justify-center mx-auto" data-tauri-drag-region>
         <span class="text-white font-bold text-xs" data-tauri-drag-region>K8</span>
       </div>
     {/if}
