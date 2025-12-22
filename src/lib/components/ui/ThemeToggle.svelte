@@ -66,16 +66,14 @@
 
 <div class="theme-toggle-container relative">
   <button
-    on:click={toggleDropdown}
-    title="Change theme"
-    class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors text-text-secondary hover:text-text-primary border border-border-subtle"
-  >
-    <span aria-hidden="true">{@html currentIcon()}</span>
-    <span class="text-sm">Theme</span>
-
-    <span class={`transition-transform ${isOpen ? "rotate-180" : ""}`} aria-hidden="true">
-      {@html ChevronDownIcon}
-    </span>
+	on:click={toggleDropdown}
+	title="Change theme"
+	class="h-9 w-9 inline-flex items-center justify-center rounded-lg
+			bg-transparent hover:bg-bg-tertiary transition-colors
+			text-text-secondary hover:text-text-primary
+			focus:outline-none"
+	>
+	<span aria-hidden="true">{@html currentIcon()}</span>
   </button>
 
   {#if isOpen}
