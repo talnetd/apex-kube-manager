@@ -6,7 +6,7 @@ export default {
     extend: {
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
-        mono: ['Hack', 'Menlo', 'Monaco', 'Courier New', 'monospace']
+        mono: ['Hack', 'Menlo', 'Monaco', 'Courier New', 'monospace'],
       },
       colors: {
         bg: {
@@ -18,12 +18,12 @@ export default {
         border: {
           subtle: 'rgb(var(--color-border-subtle) / <alpha-value>)'
         },
-        accents: {
+        accent: {
           primary: '#00d4aa',
           warning: '#f59e0b',
           error: '#ef4444',
-          success: '#22c55e'
-        },
+		  success: '#22c55e',   
+		},
         text: {
           primary: 'rgb(var(--color-text-primary) / <alpha-value>)',
           secondary: 'rgb(var(--color-text-secondary) / <alpha-value>)',

@@ -18,8 +18,8 @@
   let editorContainer: HTMLDivElement;
   let editorView: EditorView | null = null;
 
- // Get CodeMirror theme based on current theme
-	function getEditorTheme() {
+  // Get CodeMirror theme based on current theme
+  function getEditorTheme(): EditorView.Theme {
 	const isDark = $resolvedTheme === "dark";
 	return EditorView.theme({
     '&': {
@@ -88,6 +88,7 @@
       background: isDark ? '#444444' : '#b0b0b0',
     },
   }, { dark: isDark });
+  }
 
   onMount(() => {
     const extensions = [
