@@ -226,6 +226,27 @@ export interface ServiceAccountInfo {
   age: string;
 }
 
+export interface ClusterEventInfo {
+  name: string;
+  namespace: string;
+  type: string;
+  reason: string;
+  message: string;
+  involved_object: string;
+  involved_kind: string;
+  source: string;
+  count: number;
+  first_seen: string | null;
+  last_seen: string | null;
+  age: string;
+}
+
+export interface ClusterEventWatchEvent {
+  event_type: 'applied' | 'deleted';
+  event: ClusterEventInfo;
+  timestamp: string;
+}
+
 export interface ClusterMetrics {
   total_pods: number;
   running_pods: number;
@@ -304,6 +325,7 @@ export const pvcs = writable<PersistentVolumeClaimInfo[]>([]);
 export const namespacesInfo = writable<NamespaceInfo[]>([]);
 export const nodes = writable<NodeInfo[]>([]);
 export const serviceAccounts = writable<ServiceAccountInfo[]>([]);
+export const clusterEvents = writable<ClusterEventInfo[]>([]);
 
 export const clusterMetrics = writable<ClusterMetrics | null>(null);
 export const pulseMetrics = writable<PulseMetrics | null>(null);
@@ -323,6 +345,8 @@ let jobWatchUnlisten: UnlistenFn | null = null;
 let currentJobWatchId: string | null = null;
 let nodeWatchUnlisten: UnlistenFn | null = null;
 let currentNodeWatchId: string | null = null;
+let eventWatchUnlisten: UnlistenFn | null = null;
+let currentEventWatchId: string | null = null;
 
 // Global refresh trigger - increment to trigger refresh in all views
 export const refreshTrigger = writable<number>(0);
@@ -391,6 +415,7 @@ export async function switchContext(contextName: string) {
     await stopDeploymentWatch();
     await stopJobWatch();
     await stopNodeWatch();
+    await stopEventWatch();
     await tauriInvoke('switch_context', { contextName });
     currentContext.set(contextName);
     // Reset namespace selection when switching clusters
@@ -672,6 +697,80 @@ export async function stopNodeWatch() {
       console.error('Failed to stop node watch:', e);
     }
     currentNodeWatchId = null;
+  }
+}
+
+// Event Watch Stream Functions
+export async function startEventWatch(namespace?: string | null) {
+  await stopEventWatch();
+
+  if (!isContextReady()) return;
+
+  try {
+    // Get initial snapshot
+    const initialEvents = await tauriInvoke<ClusterEventInfo[]>('get_events', { namespace });
+    clusterEvents.set(initialEvents);
+
+    // Start watch stream
+    const watchId = await tauriInvoke<string>('watch_events', { namespace });
+    currentEventWatchId = watchId;
+
+    const { listen } = await import('@tauri-apps/api/event');
+
+    eventWatchUnlisten = await listen<ClusterEventWatchEvent>(`cluster-event-watch-${watchId}`, (event) => {
+      const { event_type, event: clusterEvent } = event.payload;
+
+      clusterEvents.update(current => {
+        if (event_type === 'applied') {
+          const idx = current.findIndex(e => e.name === clusterEvent.name && e.namespace === clusterEvent.namespace);
+          if (idx >= 0) {
+            current[idx] = clusterEvent;
+            return [...current];
+          } else {
+            // Add new event at the beginning (most recent first)
+            return [clusterEvent, ...current];
+          }
+        } else if (event_type === 'deleted') {
+          return current.filter(e => !(e.name === clusterEvent.name && e.namespace === clusterEvent.namespace));
+        }
+        return current;
+      });
+    });
+
+    console.log(`Event watch started: ${watchId}`);
+  } catch (e) {
+    error.set(String(e));
+    console.error('Failed to start event watch:', e);
+  }
+}
+
+export async function stopEventWatch() {
+  if (eventWatchUnlisten) {
+    eventWatchUnlisten();
+    eventWatchUnlisten = null;
+  }
+
+  if (currentEventWatchId) {
+    try {
+      await tauriInvoke('stop_watch', { watchId: currentEventWatchId });
+      console.log(`Event watch stopped: ${currentEventWatchId}`);
+    } catch (e) {
+      console.error('Failed to stop event watch:', e);
+    }
+    currentEventWatchId = null;
+  }
+}
+
+export async function loadEvents(namespace?: string | null) {
+  if (!isContextReady()) return;
+  try {
+    isLoading.set(true);
+    const eventList = await tauriInvoke<ClusterEventInfo[]>('get_events', { namespace });
+    clusterEvents.set(eventList);
+  } catch (e) {
+    error.set(String(e));
+  } finally {
+    isLoading.set(false);
   }
 }
 

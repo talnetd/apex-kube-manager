@@ -24,6 +24,7 @@
   import NamespaceList from './views/NamespaceList.svelte';
   import NodeList from './views/NodeList.svelte';
   import ServiceAccountList from './views/ServiceAccountList.svelte';
+  import EventList from './views/EventList.svelte';
 
   interface Props {
     view: View;
@@ -76,6 +77,8 @@
     <NodeList />
   {:else if view === 'serviceaccounts'}
     <ServiceAccountList />
+  {:else if view === 'events'}
+    <EventList />
   {:else}
     <div class="flex items-center justify-center h-full">
       <div class="text-center">

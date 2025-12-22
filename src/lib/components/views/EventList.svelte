@@ -1,0 +1,174 @@
+<script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
+  import SortableHeader from '../ui/SortableHeader.svelte';
+  import { sortData, toggleSort, type SortState } from '../../utils/sort';
+  import {
+    clusterEvents,
+    selectedNamespace,
+    currentContext,
+    refreshTrigger,
+    startEventWatch,
+    stopEventWatch,
+    type ClusterEventInfo,
+  } from '../../stores/kubernetes';
+  import { filterBySearch } from '../../stores/search';
+  import ViewFilter from '../ui/ViewFilter.svelte';
+
+  let sort = $state<SortState>({ field: 'age', direction: 'asc' });
+  let filterQuery = $state('');
+  let typeFilter = $state<'all' | 'Normal' | 'Warning'>('all');
+
+  const filteredByType = $derived(() => {
+    if (typeFilter === 'all') return $clusterEvents;
+    return $clusterEvents.filter(e => e.type === typeFilter);
+  });
+
+  const sortedData = $derived(() => {
+    const filtered = filterBySearch(filteredByType(), filterQuery, ['reason', 'message', 'involved_object', 'involved_kind', 'namespace']);
+    return sortData(filtered, sort.field, sort.direction);
+  });
+
+  const eventCounts = $derived(() => {
+    const all = $clusterEvents.length;
+    const normal = $clusterEvents.filter(e => e.type === 'Normal').length;
+    const warning = $clusterEvents.filter(e => e.type === 'Warning').length;
+    return { all, normal, warning };
+  });
+
+  function handleSort(field: string) {
+    sort = toggleSort(sort, field);
+  }
+
+  onMount(() => {
+    startEventWatch($selectedNamespace);
+  });
+
+  onDestroy(() => {
+    stopEventWatch();
+  });
+
+  $effect(() => {
+    const ctx = $currentContext;
+    const trigger = $refreshTrigger;
+    if (!ctx) return;
+    startEventWatch($selectedNamespace);
+  });
+
+  function getTypeColor(type: string): string {
+    return type === 'Warning'
+      ? 'text-accent-warning bg-accent-warning/10'
+      : 'text-accent-success bg-accent-success/10';
+  }
+
+  function getTypeDot(type: string): string {
+    return type === 'Warning' ? 'bg-accent-warning' : 'bg-accent-success';
+  }
+</script>
+
+<div class="h-full flex flex-col overflow-hidden">
+  <!-- Toolbar -->
+  <div class="px-6 py-4 border-b border-border-subtle">
+    <div class="flex items-center justify-between">
+      <h1 class="text-xl font-semibold text-text-primary">Events</h1>
+      <div class="flex items-center gap-3">
+        <!-- Type Filter Pills -->
+        <div class="flex items-center gap-1">
+          <button
+            onclick={() => typeFilter = 'all'}
+            class="px-2.5 py-1 text-sm rounded-md transition-colors
+              {typeFilter === 'all'
+                ? 'bg-accent-primary/20 text-accent-primary border border-accent-primary/30'
+                : 'bg-bg-tertiary text-text-secondary hover:text-text-primary border border-transparent'}"
+          >
+            All
+            <span class="ml-1 text-xs opacity-70">({eventCounts().all})</span>
+          </button>
+          <button
+            onclick={() => typeFilter = 'Normal'}
+            class="px-2.5 py-1 text-sm rounded-md transition-colors
+              {typeFilter === 'Normal'
+                ? 'bg-accent-success/20 text-accent-success border border-accent-success/30'
+                : 'bg-bg-tertiary text-text-secondary hover:text-text-primary border border-transparent'}"
+          >
+            Normal
+            <span class="ml-1 text-xs opacity-70">({eventCounts().normal})</span>
+          </button>
+          <button
+            onclick={() => typeFilter = 'Warning'}
+            class="px-2.5 py-1 text-sm rounded-md transition-colors
+              {typeFilter === 'Warning'
+                ? 'bg-accent-warning/20 text-accent-warning border border-accent-warning/30'
+                : 'bg-bg-tertiary text-text-secondary hover:text-text-primary border border-transparent'}"
+          >
+            Warning
+            <span class="ml-1 text-xs opacity-70">({eventCounts().warning})</span>
+          </button>
+        </div>
+        <!-- Text Filter -->
+        <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter events..." />
+      </div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="flex-1 overflow-auto p-6 pt-4">
+    <table class="w-full">
+      <thead>
+        <tr class="text-left border-b border-border-subtle">
+          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-4"></th>
+          <SortableHeader label="Type" field="type" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
+          <SortableHeader label="Reason" field="reason" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
+          <SortableHeader label="Object" field="involved_object" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
+          <SortableHeader label="Namespace" field="namespace" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
+          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium">Message</th>
+          <SortableHeader label="Count" field="count" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
+          <SortableHeader label="Age" field="age" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
+        </tr>
+      </thead>
+      <tbody>
+        {#each sortedData() as event}
+          <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors">
+            <td class="py-3 pr-2">
+              <div class="w-2 h-2 rounded-full {getTypeDot(event.type)}"></div>
+            </td>
+            <td class="py-3 pr-4">
+              <span class="px-2 py-0.5 rounded text-xs font-medium {getTypeColor(event.type)}">{event.type}</span>
+            </td>
+            <td class="py-3 pr-4">
+              <span class="text-text-primary font-medium">{event.reason}</span>
+            </td>
+            <td class="py-3 pr-4">
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs bg-bg-tertiary text-text-muted px-1.5 py-0.5 rounded">{event.involved_kind}</span>
+                <span class="text-accent-primary text-sm">{event.involved_object}</span>
+              </div>
+            </td>
+            <td class="py-3 pr-4">
+              <span class="text-text-secondary text-sm">{event.namespace || '-'}</span>
+            </td>
+            <td class="py-3 pr-4 max-w-md">
+              <span class="text-text-secondary text-sm line-clamp-2" title={event.message}>{event.message}</span>
+            </td>
+            <td class="py-3 pr-4">
+              <span class="text-text-secondary text-sm">{event.count}</span>
+            </td>
+            <td class="py-3 pr-4">
+              <span class="text-text-secondary text-sm">{event.age}</span>
+            </td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+
+    {#if sortedData().length === 0}
+      <div class="flex items-center justify-center h-48">
+        <div class="text-center">
+          <svg class="w-12 h-12 text-text-muted mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p class="text-text-muted">No events found</p>
+        </div>
+      </div>
+    {/if}
+  </div>
+</div>

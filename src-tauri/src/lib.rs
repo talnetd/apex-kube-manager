@@ -222,6 +222,7 @@ pub fn run() {
             commands::get_serviceaccount_detail,
             commands::get_serviceaccount_yaml,
             commands::get_serviceaccount_events,
+            commands::get_events,
             commands::get_cluster_metrics,
             commands::get_pulse_metrics,
             commands::exec_pod,
@@ -249,6 +250,7 @@ pub fn run() {
             commands::watch_deployments,
             commands::watch_jobs,
             commands::watch_nodes,
+            commands::watch_events,
             commands::stop_watch,
             commands::stop_all_watches,
         ])
