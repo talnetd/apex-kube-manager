@@ -19,7 +19,8 @@ export type View =
   | 'network_policies'
   | 'serviceaccounts'
   | 'nodes'
-  | 'namespaces';
+  | 'namespaces'
+  | 'events';
 
 export const currentView = writable<View>('dashboard');
 export const sidebarCollapsed = writable<boolean>(false);

@@ -1,6 +1,6 @@
 use crate::error::Result;
 use crate::kubernetes::{
-    self, ClusterMetrics, ConfigMapInfo, ConfigMapDetail, ConfigMapEvent,
+    self, ClusterEventInfo, ClusterMetrics, ConfigMapInfo, ConfigMapDetail, ConfigMapEvent,
     CronJobInfo, CronJobDetail, CronJobEvent,
     DaemonSetInfo, DaemonSetDetail, DaemonSetEvent,
     DeploymentDetail, DeploymentEvent, DeploymentInfo,
@@ -383,6 +383,12 @@ pub async fn get_nodes() -> Result<Vec<NodeInfo>> {
 pub async fn get_service_accounts(namespace: Option<String>) -> Result<Vec<ServiceAccountInfo>> {
     let client = kubernetes::create_client().await?;
     kubernetes::list_service_accounts(&client, namespace.as_deref()).await
+}
+
+#[tauri::command]
+pub async fn get_events(namespace: Option<String>) -> Result<Vec<ClusterEventInfo>> {
+    let client = kubernetes::create_client().await?;
+    kubernetes::list_events(&client, namespace.as_deref()).await
 }
 
 #[tauri::command]
@@ -1000,6 +1006,15 @@ pub async fn watch_nodes(
     watch_manager: tauri::State<'_, WatchManager>,
 ) -> Result<String> {
     watch_manager.start_node_watch(app).await
+}
+
+#[tauri::command]
+pub async fn watch_events(
+    app: AppHandle,
+    watch_manager: tauri::State<'_, WatchManager>,
+    namespace: Option<String>,
+) -> Result<String> {
+    watch_manager.start_event_watch(app, namespace).await
 }
 
 #[tauri::command]

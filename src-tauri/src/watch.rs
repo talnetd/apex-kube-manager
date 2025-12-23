@@ -6,14 +6,14 @@ use kube::Api;
 use kube::runtime::watcher::{self, Event};
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::batch::v1::Job;
-use k8s_openapi::api::core::v1::{Node, Pod};
+use k8s_openapi::api::core::v1::{Event as K8sEvent, Node, Pod};
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
 use crate::error::Result;
-use crate::kubernetes::{self, DeploymentInfo, JobInfo, NodeInfo, PodInfo};
+use crate::kubernetes::{self, ClusterEventInfo, DeploymentInfo, JobInfo, NodeInfo, PodInfo};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PodWatchEvent {
@@ -40,6 +40,13 @@ pub struct JobWatchEvent {
 pub struct NodeWatchEvent {
     pub event_type: String,
     pub node: NodeInfo,
+    pub timestamp: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClusterEventWatchEvent {
+    pub event_type: String,
+    pub event: ClusterEventInfo,
     pub timestamp: String,
 }
 
@@ -349,6 +356,70 @@ impl WatchManager {
 
         self.watchers.write().await.insert(watch_id.clone(), WatchHandle { shutdown_tx, task });
         tracing::info!("Started node watch {}", watch_id);
+        Ok(watch_id)
+    }
+
+    pub async fn start_event_watch(
+        &self,
+        app: AppHandle,
+        namespace: Option<String>,
+    ) -> Result<String> {
+        let watch_id = Uuid::new_v4().to_string();
+        let client = kubernetes::create_client().await?;
+
+        let events: Api<K8sEvent> = match &namespace {
+            Some(ns) => Api::namespaced(client, ns),
+            None => Api::all(client),
+        };
+
+        let (shutdown_tx, mut shutdown_rx) = tokio::sync::oneshot::channel();
+
+        let watch_id_clone = watch_id.clone();
+        let task = tokio::spawn(async move {
+            let watcher_stream = watcher::watcher(events, watcher::Config::default());
+            futures::pin_mut!(watcher_stream);
+
+            loop {
+                tokio::select! {
+                    _ = &mut shutdown_rx => {
+                        tracing::info!("Event watch {} received shutdown signal", watch_id_clone);
+                        break;
+                    }
+                    event = watcher_stream.try_next() => {
+                        match event {
+                            Ok(Some(Event::Apply(k8s_event))) | Ok(Some(Event::InitApply(k8s_event))) => {
+                                let info = kubernetes::event_to_info(&k8s_event);
+                                let watch_event = ClusterEventWatchEvent {
+                                    event_type: "applied".to_string(),
+                                    event: info,
+                                    timestamp: chrono::Utc::now().to_rfc3339(),
+                                };
+                                let event_name = format!("cluster-event-watch-{}", watch_id_clone);
+                                let _ = app.emit(&event_name, &watch_event);
+                            }
+                            Ok(Some(Event::Delete(k8s_event))) => {
+                                let info = kubernetes::event_to_info(&k8s_event);
+                                let watch_event = ClusterEventWatchEvent {
+                                    event_type: "deleted".to_string(),
+                                    event: info,
+                                    timestamp: chrono::Utc::now().to_rfc3339(),
+                                };
+                                let event_name = format!("cluster-event-watch-{}", watch_id_clone);
+                                let _ = app.emit(&event_name, &watch_event);
+                            }
+                            Ok(Some(Event::Init)) | Ok(Some(Event::InitDone)) => {}
+                            Ok(None) => break,
+                            Err(e) => {
+                                tracing::warn!("Event watch {} error (will retry): {}", watch_id_clone, e);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        self.watchers.write().await.insert(watch_id.clone(), WatchHandle { shutdown_tx, task });
+        tracing::info!("Started event watch {} for namespace {:?}", watch_id, namespace);
         Ok(watch_id)
     }
 

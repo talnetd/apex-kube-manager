@@ -415,6 +415,23 @@ pub struct ServiceAccountInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClusterEventInfo {
+    pub name: String,
+    pub namespace: String,
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub reason: String,
+    pub message: String,
+    pub involved_object: String,
+    pub involved_kind: String,
+    pub source: String,
+    pub count: i32,
+    pub first_seen: Option<String>,
+    pub last_seen: Option<String>,
+    pub age: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClusterMetrics {
     pub total_pods: i32,
     pub running_pods: i32,
@@ -2515,6 +2532,58 @@ pub async fn list_service_accounts(client: &Client, namespace: Option<&str>) -> 
         .collect();
 
     Ok(sa_infos)
+}
+
+pub fn event_to_info(event: &k8s_openapi::api::core::v1::Event) -> ClusterEventInfo {
+    let metadata = &event.metadata;
+    let involved = &event.involved_object;
+
+    let source = event.source.as_ref()
+        .map(|s| format!("{}/{}",
+            s.component.as_deref().unwrap_or(""),
+            s.host.as_deref().unwrap_or("")))
+        .unwrap_or_default();
+
+    ClusterEventInfo {
+        name: metadata.name.clone().unwrap_or_default(),
+        namespace: metadata.namespace.clone().unwrap_or_default(),
+        type_: event.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+        reason: event.reason.clone().unwrap_or_default(),
+        message: event.message.clone().unwrap_or_default(),
+        involved_object: involved.name.clone().unwrap_or_default(),
+        involved_kind: involved.kind.clone().unwrap_or_default(),
+        source,
+        count: event.count.unwrap_or(1),
+        first_seen: event.first_timestamp.as_ref().map(|t| get_age(Some(t))),
+        last_seen: event.last_timestamp.as_ref().map(|t| get_age(Some(t))),
+        age: get_age(metadata.creation_timestamp.as_ref()),
+    }
+}
+
+pub async fn list_events(client: &Client, namespace: Option<&str>) -> Result<Vec<ClusterEventInfo>> {
+    use k8s_openapi::api::core::v1::Event;
+
+    let events: Api<Event> = match namespace {
+        Some(ns) => Api::namespaced(client.clone(), ns),
+        None => Api::all(client.clone()),
+    };
+
+    let event_list = events.list(&ListParams::default()).await?;
+
+    // Sort raw events by last_timestamp (most recent first) before converting
+    let mut items = event_list.items;
+    items.sort_by(|a, b| {
+        let a_time = a.last_timestamp.as_ref().or(a.metadata.creation_timestamp.as_ref());
+        let b_time = b.last_timestamp.as_ref().or(b.metadata.creation_timestamp.as_ref());
+        b_time.cmp(&a_time)
+    });
+
+    let event_infos: Vec<ClusterEventInfo> = items
+        .iter()
+        .map(event_to_info)
+        .collect();
+
+    Ok(event_infos)
 }
 
 pub async fn get_metrics(client: &Client) -> Result<ClusterMetrics> {
