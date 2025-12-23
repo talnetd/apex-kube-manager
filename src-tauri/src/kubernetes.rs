@@ -2570,14 +2570,18 @@ pub async fn list_events(client: &Client, namespace: Option<&str>) -> Result<Vec
 
     let event_list = events.list(&ListParams::default()).await?;
 
-    let mut event_infos: Vec<ClusterEventInfo> = event_list
-        .items
+    // Sort raw events by last_timestamp (most recent first) before converting
+    let mut items = event_list.items;
+    items.sort_by(|a, b| {
+        let a_time = a.last_timestamp.as_ref().or(a.metadata.creation_timestamp.as_ref());
+        let b_time = b.last_timestamp.as_ref().or(b.metadata.creation_timestamp.as_ref());
+        b_time.cmp(&a_time)
+    });
+
+    let event_infos: Vec<ClusterEventInfo> = items
         .iter()
         .map(event_to_info)
         .collect();
-
-    // Sort by last_seen/age descending (most recent first)
-    event_infos.sort_by(|a, b| b.age.cmp(&a.age));
 
     Ok(event_infos)
 }
