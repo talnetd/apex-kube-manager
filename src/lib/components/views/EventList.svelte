@@ -14,18 +14,32 @@
   } from '../../stores/kubernetes';
   import { filterBySearch } from '../../stores/search';
   import ViewFilter from '../ui/ViewFilter.svelte';
+  import CustomSelect from '../ui/CustomSelect.svelte';
 
   let sort = $state<SortState>({ field: 'age', direction: 'asc' });
   let filterQuery = $state('');
   let typeFilter = $state<'all' | 'Normal' | 'Warning'>('all');
+  let reasonFilter = $state<string>('all');
 
-  const filteredByType = $derived(() => {
-    if (typeFilter === 'all') return $clusterEvents;
-    return $clusterEvents.filter(e => e.type === typeFilter);
+  // Get unique reasons from events
+  const uniqueReasons = $derived(() => {
+    const reasons = new Set($clusterEvents.map(e => e.reason).filter(Boolean));
+    return Array.from(reasons).sort();
+  });
+
+  const filteredData = $derived(() => {
+    let filtered = $clusterEvents;
+    if (typeFilter !== 'all') {
+      filtered = filtered.filter(e => e.type === typeFilter);
+    }
+    if (reasonFilter !== 'all') {
+      filtered = filtered.filter(e => e.reason === reasonFilter);
+    }
+    return filtered;
   });
 
   const sortedData = $derived(() => {
-    const filtered = filterBySearch(filteredByType(), filterQuery, ['reason', 'message', 'involved_object', 'involved_kind', 'namespace']);
+    const filtered = filterBySearch(filteredData(), filterQuery, ['reason', 'message', 'involved_object', 'involved_kind', 'namespace']);
     return sortData(filtered, sort.field, sort.direction);
   });
 
@@ -154,6 +168,15 @@
             Warning
             <span class="ml-1 text-xs opacity-70">({eventCounts().warning})</span>
           </button>
+        </div>
+        <!-- Reason Filter -->
+        <div class="w-40">
+          <CustomSelect
+            value={reasonFilter}
+            options={[{ value: 'all', label: 'All Reasons' }, ...uniqueReasons().map(r => ({ value: r, label: r.length > 18 ? r.slice(0, 18) + '…' : r }))]}
+            placeholder="Reason..."
+            onchange={(v) => reasonFilter = v}
+          />
         </div>
         <!-- Text Filter -->
         <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter events..." />
