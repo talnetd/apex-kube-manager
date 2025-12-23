@@ -63,6 +63,14 @@
   function getTypeDot(type: string): string {
     return type === 'Warning' ? 'bg-accent-warning' : 'bg-accent-success';
   }
+
+  let copiedName = $state<string | null>(null);
+
+  async function copyMessage(event: ClusterEventInfo) {
+    await navigator.clipboard.writeText(event.message);
+    copiedName = event.name;
+    setTimeout(() => copiedName = null, 1500);
+  }
 </script>
 
 <div class="h-full flex flex-col overflow-hidden">
@@ -147,7 +155,24 @@
               <span class="text-text-secondary text-sm">{event.namespace || '-'}</span>
             </td>
             <td class="py-3 pr-4 max-w-md">
-              <span class="text-text-secondary text-sm line-clamp-2" title={event.message}>{event.message}</span>
+              <div class="flex items-start gap-2 group">
+                <span class="text-text-secondary text-sm line-clamp-2 flex-1" title={event.message}>{event.message}</span>
+                <button
+                  onclick={() => copyMessage(event)}
+                  class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-bg-tertiary transition-all shrink-0"
+                  title="Copy message"
+                >
+                  {#if copiedName === event.name}
+                    <svg class="w-4 h-4 text-accent-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  {:else}
+                    <svg class="w-4 h-4 text-text-muted hover:text-text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  {/if}
+                </button>
+              </div>
             </td>
             <td class="py-3 pr-4">
               <span class="text-text-secondary text-sm">{event.count}</span>
