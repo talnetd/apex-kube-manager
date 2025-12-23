@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { invoke } from '@tauri-apps/api/core';
   import SortableHeader from '../ui/SortableHeader.svelte';
   import { sortData, toggleSort, type SortState } from '../../utils/sort';
   import {
@@ -70,6 +71,48 @@
     await navigator.clipboard.writeText(event.message);
     copiedName = event.name;
     setTimeout(() => copiedName = null, 1500);
+  }
+
+  // Map K8s kind to our resource type names
+  const kindToResourceType: Record<string, string> = {
+    'Pod': 'pod',
+    'Deployment': 'deployment',
+    'StatefulSet': 'statefulset',
+    'DaemonSet': 'daemonset',
+    'ReplicaSet': 'replicaset',
+    'Job': 'job',
+    'CronJob': 'cronjob',
+    'Service': 'service',
+    'Ingress': 'ingress',
+    'ConfigMap': 'configmap',
+    'Secret': 'secret',
+    'PersistentVolume': 'pv',
+    'PersistentVolumeClaim': 'pvc',
+    'Node': 'node',
+    'Namespace': 'namespace',
+    'ServiceAccount': 'serviceaccount',
+    'HorizontalPodAutoscaler': 'hpa',
+    'NetworkPolicy': 'networkpolicy',
+  };
+
+  async function openResourceDetail(event: ClusterEventInfo) {
+    const resourceType = kindToResourceType[event.involved_kind];
+    if (!resourceType || !event.involved_object) return;
+
+    try {
+      await invoke('open_resource_detail', {
+        resourceType,
+        name: event.involved_object,
+        namespace: event.namespace || '',
+        context: $currentContext,
+      });
+    } catch (e) {
+      console.error('Failed to open resource detail:', e);
+    }
+  }
+
+  function isClickable(kind: string): boolean {
+    return kind in kindToResourceType;
   }
 </script>
 
@@ -148,7 +191,16 @@
             <td class="py-3 pr-4">
               <div class="flex items-center gap-1.5">
                 <span class="text-xs bg-bg-tertiary text-text-muted px-1.5 py-0.5 rounded">{event.involved_kind}</span>
-                <span class="text-accent-primary text-sm">{event.involved_object}</span>
+                {#if isClickable(event.involved_kind)}
+                  <button
+                    onclick={() => openResourceDetail(event)}
+                    class="text-accent-primary text-sm hover:underline hover:text-accent-primary/80 transition-colors text-left"
+                  >
+                    {event.involved_object}
+                  </button>
+                {:else}
+                  <span class="text-text-secondary text-sm">{event.involved_object}</span>
+                {/if}
               </div>
             </td>
             <td class="py-3 pr-4">
