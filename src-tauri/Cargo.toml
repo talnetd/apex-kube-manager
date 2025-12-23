@@ -1,6 +1,6 @@
 [package]
 name = "apex-kube-manager"
-version = "0.1.5"
+version = "0.1.6"
 description = "A Kubernetes cluster management application"
 authors = ["Apex"]
 edition = "2021"
