@@ -79,7 +79,8 @@
   onclick={toggleSidebar}
 >
   <!-- Logo / Brand / Drag Region -->
-  <div class="flex items-center h-14 px-3 border-b border-border-subtle cursor-grab active:cursor-grabbing select-none" data-tauri-drag-region>
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+  <div class="flex items-center h-14 px-3 border-b border-border-subtle cursor-grab active:cursor-grabbing select-none" data-tauri-drag-region onclick={(e) => e.stopPropagation()}>
     {#if !$sidebarCollapsed}
       <div class="flex items-center gap-2" data-tauri-drag-region>
         <div class="w-7 h-7 bg-accent-primary rounded-lg flex items-center justify-center" data-tauri-drag-region>
@@ -99,7 +100,8 @@
     {#each navSections as section, sectionIndex}
       <!-- Section divider with title -->
       {#if section.title}
-        <div class="px-3 pt-3 pb-1">
+        <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+        <div class="px-3 pt-3 pb-1" onclick={(e) => e.stopPropagation()}>
           {#if !$sidebarCollapsed}
             <span class="text-[10px] font-medium text-text-muted uppercase tracking-wider">{section.title}</span>
           {:else}
