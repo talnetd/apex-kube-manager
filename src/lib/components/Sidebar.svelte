@@ -76,10 +76,12 @@
 </script>
 
 <aside
-  class="flex flex-col bg-bg-secondary border-r border-border-subtle transition-all duration-200 {$sidebarCollapsed ? 'w-14' : 'w-52'}"
+  class="flex flex-col bg-bg-secondary border-r border-border-subtle transition-all duration-200 cursor-pointer {$sidebarCollapsed ? 'w-14' : 'w-52'}"
+  onclick={toggleSidebar}
 >
   <!-- Logo / Brand / Drag Region -->
-  <div class="flex items-center h-14 px-3 border-b border-border-subtle cursor-grab active:cursor-grabbing select-none" data-tauri-drag-region>
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+  <div class="flex items-center h-14 px-3 border-b border-border-subtle cursor-grab active:cursor-grabbing select-none" data-tauri-drag-region onclick={(e) => e.stopPropagation()}>
     {#if !$sidebarCollapsed}
       <div class="flex items-center gap-2" data-tauri-drag-region>
         <div class="w-7 h-7 bg-[#20D4A9] rounded-lg flex items-center justify-center" data-tauri-drag-region>
@@ -99,7 +101,8 @@
     {#each navSections as section, sectionIndex}
       <!-- Section divider with title -->
       {#if section.title}
-        <div class="px-3 pt-3 pb-1">
+        <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+        <div class="px-3 pt-3 pb-1" onclick={(e) => e.stopPropagation()}>
           {#if !$sidebarCollapsed}
             <span class="text-[10px] font-medium text-text-muted uppercase tracking-wider">{section.title}</span>
           {:else}
@@ -112,8 +115,7 @@
       <ul class="space-y-0.5 px-2">
         {#each section.items as item}
           <li>
-            <button
-              onclick={() => navigateTo(item.id)}
+            <button onclick={(e) => { e.stopPropagation(); navigateTo(item.id); }}
               title={$sidebarCollapsed ? item.label : ''}
               class="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md transition-colors
                 {$currentView === item.id
@@ -159,7 +161,7 @@
         </div>
       {/if}
       <button
-        onclick={toggleSidebar}
+        onclick={(e) => { e.stopPropagation(); toggleSidebar(); }}
         class="p-1 rounded hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
         title={$sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       >
