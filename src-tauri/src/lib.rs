@@ -218,6 +218,8 @@ pub fn run() {
             commands::get_node_yaml,
             commands::get_node_events,
             commands::get_node_pods,
+            commands::add_node_taint,
+            commands::remove_node_taint,
             commands::get_service_accounts,
             commands::get_serviceaccount_detail,
             commands::get_serviceaccount_yaml,

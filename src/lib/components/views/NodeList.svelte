@@ -78,6 +78,7 @@
           <SortableHeader label="Version" field="version" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Internal IP" field="internal_ip" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="OS / Runtime" field="os_image" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
+          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium">Taints</th>
           <SortableHeader label="Age" field="age" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
         </tr>
       </thead>
@@ -111,6 +112,19 @@
                 <div>{node.os_image}</div>
                 <div class="text-text-muted">{node.container_runtime}</div>
               </div>
+            </td>
+            <td class="py-3 pr-4">
+              {#if node.taints && node.taints.length > 0}
+                <div class="flex flex-wrap gap-1">
+                  {#each node.taints as taint}
+                    <span class="text-xs px-1.5 py-0.5 rounded {taint.effect === 'NoSchedule' ? 'bg-accent-error/10 text-accent-error' : taint.effect === 'PreferNoSchedule' ? 'bg-accent-warning/10 text-accent-warning' : 'bg-accent-primary/10 text-accent-primary'}" title="{taint.key}={taint.value || ''}:{taint.effect}">
+                      {taint.key}
+                    </span>
+                  {/each}
+                </div>
+              {:else}
+                <span class="text-text-muted text-xs">-</span>
+              {/if}
             </td>
             <td class="py-3 pr-4">
               <span class="text-text-secondary text-sm">{node.age}</span>

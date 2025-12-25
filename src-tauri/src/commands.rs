@@ -850,6 +850,29 @@ pub async fn get_node_pods(context_name: String, node_name: String) -> Result<Ve
     kubernetes::get_node_pods(&client, &node_name).await
 }
 
+#[tauri::command]
+pub async fn add_node_taint(
+    context_name: String,
+    name: String,
+    key: String,
+    value: Option<String>,
+    effect: String,
+) -> Result<()> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::add_node_taint(&client, &name, &key, value.as_deref(), &effect).await
+}
+
+#[tauri::command]
+pub async fn remove_node_taint(
+    context_name: String,
+    name: String,
+    key: String,
+    effect: String,
+) -> Result<()> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::remove_node_taint(&client, &name, &key, &effect).await
+}
+
 // ============ ServiceAccount Detail Commands ============
 
 #[tauri::command]

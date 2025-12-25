@@ -202,7 +202,8 @@ mkdir -p /mnt/c/Users/$(whoami)/.kube && cp ~/.kube/config /mnt/c/Users/$(whoami
 - [x] WSL kubeconfig detection
 - [ ] YAML editing
 - [ ] Real-time watch streams (K8s watch API)
-- [ ] Dark/Light theme toggle
+- [x] Dark/Light theme toggle
+- [x] Node taint management
 
 See the [open issues](https://github.com/talnetd/apex-kube-manager/issues) for a full list of proposed features and known issues.
 

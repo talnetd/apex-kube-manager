@@ -281,6 +281,8 @@ Resources with related pods also have:
 | `restart_deployment` | `namespace, name` | `()` |
 | `scale_statefulset` | `namespace, name, replicas` | `()` |
 | `restart_statefulset` | `namespace, name` | `()` |
+| `add_node_taint` | `context_name, name, key, value?, effect` | `()` |
+| `remove_node_taint` | `context_name, name, key, effect` | `()` |
 | `get_secret_data` | `context_name, namespace, name` | `HashMap<String, String>` |
 | `open_resource_detail` | `context_name, resourceType, namespace, name` | `()` |
 
@@ -417,6 +419,21 @@ const events = await invoke(`get_${resourceType}_events`, getInvokeParams());
 | `EventsTable.svelte` | Card-based events display with refresh |
 | `MetadataSection.svelte` | Labels + Annotations grid |
 | `ConditionsTable.svelte` | Resource conditions table |
+| `CustomSelect.svelte` | Standard dropdown select (use this instead of native `<select>`) |
+
+**CustomSelect Usage** - Use this component for all dropdown selects across the app:
+```svelte
+<CustomSelect
+  bind:value={selectedValue}
+  options={[
+    { value: 'option1', label: 'Option 1' },
+    { value: 'option2', label: 'Option 2' }
+  ]}
+  placeholder="Select..."
+  disabled={false}
+  onchange={(value) => handleChange(value)}
+/>
+```
 
 ## Implementation Status
 
@@ -438,6 +455,7 @@ const events = await invoke(`get_${resourceType}_events`, getInvokeParams());
 - [x] Deployment scaling and restart
 - [x] StatefulSet scaling and restart
 - [x] Secret data reveal/hide toggle
+- [x] Node taint management (add/remove taints with effect dropdown)
 
 ### TODO (Next Features)
 - [ ] Pod exec WebSocket streaming (xterm.js ready)
@@ -445,7 +463,7 @@ const events = await invoke(`get_${resourceType}_events`, getInvokeParams());
 - [ ] Real-time watch streams (K8s watch API)
 - [ ] Search/filter within tables
 - [ ] Application icons
-- [ ] Dark/Light theme toggle
+- [x] Dark/Light theme toggle
 
 ## Architecture Notes
 
