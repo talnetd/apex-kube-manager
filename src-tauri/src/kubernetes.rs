@@ -5212,6 +5212,32 @@ pub async fn remove_node_taint(client: &Client, name: &str, key: &str, effect: &
     Ok(())
 }
 
+pub async fn cordon_node(client: &Client, name: &str) -> Result<()> {
+    let nodes: Api<Node> = Api::all(client.clone());
+
+    let patch = serde_json::json!({
+        "spec": {
+            "unschedulable": true
+        }
+    });
+
+    nodes.patch(name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
+    Ok(())
+}
+
+pub async fn uncordon_node(client: &Client, name: &str) -> Result<()> {
+    let nodes: Api<Node> = Api::all(client.clone());
+
+    let patch = serde_json::json!({
+        "spec": {
+            "unschedulable": null
+        }
+    });
+
+    nodes.patch(name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
+    Ok(())
+}
+
 // ============ ServiceAccount Detail ============
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

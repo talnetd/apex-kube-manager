@@ -873,6 +873,18 @@ pub async fn remove_node_taint(
     kubernetes::remove_node_taint(&client, &name, &key, &effect).await
 }
 
+#[tauri::command]
+pub async fn cordon_node(context_name: String, name: String) -> Result<()> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::cordon_node(&client, &name).await
+}
+
+#[tauri::command]
+pub async fn uncordon_node(context_name: String, name: String) -> Result<()> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::uncordon_node(&client, &name).await
+}
+
 // ============ ServiceAccount Detail Commands ============
 
 #[tauri::command]

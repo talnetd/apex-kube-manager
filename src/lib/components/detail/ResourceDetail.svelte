@@ -69,6 +69,10 @@
   let taintActionError = $state<string | null>(null);
   let confirmRemoveTaint = $state<{ key: string; effect: string } | null>(null);
 
+  // Cordon state (for nodes)
+  let cordonLoading = $state<boolean>(false);
+  let showCordonConfirm = $state<boolean>(false);
+
   onMount(async () => {
     await loadDetail();
     existenceInterval = setInterval(checkExists, 5000);
@@ -345,6 +349,38 @@
       case 'PreferNoSchedule': return 'Scheduler will try to avoid placing pods on this node';
       case 'NoExecute': return 'Existing pods will be evicted, new pods will not be scheduled';
       default: return '';
+    }
+  }
+
+  // Cordon/Uncordon functions (for nodes)
+  async function cordonNode() {
+    try {
+      cordonLoading = true;
+      await invoke('cordon_node', {
+        contextName: context,
+        name: name,
+      });
+      await loadDetail();
+      showCordonConfirm = false;
+    } catch (e) {
+      console.error('Failed to cordon node:', e);
+    } finally {
+      cordonLoading = false;
+    }
+  }
+
+  async function uncordonNode() {
+    try {
+      cordonLoading = true;
+      await invoke('uncordon_node', {
+        contextName: context,
+        name: name,
+      });
+      await loadDetail();
+    } catch (e) {
+      console.error('Failed to uncordon node:', e);
+    } finally {
+      cordonLoading = false;
     }
   }
 </script>
@@ -972,6 +1008,64 @@
             </div>
           </section>
 
+          <section>
+            <h2 class="text-lg font-semibold text-text-primary mb-4">Scheduling</h2>
+            <div class="bg-bg-secondary rounded-lg p-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="flex items-center gap-2 mb-1">
+                    {#if detail.unschedulable}
+                      <span class="flex items-center gap-1.5 text-accent-warning">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                        </svg>
+                        <span class="font-medium">Cordoned</span>
+                      </span>
+                    {:else}
+                      <span class="flex items-center gap-1.5 text-accent-success">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span class="font-medium">Schedulable</span>
+                      </span>
+                    {/if}
+                  </div>
+                  <p class="text-xs text-text-muted">
+                    {#if detail.unschedulable}
+                      New pods will not be scheduled on this node
+                    {:else}
+                      New pods can be scheduled on this node
+                    {/if}
+                  </p>
+                </div>
+                <div>
+                  {#if detail.unschedulable}
+                    <button
+                      onclick={uncordonNode}
+                      disabled={cordonLoading || isDeleted}
+                      class="flex items-center gap-2 px-3 py-1.5 text-sm bg-accent-success text-white rounded-lg hover:bg-accent-success/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {#if cordonLoading}
+                        <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      {/if}
+                      Uncordon
+                    </button>
+                  {:else}
+                    <button
+                      onclick={() => showCordonConfirm = true}
+                      disabled={cordonLoading || isDeleted}
+                      class="flex items-center gap-2 px-3 py-1.5 text-sm bg-accent-warning text-white rounded-lg hover:bg-accent-warning/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Cordon
+                    </button>
+                  {/if}
+                </div>
+              </div>
+            </div>
+          </section>
+
         <!-- SERVICEACCOUNT -->
         {:else if resourceType === 'serviceaccount'}
           <section>
@@ -1518,6 +1612,58 @@
                 </svg>
               {/if}
               Remove Taint
+            </button>
+          </div>
+        </div>
+      </div>
+    {/if}
+
+    <!-- Confirm Cordon Modal -->
+    {#if showCordonConfirm}
+      <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div class="bg-bg-secondary rounded-lg shadow-xl w-full max-w-md mx-4">
+          <div class="flex items-center gap-3 px-6 py-4 border-b border-border-subtle">
+            <svg class="w-6 h-6 text-accent-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <h3 class="text-lg font-semibold text-text-primary">Cordon Node</h3>
+          </div>
+
+          <div class="p-6">
+            <p class="text-text-secondary mb-4">
+              Are you sure you want to cordon node <strong class="text-text-primary">{name}</strong>?
+            </p>
+            <div class="bg-bg-tertiary rounded-lg p-3 mb-4">
+              <p class="text-sm text-text-muted">
+                <strong class="text-text-primary">What happens:</strong>
+              </p>
+              <ul class="text-sm text-text-muted mt-2 space-y-1 list-disc list-inside">
+                <li>New pods will not be scheduled on this node</li>
+                <li>Existing pods will continue running</li>
+                <li>You can uncordon the node later to resume scheduling</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-3 px-6 py-4 border-t border-border-subtle bg-bg-tertiary rounded-b-lg">
+            <button
+              onclick={() => showCordonConfirm = false}
+              disabled={cordonLoading}
+              class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onclick={cordonNode}
+              disabled={cordonLoading}
+              class="flex items-center gap-2 px-4 py-2 text-sm bg-accent-warning text-white rounded-lg hover:bg-accent-warning/90 transition-colors disabled:opacity-50"
+            >
+              {#if cordonLoading}
+                <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              {/if}
+              Cordon Node
             </button>
           </div>
         </div>
