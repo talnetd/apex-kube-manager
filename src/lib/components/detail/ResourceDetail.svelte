@@ -5,6 +5,7 @@
   import MetadataSection from '../ui/MetadataSection.svelte';
   import EventsTable from '../ui/EventsTable.svelte';
   import ConditionsTable from '../ui/ConditionsTable.svelte';
+  import CustomSelect from '../ui/CustomSelect.svelte';
 
   interface Props {
     resourceType: string;
@@ -58,6 +59,19 @@
   let expandedKeys = $state<Set<string>>(new Set());
   // Revealed state for secret values
   let revealedKeys = $state<Set<string>>(new Set());
+
+  // Taint management state (for nodes)
+  let showAddTaintModal = $state<boolean>(false);
+  let newTaintKey = $state<string>('');
+  let newTaintValue = $state<string>('');
+  let newTaintEffect = $state<string>('NoSchedule');
+  let taintActionLoading = $state<boolean>(false);
+  let taintActionError = $state<string | null>(null);
+  let confirmRemoveTaint = $state<{ key: string; effect: string } | null>(null);
+
+  // Cordon state (for nodes)
+  let cordonLoading = $state<boolean>(false);
+  let showCordonConfirm = $state<boolean>(false);
 
   onMount(async () => {
     await loadDetail();
@@ -201,6 +215,173 @@
       resources: 'Resources',
     };
     return labels[tab] || tab;
+  }
+
+  // Taint validation functions
+  function validateTaintKey(key: string): string | null {
+    if (!key.trim()) {
+      return 'Key is required';
+    }
+
+    const trimmed = key.trim();
+
+    // Check for prefix/name format
+    const parts = trimmed.split('/');
+    if (parts.length > 2) {
+      return 'Key can only have one "/" separator';
+    }
+
+    const name = parts.length === 2 ? parts[1] : parts[0];
+    const prefix = parts.length === 2 ? parts[0] : null;
+
+    // Validate name (required)
+    if (!name) {
+      return 'Key name is required after prefix';
+    }
+    if (name.length > 63) {
+      return 'Key name must be 63 characters or less';
+    }
+    if (!/^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$|^[a-zA-Z0-9]$/.test(name)) {
+      return 'Key name must start/end with alphanumeric, can contain -, _, .';
+    }
+
+    // Validate prefix (optional)
+    if (prefix) {
+      if (prefix.length > 253) {
+        return 'Key prefix must be 253 characters or less';
+      }
+      if (!/^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$/.test(prefix)) {
+        return 'Key prefix must be a valid DNS subdomain';
+      }
+    }
+
+    return null;
+  }
+
+  function validateTaintValue(value: string): string | null {
+    if (!value.trim()) {
+      return null; // Value is optional
+    }
+
+    const trimmed = value.trim();
+    if (trimmed.length > 63) {
+      return 'Value must be 63 characters or less';
+    }
+    if (!/^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$|^[a-zA-Z0-9]$/.test(trimmed)) {
+      return 'Value must start/end with alphanumeric, can contain -, _, .';
+    }
+
+    return null;
+  }
+
+  // Taint management functions (for nodes)
+  async function addTaint() {
+    // Validate key
+    const keyError = validateTaintKey(newTaintKey);
+    if (keyError) {
+      taintActionError = keyError;
+      return;
+    }
+
+    // Validate value
+    const valueError = validateTaintValue(newTaintValue);
+    if (valueError) {
+      taintActionError = valueError;
+      return;
+    }
+
+    try {
+      taintActionLoading = true;
+      taintActionError = null;
+      await invoke('add_node_taint', {
+        contextName: context,
+        name: name,
+        key: newTaintKey.trim(),
+        value: newTaintValue.trim() || null,
+        effect: newTaintEffect,
+      });
+      // Refresh detail to show updated taints
+      await loadDetail();
+      // Reset form
+      showAddTaintModal = false;
+      newTaintKey = '';
+      newTaintValue = '';
+      newTaintEffect = 'NoSchedule';
+    } catch (e) {
+      taintActionError = String(e);
+    } finally {
+      taintActionLoading = false;
+    }
+  }
+
+  async function removeTaint(key: string, effect: string) {
+    try {
+      taintActionLoading = true;
+      taintActionError = null;
+      await invoke('remove_node_taint', {
+        contextName: context,
+        name: name,
+        key: key,
+        effect: effect,
+      });
+      // Refresh detail to show updated taints
+      await loadDetail();
+      confirmRemoveTaint = null;
+    } catch (e) {
+      taintActionError = String(e);
+    } finally {
+      taintActionLoading = false;
+    }
+  }
+
+  function handleRemoveTaintClick(key: string, effect: string) {
+    if (effect === 'NoExecute') {
+      // Show confirmation for NoExecute since it evicts pods
+      confirmRemoveTaint = { key, effect };
+    } else {
+      removeTaint(key, effect);
+    }
+  }
+
+  function getEffectDescription(effect: string): string {
+    switch (effect) {
+      case 'NoSchedule': return 'Pods will not be scheduled on this node';
+      case 'PreferNoSchedule': return 'Scheduler will try to avoid placing pods on this node';
+      case 'NoExecute': return 'Existing pods will be evicted, new pods will not be scheduled';
+      default: return '';
+    }
+  }
+
+  // Cordon/Uncordon functions (for nodes)
+  async function cordonNode() {
+    try {
+      cordonLoading = true;
+      await invoke('cordon_node', {
+        contextName: context,
+        name: name,
+      });
+      await loadDetail();
+      showCordonConfirm = false;
+    } catch (e) {
+      console.error('Failed to cordon node:', e);
+    } finally {
+      cordonLoading = false;
+    }
+  }
+
+  async function uncordonNode() {
+    try {
+      cordonLoading = true;
+      await invoke('uncordon_node', {
+        contextName: context,
+        name: name,
+      });
+      await loadDetail();
+    } catch (e) {
+      console.error('Failed to uncordon node:', e);
+    } finally {
+      cordonLoading = false;
+    }
   }
 </script>
 
@@ -827,6 +1008,64 @@
             </div>
           </section>
 
+          <section>
+            <h2 class="text-lg font-semibold text-text-primary mb-4">Scheduling</h2>
+            <div class="bg-bg-secondary rounded-lg p-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="flex items-center gap-2 mb-1">
+                    {#if detail.unschedulable}
+                      <span class="flex items-center gap-1.5 text-accent-warning">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                        </svg>
+                        <span class="font-medium">Cordoned</span>
+                      </span>
+                    {:else}
+                      <span class="flex items-center gap-1.5 text-accent-success">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span class="font-medium">Schedulable</span>
+                      </span>
+                    {/if}
+                  </div>
+                  <p class="text-xs text-text-muted">
+                    {#if detail.unschedulable}
+                      New pods will not be scheduled on this node
+                    {:else}
+                      New pods can be scheduled on this node
+                    {/if}
+                  </p>
+                </div>
+                <div>
+                  {#if detail.unschedulable}
+                    <button
+                      onclick={uncordonNode}
+                      disabled={cordonLoading || isDeleted}
+                      class="flex items-center gap-2 px-3 py-1.5 text-sm bg-accent-success text-white rounded-lg hover:bg-accent-success/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {#if cordonLoading}
+                        <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      {/if}
+                      Uncordon
+                    </button>
+                  {:else}
+                    <button
+                      onclick={() => showCordonConfirm = true}
+                      disabled={cordonLoading || isDeleted}
+                      class="flex items-center gap-2 px-3 py-1.5 text-sm bg-accent-warning text-white rounded-lg hover:bg-accent-warning/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Cordon
+                    </button>
+                  {/if}
+                </div>
+              </div>
+            </div>
+          </section>
+
         <!-- SERVICEACCOUNT -->
         {:else if resourceType === 'serviceaccount'}
           <section>
@@ -1162,32 +1401,274 @@
             </div>
           </div>
         </div>
-        {#if detail.taints && detail.taints.length > 0}
-          <h2 class="text-lg font-semibold text-text-primary mt-6 mb-4">Taints</h2>
-          <div class="bg-bg-secondary rounded-lg overflow-hidden">
-            <table class="w-full text-sm">
-              <thead class="bg-bg-tertiary">
-                <tr>
-                  <th class="px-4 py-2 text-left text-xs text-text-muted uppercase">Key</th>
-                  <th class="px-4 py-2 text-left text-xs text-text-muted uppercase">Value</th>
-                  <th class="px-4 py-2 text-left text-xs text-text-muted uppercase">Effect</th>
-                </tr>
-              </thead>
-              <tbody>
-                {#each detail.taints as taint}
-                  <tr class="border-t border-border-subtle">
-                    <td class="px-4 py-2 text-text-primary font-mono">{taint.key}</td>
-                    <td class="px-4 py-2 text-text-secondary">{taint.value || '-'}</td>
-                    <td class="px-4 py-2">
-                      <span class="text-xs px-2 py-0.5 rounded {taint.effect === 'NoSchedule' ? 'bg-accent-error/10 text-accent-error' : taint.effect === 'PreferNoSchedule' ? 'bg-accent-warning/10 text-accent-warning' : 'bg-accent-primary/10 text-accent-primary'}">{taint.effect}</span>
-                    </td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
+        <!-- Taints Section -->
+        <div class="mt-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-text-primary">Taints ({(detail.taints || []).length})</h2>
+            <button
+              onclick={() => { showAddTaintModal = true; taintActionError = null; }}
+              disabled={isDeleted || taintActionLoading}
+              class="flex items-center gap-2 px-3 py-1.5 text-sm bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+              </svg>
+              Add Taint
+            </button>
           </div>
-        {/if}
+
+          {#if taintActionError}
+            <div class="mb-4 p-3 bg-accent-error/10 border border-accent-error/30 rounded-lg text-accent-error text-sm">
+              {taintActionError}
+            </div>
+          {/if}
+
+          {#if detail.taints && detail.taints.length > 0}
+            <div class="bg-bg-secondary rounded-lg overflow-hidden">
+              <table class="w-full text-sm">
+                <thead class="bg-bg-tertiary">
+                  <tr>
+                    <th class="px-4 py-2 text-left text-xs text-text-muted uppercase">Key</th>
+                    <th class="px-4 py-2 text-left text-xs text-text-muted uppercase">Value</th>
+                    <th class="px-4 py-2 text-left text-xs text-text-muted uppercase">Effect</th>
+                    <th class="px-4 py-2 text-right text-xs text-text-muted uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each detail.taints as taint}
+                    <tr class="border-t border-border-subtle hover:bg-bg-tertiary">
+                      <td class="px-4 py-2 text-text-primary font-mono">{taint.key}</td>
+                      <td class="px-4 py-2 text-text-secondary">{taint.value || '-'}</td>
+                      <td class="px-4 py-2">
+                        <span class="text-xs px-2 py-0.5 rounded {taint.effect === 'NoSchedule' ? 'bg-accent-error/10 text-accent-error' : taint.effect === 'PreferNoSchedule' ? 'bg-accent-warning/10 text-accent-warning' : 'bg-accent-primary/10 text-accent-primary'}">{taint.effect}</span>
+                      </td>
+                      <td class="px-4 py-2 text-right">
+                        <button
+                          onclick={() => handleRemoveTaintClick(taint.key, taint.effect)}
+                          disabled={isDeleted || taintActionLoading}
+                          class="text-xs px-2 py-1 text-accent-error hover:bg-accent-error/10 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          {:else}
+            <div class="bg-bg-secondary rounded-lg p-8 text-center">
+              <svg class="w-12 h-12 text-text-muted mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p class="text-text-muted">No taints configured on this node</p>
+              <p class="text-xs text-text-muted mt-1">All pods can be scheduled on this node</p>
+            </div>
+          {/if}
+        </div>
       </div>
+
+    <!-- Add Taint Modal -->
+    {#if showAddTaintModal}
+      <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={() => { if (!taintActionLoading) showAddTaintModal = false; }}>
+        <div class="bg-bg-secondary rounded-lg shadow-xl w-full max-w-md mx-4" onclick={(e) => e.stopPropagation()}>
+          <div class="flex items-center justify-between px-6 py-4 border-b border-border-subtle">
+            <h3 class="text-lg font-semibold text-text-primary">Add Taint</h3>
+            <button
+              onclick={() => showAddTaintModal = false}
+              disabled={taintActionLoading}
+              class="text-text-muted hover:text-text-primary disabled:opacity-50"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="p-6 space-y-4">
+            {#if taintActionError}
+              <div class="p-3 bg-accent-error/10 border border-accent-error/30 rounded-lg text-accent-error text-sm">
+                {taintActionError}
+              </div>
+            {/if}
+
+            <div>
+              <label for="taint-key" class="block text-sm font-medium text-text-primary mb-1">Key *</label>
+              <input
+                id="taint-key"
+                type="text"
+                bind:value={newTaintKey}
+                placeholder="e.g., dedicated, gpu, node-role"
+                disabled={taintActionLoading}
+                class="w-full px-3 py-2 bg-bg-primary border border-border-subtle rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent-primary disabled:opacity-50"
+              />
+            </div>
+
+            <div>
+              <label for="taint-value" class="block text-sm font-medium text-text-primary mb-1">Value (optional)</label>
+              <input
+                id="taint-value"
+                type="text"
+                bind:value={newTaintValue}
+                placeholder="e.g., special-user, nvidia"
+                disabled={taintActionLoading}
+                class="w-full px-3 py-2 bg-bg-primary border border-border-subtle rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent-primary disabled:opacity-50"
+              />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-text-primary mb-1">Effect *</label>
+              <CustomSelect
+                bind:value={newTaintEffect}
+                disabled={taintActionLoading}
+                options={[
+                  { value: 'NoSchedule', label: 'NoSchedule' },
+                  { value: 'PreferNoSchedule', label: 'PreferNoSchedule' },
+                  { value: 'NoExecute', label: 'NoExecute' }
+                ]}
+                placeholder="Select effect..."
+              />
+              <p class="text-xs text-text-muted mt-1">{getEffectDescription(newTaintEffect)}</p>
+            </div>
+
+            {#if newTaintEffect === 'NoExecute'}
+              <div class="p-3 bg-accent-warning/10 border border-accent-warning/30 rounded-lg">
+                <div class="flex items-start gap-2">
+                  <svg class="w-5 h-5 text-accent-warning shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <div class="text-sm text-accent-warning">
+                    <strong>Warning:</strong> NoExecute will evict existing pods that don't tolerate this taint.
+                  </div>
+                </div>
+              </div>
+            {/if}
+          </div>
+
+          <div class="flex justify-end gap-3 px-6 py-4 border-t border-border-subtle bg-bg-tertiary rounded-b-lg">
+            <button
+              onclick={() => showAddTaintModal = false}
+              disabled={taintActionLoading}
+              class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onclick={addTaint}
+              disabled={taintActionLoading || !newTaintKey.trim()}
+              class="flex items-center gap-2 px-4 py-2 text-sm bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {#if taintActionLoading}
+                <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              {/if}
+              Add Taint
+            </button>
+          </div>
+        </div>
+      </div>
+    {/if}
+
+    <!-- Confirm Remove NoExecute Taint Modal -->
+    {#if confirmRemoveTaint}
+      <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div class="bg-bg-secondary rounded-lg shadow-xl w-full max-w-md mx-4">
+          <div class="flex items-center gap-3 px-6 py-4 border-b border-border-subtle">
+            <svg class="w-6 h-6 text-accent-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <h3 class="text-lg font-semibold text-text-primary">Confirm Remove Taint</h3>
+          </div>
+
+          <div class="p-6">
+            <p class="text-text-secondary mb-4">
+              Are you sure you want to remove the <strong class="text-text-primary">NoExecute</strong> taint?
+            </p>
+            <div class="bg-bg-tertiary rounded-lg p-3 mb-4">
+              <code class="text-sm text-accent-primary">{confirmRemoveTaint.key}:{confirmRemoveTaint.effect}</code>
+            </div>
+            <p class="text-sm text-text-muted">
+              Removing this taint may allow previously evicted pods to be rescheduled on this node.
+            </p>
+          </div>
+
+          <div class="flex justify-end gap-3 px-6 py-4 border-t border-border-subtle bg-bg-tertiary rounded-b-lg">
+            <button
+              onclick={() => confirmRemoveTaint = null}
+              disabled={taintActionLoading}
+              class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onclick={() => confirmRemoveTaint && removeTaint(confirmRemoveTaint.key, confirmRemoveTaint.effect)}
+              disabled={taintActionLoading}
+              class="flex items-center gap-2 px-4 py-2 text-sm bg-accent-error text-white rounded-lg hover:bg-accent-error/90 transition-colors disabled:opacity-50"
+            >
+              {#if taintActionLoading}
+                <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              {/if}
+              Remove Taint
+            </button>
+          </div>
+        </div>
+      </div>
+    {/if}
+
+    <!-- Confirm Cordon Modal -->
+    {#if showCordonConfirm}
+      <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div class="bg-bg-secondary rounded-lg shadow-xl w-full max-w-md mx-4">
+          <div class="flex items-center gap-3 px-6 py-4 border-b border-border-subtle">
+            <svg class="w-6 h-6 text-accent-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <h3 class="text-lg font-semibold text-text-primary">Cordon Node</h3>
+          </div>
+
+          <div class="p-6">
+            <p class="text-text-secondary mb-4">
+              Are you sure you want to cordon node <strong class="text-text-primary">{name}</strong>?
+            </p>
+            <div class="bg-bg-tertiary rounded-lg p-3 mb-4">
+              <p class="text-sm text-text-muted">
+                <strong class="text-text-primary">What happens:</strong>
+              </p>
+              <ul class="text-sm text-text-muted mt-2 space-y-1 list-disc list-inside">
+                <li>New pods will not be scheduled on this node</li>
+                <li>Existing pods will continue running</li>
+                <li>You can uncordon the node later to resume scheduling</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-3 px-6 py-4 border-t border-border-subtle bg-bg-tertiary rounded-b-lg">
+            <button
+              onclick={() => showCordonConfirm = false}
+              disabled={cordonLoading}
+              class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onclick={cordonNode}
+              disabled={cordonLoading}
+              class="flex items-center gap-2 px-4 py-2 text-sm bg-accent-warning text-white rounded-lg hover:bg-accent-warning/90 transition-colors disabled:opacity-50"
+            >
+              {#if cordonLoading}
+                <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              {/if}
+              Cordon Node
+            </button>
+          </div>
+        </div>
+      </div>
+    {/if}
 
     <!-- EVENTS TAB -->
     {:else if activeTab === 'events'}

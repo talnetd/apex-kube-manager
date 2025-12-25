@@ -394,6 +394,13 @@ pub struct NamespaceInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeTaintInfo {
+    pub key: String,
+    pub value: Option<String>,
+    pub effect: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeInfo {
     pub name: String,
     pub status: String,
@@ -404,6 +411,7 @@ pub struct NodeInfo {
     pub os_image: String,
     pub kernel: String,
     pub container_runtime: String,
+    pub taints: Vec<NodeTaintInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -912,6 +920,18 @@ pub fn node_to_info(node: &Node) -> Option<NodeInfo> {
                 .map(|a| a.address.clone())
         });
 
+    // Extract taints
+    let taints: Vec<NodeTaintInfo> = spec
+        .and_then(|s| s.taints.as_ref())
+        .map(|t| {
+            t.iter().map(|taint| NodeTaintInfo {
+                key: taint.key.clone(),
+                value: taint.value.clone(),
+                effect: taint.effect.clone(),
+            }).collect()
+        })
+        .unwrap_or_default();
+
     Some(NodeInfo {
         name: metadata.name.clone()?,
         status: final_status,
@@ -922,6 +942,7 @@ pub fn node_to_info(node: &Node) -> Option<NodeInfo> {
         os_image: node_info.map(|i| i.os_image.clone()).unwrap_or_default(),
         kernel: node_info.map(|i| i.kernel_version.clone()).unwrap_or_default(),
         container_runtime: node_info.map(|i| i.container_runtime_version.clone()).unwrap_or_default(),
+        taints,
     })
 }
 
@@ -2490,6 +2511,18 @@ pub async fn list_nodes(client: &Client) -> Result<Vec<NodeInfo>> {
                         .map(|a| a.address.clone())
                 });
 
+            // Extract taints
+            let taints: Vec<NodeTaintInfo> = spec
+                .and_then(|s| s.taints.as_ref())
+                .map(|t| {
+                    t.iter().map(|taint| NodeTaintInfo {
+                        key: taint.key.clone(),
+                        value: taint.value.clone(),
+                        effect: taint.effect.clone(),
+                    }).collect()
+                })
+                .unwrap_or_default();
+
             NodeInfo {
                 name: metadata.name.clone().unwrap_or_default(),
                 status: final_status,
@@ -2500,6 +2533,7 @@ pub async fn list_nodes(client: &Client) -> Result<Vec<NodeInfo>> {
                 os_image: node_info.map(|i| i.os_image.clone()).unwrap_or_default(),
                 kernel: node_info.map(|i| i.kernel_version.clone()).unwrap_or_default(),
                 container_runtime: node_info.map(|i| i.container_runtime_version.clone()).unwrap_or_default(),
+                taints,
             }
         })
         .collect();
@@ -5027,6 +5061,181 @@ pub async fn get_node_pods(client: &Client, node_name: &str) -> Result<Vec<PodIn
     let lp = ListParams::default().fields(&format!("spec.nodeName={}", node_name));
     let pod_list = pods.list(&lp).await?;
     Ok(pod_list.items.iter().map(pod_to_pod_info).collect())
+}
+
+// ============ Node Taint Operations ============
+
+fn validate_taint_key(key: &str) -> Result<()> {
+    if key.is_empty() {
+        return Err(AppError::Custom("Taint key is required".to_string()));
+    }
+
+    let parts: Vec<&str> = key.split('/').collect();
+    if parts.len() > 2 {
+        return Err(AppError::Custom("Taint key can only have one '/' separator".to_string()));
+    }
+
+    let name = if parts.len() == 2 { parts[1] } else { parts[0] };
+    let prefix = if parts.len() == 2 { Some(parts[0]) } else { None };
+
+    // Validate name
+    if name.is_empty() {
+        return Err(AppError::Custom("Taint key name is required".to_string()));
+    }
+    if name.len() > 63 {
+        return Err(AppError::Custom("Taint key name must be 63 characters or less".to_string()));
+    }
+
+    let name_regex = regex::Regex::new(r"^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$|^[a-zA-Z0-9]$").unwrap();
+    if !name_regex.is_match(name) {
+        return Err(AppError::Custom("Taint key name must start/end with alphanumeric, can contain -, _, .".to_string()));
+    }
+
+    // Validate prefix if present
+    if let Some(p) = prefix {
+        if p.len() > 253 {
+            return Err(AppError::Custom("Taint key prefix must be 253 characters or less".to_string()));
+        }
+        let prefix_regex = regex::Regex::new(r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$").unwrap();
+        if !prefix_regex.is_match(p) {
+            return Err(AppError::Custom("Taint key prefix must be a valid DNS subdomain".to_string()));
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_taint_value(value: Option<&str>) -> Result<()> {
+    if let Some(v) = value {
+        if v.is_empty() {
+            return Ok(()); // Empty is fine
+        }
+        if v.len() > 63 {
+            return Err(AppError::Custom("Taint value must be 63 characters or less".to_string()));
+        }
+        let value_regex = regex::Regex::new(r"^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$|^[a-zA-Z0-9]$").unwrap();
+        if !value_regex.is_match(v) {
+            return Err(AppError::Custom("Taint value must start/end with alphanumeric, can contain -, _, .".to_string()));
+        }
+    }
+    Ok(())
+}
+
+fn validate_taint_effect(effect: &str) -> Result<()> {
+    match effect {
+        "NoSchedule" | "PreferNoSchedule" | "NoExecute" => Ok(()),
+        _ => Err(AppError::Custom(format!(
+            "Invalid taint effect '{}'. Must be NoSchedule, PreferNoSchedule, or NoExecute",
+            effect
+        ))),
+    }
+}
+
+pub async fn add_node_taint(
+    client: &Client,
+    name: &str,
+    key: &str,
+    value: Option<&str>,
+    effect: &str,
+) -> Result<()> {
+    // Validate inputs
+    validate_taint_key(key)?;
+    validate_taint_value(value)?;
+    validate_taint_effect(effect)?;
+
+    let nodes: Api<Node> = Api::all(client.clone());
+
+    // Get current node to read existing taints
+    let node = nodes.get(name).await?;
+    let mut taints = node.spec
+        .and_then(|s| s.taints)
+        .unwrap_or_default();
+
+    // Check if taint with same key and effect already exists
+    if taints.iter().any(|t| t.key == key && t.effect == effect) {
+        return Err(AppError::Custom(format!(
+            "Taint with key '{}' and effect '{}' already exists on node '{}'",
+            key, effect, name
+        )));
+    }
+
+    // Add new taint
+    taints.push(k8s_openapi::api::core::v1::Taint {
+        key: key.to_string(),
+        value: value.map(|v| v.to_string()),
+        effect: effect.to_string(),
+        time_added: None,
+    });
+
+    // Patch the node with updated taints
+    let patch = serde_json::json!({
+        "spec": {
+            "taints": taints
+        }
+    });
+
+    nodes.patch(name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
+    Ok(())
+}
+
+pub async fn remove_node_taint(client: &Client, name: &str, key: &str, effect: &str) -> Result<()> {
+    let nodes: Api<Node> = Api::all(client.clone());
+
+    // Get current node to read existing taints
+    let node = nodes.get(name).await?;
+    let taints = node.spec
+        .and_then(|s| s.taints)
+        .unwrap_or_default();
+
+    // Filter out the taint with matching key and effect
+    let new_taints: Vec<_> = taints
+        .into_iter()
+        .filter(|t| !(t.key == key && t.effect == effect))
+        .collect();
+
+    // Patch the node with updated taints (use empty array if no taints left)
+    let patch = if new_taints.is_empty() {
+        serde_json::json!({
+            "spec": {
+                "taints": null
+            }
+        })
+    } else {
+        serde_json::json!({
+            "spec": {
+                "taints": new_taints
+            }
+        })
+    };
+
+    nodes.patch(name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
+    Ok(())
+}
+
+pub async fn cordon_node(client: &Client, name: &str) -> Result<()> {
+    let nodes: Api<Node> = Api::all(client.clone());
+
+    let patch = serde_json::json!({
+        "spec": {
+            "unschedulable": true
+        }
+    });
+
+    nodes.patch(name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
+    Ok(())
+}
+
+pub async fn uncordon_node(client: &Client, name: &str) -> Result<()> {
+    let nodes: Api<Node> = Api::all(client.clone());
+
+    let patch = serde_json::json!({
+        "spec": {
+            "unschedulable": null
+        }
+    });
+
+    nodes.patch(name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
+    Ok(())
 }
 
 // ============ ServiceAccount Detail ============
