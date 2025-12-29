@@ -33,6 +33,7 @@ urlencoding = "2"
 portable-pty = "0.8"
 uuid = { version = "1", features = ["v4"] }
 regex = "1"
+reqwest = { version = "0.12", features = ["json"] }
 
 [features]
 default = ["custom-protocol"]

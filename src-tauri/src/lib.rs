@@ -3,6 +3,7 @@ mod error;
 mod kubernetes;
 mod portforward;
 mod pty;
+mod updates;
 mod watch;
 
 use portforward::PortForwardManager;
@@ -257,6 +258,7 @@ pub fn run() {
             commands::watch_events,
             commands::stop_watch,
             commands::stop_all_watches,
+            commands::check_for_updates,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
