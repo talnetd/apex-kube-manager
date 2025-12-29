@@ -1067,3 +1067,10 @@ pub async fn stop_all_watches(
     watch_manager.stop_all().await;
     Ok(())
 }
+
+// ============ Update Check Commands ============
+
+#[tauri::command]
+pub async fn check_for_updates() -> std::result::Result<crate::updates::UpdateInfo, String> {
+    crate::updates::check_for_updates().await
+}

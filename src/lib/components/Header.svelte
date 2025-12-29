@@ -17,20 +17,31 @@
   } from '../stores/kubernetes';
   import { searchQuery, globalSearchOpen } from '../stores/search';
   import { activePortForwardCount, portForwardPanelOpen } from '../stores/portforward';
+  import { updateInfo, initUpdateCheck, checkForUpdates } from '../stores/updates';
+  import { open } from '@tauri-apps/plugin-shell';
   import PortForwardPanel from './PortForwardPanel.svelte';
   import WindowControls from './ui/WindowControls.svelte';
   import ThemeToggle from './ui/ThemeToggle.svelte';
 
   let showContextDropdown = $state(false);
   let showNamespaceDropdown = $state(false);
+  let showUpdateDropdown = $state(false);
 
   function closeDropdowns() {
     showContextDropdown = false;
     showNamespaceDropdown = false;
+    showUpdateDropdown = false;
   }
 
   function openGlobalSearch() {
     globalSearchOpen.set(true);
+  }
+
+  async function openReleasePage() {
+    if ($updateInfo?.release_url) {
+      await open($updateInfo.release_url);
+      showUpdateDropdown = false;
+    }
   }
 
   onMount(async () => {
@@ -38,6 +49,7 @@
     await loadNamespaces();
     await loadPulseMetrics();
     startContextPolling();
+    initUpdateCheck();
     window.addEventListener('click', closeDropdowns);
   });
 
@@ -225,6 +237,59 @@
       onClose={() => portForwardPanelOpen.set(false)}
     />
   </div>
+
+  <!-- Update Indicator -->
+  {#if $updateInfo?.update_available}
+    <div class="relative">
+      <button
+        onclick={(e) => {
+          e.stopPropagation();
+          showUpdateDropdown = !showUpdateDropdown;
+        }}
+        class="relative p-2 rounded-lg hover:bg-bg-tertiary text-accent-success hover:text-accent-success transition-colors"
+        title="Update available"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+        <span class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-accent-success rounded-full"></span>
+      </button>
+
+      {#if showUpdateDropdown}
+        <div class="absolute top-full right-0 mt-1 w-72 bg-bg-card border border-border-subtle rounded-lg shadow-xl z-50">
+          <div class="p-4">
+            <div class="flex items-center gap-2 mb-3">
+              <svg class="w-5 h-5 text-accent-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span class="text-sm font-medium text-text-primary">Update Available</span>
+            </div>
+
+            <div class="space-y-2 mb-4">
+              <div class="flex justify-between text-sm">
+                <span class="text-text-muted">Current</span>
+                <span class="text-text-primary font-mono">v{$updateInfo.current_version}</span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-text-muted">Latest</span>
+                <span class="text-accent-success font-mono">v{$updateInfo.latest_version}</span>
+              </div>
+            </div>
+
+            <button
+              onclick={openReleasePage}
+              class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-accent-success text-white rounded-lg hover:bg-accent-success/90 transition-colors text-sm"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              View Release
+            </button>
+          </div>
+        </div>
+      {/if}
+    </div>
+  {/if}
 
   <!-- Theme Toggle -->
   <ThemeToggle />

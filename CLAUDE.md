@@ -285,6 +285,7 @@ Resources with related pods also have:
 | `remove_node_taint` | `context_name, name, key, effect` | `()` |
 | `cordon_node` | `context_name, name` | `()` |
 | `uncordon_node` | `context_name, name` | `()` |
+| `check_for_updates` | - | `UpdateInfo` |
 | `get_secret_data` | `context_name, namespace, name` | `HashMap<String, String>` |
 | `open_resource_detail` | `context_name, resourceType, namespace, name` | `()` |
 
@@ -459,6 +460,7 @@ const events = await invoke(`get_${resourceType}_events`, getInvokeParams());
 - [x] Secret data reveal/hide toggle
 - [x] Node taint management (add/remove taints with effect dropdown)
 - [x] Node cordon/uncordon (toggle scheduling with confirmation)
+- [x] Update checker (checks GitHub releases, badge in header when update available)
 
 ### TODO (Next Features)
 - [ ] Pod exec WebSocket streaming (xterm.js ready)
