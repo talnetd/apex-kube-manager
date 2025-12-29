@@ -463,12 +463,13 @@ const events = await invoke(`get_${resourceType}_events`, getInvokeParams());
 - [x] Update checker (checks GitHub releases, badge in header when update available)
 
 ### TODO (Next Features)
-- [ ] Pod exec WebSocket streaming (xterm.js ready)
 - [ ] Fix YAML editor - typing/editing not working in CodeMirror (YamlEditorPanel.svelte)
-- [ ] Real-time watch streams (K8s watch API)
 - [ ] Search/filter within tables
+- [ ] Resource deletion (deployments, services, configmaps, etc.)
+- [ ] Node drain (evict pods with options)
 - [ ] Application icons
 - [x] Dark/Light theme toggle
+- [x] Pod exec terminal (via kubectl exec + PTY)
 
 ## Architecture Notes
 
