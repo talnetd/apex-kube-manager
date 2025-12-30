@@ -27,6 +27,12 @@
       onchange('');
     }
   }
+
+  // Expose focus method for keyboard shortcut
+  export function focus() {
+    isExpanded = true;
+    setTimeout(() => inputRef?.focus(), 0);
+  }
 </script>
 
 <div class="relative flex items-center">

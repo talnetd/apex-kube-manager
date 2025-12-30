@@ -455,6 +455,7 @@ pub async fn open_resource_detail(
     name: String,
     namespace: String,
     context: String,
+    tab: Option<String>,
 ) -> Result<()> {
     // Create a unique window label
     let window_label = format!(
@@ -472,12 +473,14 @@ pub async fn open_resource_detail(
     }
 
     // Build the URL with query parameters
+    let tab_param = tab.map(|t| format!("&tab={}", urlencoding::encode(&t))).unwrap_or_default();
     let url = format!(
-        "/detail.html?type={}&name={}&namespace={}&context={}",
+        "/detail.html?type={}&name={}&namespace={}&context={}{}",
         urlencoding::encode(&resource_type),
         urlencoding::encode(&name),
         urlencoding::encode(&namespace),
-        urlencoding::encode(&context)
+        urlencoding::encode(&context),
+        tab_param
     );
 
     // Capitalize resource type for title

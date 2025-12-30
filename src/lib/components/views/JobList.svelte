@@ -95,7 +95,6 @@
     <table class="w-full">
       <thead>
         <tr class="text-left border-b border-border-subtle">
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-4"></th>
           <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Namespace" field="namespace" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Completions" field="completions" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
@@ -108,9 +107,6 @@
       <tbody>
         {#each sortedData() as job}
           <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer" onclick={() => openDetail(job)}>
-            <td class="py-3 pr-2">
-              <div class="w-2 h-2 rounded-full {getStatusDot(job.status)}"></div>
-            </td>
             <td class="py-3 pr-4">
               <span class="text-accent-primary font-medium hover:underline">{job.name}</span>
             </td>

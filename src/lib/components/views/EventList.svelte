@@ -189,7 +189,6 @@
     <table class="w-full">
       <thead>
         <tr class="text-left border-b border-border-subtle">
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-4"></th>
           <SortableHeader label="Type" field="type" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Reason" field="reason" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Object" field="involved_object" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
@@ -202,9 +201,6 @@
       <tbody>
         {#each sortedData() as event}
           <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors">
-            <td class="py-3 pr-2">
-              <div class="w-2 h-2 rounded-full {getTypeDot(event.type)}"></div>
-            </td>
             <td class="py-3 pr-4">
               <span class="px-2 py-0.5 rounded text-xs font-medium {getTypeColor(event.type)}">{event.type}</span>
             </td>
