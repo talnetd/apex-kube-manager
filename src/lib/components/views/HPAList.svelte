@@ -60,7 +60,6 @@
     <table class="w-full">
       <thead>
         <tr class="text-left border-b border-border-subtle">
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-4"></th>
           <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Namespace" field="namespace" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Reference" field="reference" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
@@ -73,9 +72,6 @@
       <tbody>
         {#each sortedData() as hpa}
           <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer" onclick={() => openDetail(hpa)}>
-            <td class="py-3 pr-2">
-              <div class="w-2 h-2 rounded-full bg-accent-success"></div>
-            </td>
             <td class="py-3 pr-4">
               <span class="text-accent-primary font-medium hover:underline">{hpa.name}</span>
             </td>

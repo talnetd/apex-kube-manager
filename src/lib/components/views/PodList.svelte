@@ -18,12 +18,20 @@
   import type { PodInfo } from '../../stores/kubernetes';
   import { filterBySearch } from '../../stores/search';
   import ViewFilter from '../ui/ViewFilter.svelte';
+  import {
+    selectedRowIndex,
+    keyboardNavActive,
+    totalRows,
+    resetNavigation,
+  } from '../../stores/keyboard';
 
   let activeFilter = $state('all');
   let showDeleteConfirm = $state(false);
   let podToDelete = $state<PodInfo | null>(null);
   let sort = $state<SortState>({ field: 'name', direction: 'asc' });
   let filterQuery = $state('');
+  let tableBody: HTMLTableSectionElement;
+  let filterRef: ViewFilter;
 
   const filters = $derived([
     { id: 'all', label: 'All', count: $podsByStatus.all.length },
@@ -56,12 +64,102 @@
     sort = toggleSort(sort, field);
   }
 
+  // Get selected pod based on current index
+  const selectedPod = $derived(() => {
+    const pods = filteredPods();
+    const idx = $selectedRowIndex;
+    if (idx >= 0 && idx < pods.length) {
+      return pods[idx];
+    }
+    return null;
+  });
+
+  // Update total rows when filtered data changes
+  $effect(() => {
+    totalRows.set(filteredPods().length);
+  });
+
+  // Scroll selected row into view
+  $effect(() => {
+    if ($keyboardNavActive && $selectedRowIndex >= 0 && tableBody) {
+      const row = tableBody.children[$selectedRowIndex] as HTMLElement;
+      if (row) {
+        row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  });
+
+  // Keyboard shortcuts for actions
+  function handleKeydown(e: KeyboardEvent) {
+    const active = document.activeElement;
+    const isInput = active?.tagName.toLowerCase() === 'input';
+
+    // Cmd+F to focus filter (works even in input)
+    if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+      e.preventDefault();
+      filterRef?.focus();
+      return;
+    }
+
+    // Skip other shortcuts if in input
+    if (isInput) return;
+
+    const pod = selectedPod();
+    if (!pod) return;
+
+    // Enter to open detail
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      openPodDetail(pod);
+      return;
+    }
+
+    // 'l' for logs - opens detail directly to logs tab
+    if (e.key === 'l') {
+      e.preventDefault();
+      openPodLogs(pod);
+      return;
+    }
+
+    // 'e' for exec
+    if (e.key === 'e') {
+      e.preventDefault();
+      openTerminalWindow(pod.namespace, pod.name);
+      return;
+    }
+
+    // 'd' for delete
+    if (e.key === 'd') {
+      e.preventDefault();
+      confirmDelete(pod);
+      return;
+    }
+
+    // 'y' to copy name
+    if (e.key === 'y') {
+      e.preventDefault();
+      navigator.clipboard.writeText(pod.name);
+      return;
+    }
+
+    // 'r' to refresh
+    if (e.key === 'r') {
+      e.preventDefault();
+      startPodWatch($selectedNamespace);
+      return;
+    }
+  }
+
   onMount(() => {
     startPodWatch($selectedNamespace);
+    resetNavigation();
+    window.addEventListener('keydown', handleKeydown);
   });
 
   onDestroy(() => {
     stopPodWatch();
+    resetNavigation();
+    window.removeEventListener('keydown', handleKeydown);
   });
 
   // React to namespace, context, and manual refresh trigger
@@ -83,6 +181,20 @@
       });
     } catch (e) {
       console.error('Failed to open pod detail:', e);
+    }
+  }
+
+  async function openPodLogs(pod: PodInfo) {
+    try {
+      await invoke('open_resource_detail', {
+        resourceType: 'pod',
+        name: pod.name,
+        namespace: pod.namespace,
+        context: $currentContext,
+        tab: 'logs',
+      });
+    } catch (e) {
+      console.error('Failed to open pod logs:', e);
     }
   }
 
@@ -122,7 +234,7 @@
           {/each}
         </div>
         <!-- Text Filter -->
-        <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter pods..." />
+        <ViewFilter bind:this={filterRef} value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter pods..." />
       </div>
     </div>
   </div>
@@ -132,7 +244,6 @@
     <table class="w-full">
       <thead>
         <tr class="text-left border-b border-border-subtle">
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-4"></th>
           <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Namespace" field="namespace" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Status" field="status" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
@@ -142,16 +253,13 @@
           <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-24">Actions</th>
         </tr>
       </thead>
-      <tbody>
-        {#each filteredPods() as pod}
-          {@const statusColor = pod.status === 'Running' ? 'bg-accent-success' : pod.status === 'Pending' ? 'bg-accent-warning' : 'bg-accent-error'}
+      <tbody bind:this={tableBody}>
+        {#each filteredPods() as pod, index}
+          {@const isSelected = $keyboardNavActive && $selectedRowIndex === index}
           <tr
             onclick={() => openPodDetail(pod)}
-            class="border-b border-border-subtle/50 cursor-pointer transition-colors hover:bg-bg-secondary"
+            class="border-b border-border-subtle/50 cursor-pointer transition-colors {isSelected ? 'bg-accent-primary/20 ring-1 ring-accent-primary/50' : 'hover:bg-bg-secondary'}"
           >
-            <td class="py-3 pr-2">
-              <div class="w-2 h-2 rounded-full {statusColor}"></div>
-            </td>
             <td class="py-3 pr-4">
               <span class="text-accent-primary font-medium hover:underline">{pod.name}</span>
             </td>

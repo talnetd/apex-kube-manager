@@ -463,6 +463,7 @@ const events = await invoke(`get_${resourceType}_events`, getInvokeParams());
 - [x] Update checker (checks GitHub releases, badge in header when update available)
 
 ### TODO (Next Features)
+- [ ] Command palette with actions (restart deploy, scale, logs, exec - all from keyboard)
 - [ ] Fix YAML editor - typing/editing not working in CodeMirror (YamlEditorPanel.svelte)
 - [ ] Search/filter within tables
 - [ ] Resource deletion (deployments, services, configmaps, etc.)
@@ -470,6 +471,7 @@ const events = await invoke(`get_${resourceType}_events`, getInvokeParams());
 - [ ] Application icons
 - [x] Dark/Light theme toggle
 - [x] Pod exec terminal (via kubectl exec + PTY)
+- [x] Keyboard-first navigation (vim-style j/k, Enter to open, shortcuts for actions)
 
 ## Architecture Notes
 
@@ -484,6 +486,46 @@ const events = await invoke(`get_${resourceType}_events`, getInvokeParams());
    - User must find and click action button (intentional navigation)
    - Confirmation modal for dangerous actions (final check)
    This prevents accidental misclicks on wrong rows in list views. Examples: Deployment scale/restart, Node cordon/taints, Pod delete.
+
+## Keyboard Shortcuts
+
+Press `?` anytime to show the keyboard shortcuts help modal.
+
+### Navigation
+| Key | Action |
+|-----|--------|
+| `j` / `↓` | Move down in list |
+| `k` / `↑` | Move up in list |
+| `g g` | Go to first row |
+| `G` | Go to last row |
+| `Enter` | Open detail view |
+| `Esc` | Clear selection / Close modal |
+
+### Actions (on selected row)
+| Key | Action |
+|-----|--------|
+| `l` | View logs (Pods) |
+| `e` | Exec into pod (Pods) |
+| `s` | Scale (Deployments) |
+| `d` | Delete resource |
+| `y` | Copy resource name |
+| `r` | Refresh view |
+
+### Global
+| Key | Action |
+|-----|--------|
+| `⌘K` / `/` | Open global search |
+| `⌘F` | Focus filter input |
+| `⌘P` | Toggle port forwards panel |
+| `⌘W` | Close detail window |
+| `?` | Show keyboard shortcuts help |
+
+### Implementation Details
+- Keyboard store: `src/lib/stores/keyboard.ts`
+- Help modal: `src/lib/components/ui/KeyboardHelp.svelte`
+- Global handlers in `App.svelte`, per-view handlers in each list component
+- Row selection uses `selectedRowIndex` store with teal highlight (`bg-accent-primary/20`)
+- Scrolls selected row into view automatically
 
 ## Key Dependencies
 

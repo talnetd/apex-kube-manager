@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import Badge from '../ui/Badge.svelte';
   import SortableHeader from '../ui/SortableHeader.svelte';
@@ -13,9 +13,17 @@
   } from '../../stores/kubernetes';
   import { filterBySearch } from '../../stores/search';
   import ViewFilter from '../ui/ViewFilter.svelte';
+  import {
+    selectedRowIndex,
+    keyboardNavActive,
+    totalRows,
+    resetNavigation,
+  } from '../../stores/keyboard';
 
   let sort = $state<SortState>({ field: 'name', direction: 'asc' });
   let filterQuery = $state('');
+  let tableBody: HTMLTableSectionElement;
+  let filterRef: ViewFilter;
 
   const sortedData = $derived(() => {
     const filtered = filterBySearch($services, filterQuery, ['name', 'namespace', 'service_type', 'cluster_ip']);
@@ -26,10 +34,82 @@
     sort = toggleSort(sort, field);
   }
 
+  // Get selected service based on current index
+  const selectedItem = $derived(() => {
+    const items = sortedData();
+    const idx = $selectedRowIndex;
+    if (idx >= 0 && idx < items.length) {
+      return items[idx];
+    }
+    return null;
+  });
+
+  // Update total rows when filtered data changes
+  $effect(() => {
+    totalRows.set(sortedData().length);
+  });
+
+  // Scroll selected row into view
+  $effect(() => {
+    if ($keyboardNavActive && $selectedRowIndex >= 0 && tableBody) {
+      const row = tableBody.children[$selectedRowIndex] as HTMLElement;
+      if (row) {
+        row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  });
+
+  // Keyboard shortcuts for actions
+  function handleKeydown(e: KeyboardEvent) {
+    const active = document.activeElement;
+    const isInput = active?.tagName.toLowerCase() === 'input';
+
+    // Cmd+F to focus filter (works even in input)
+    if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+      e.preventDefault();
+      filterRef?.focus();
+      return;
+    }
+
+    // Skip other shortcuts if in input
+    if (isInput) return;
+
+    const item = selectedItem();
+    if (!item) return;
+
+    // Enter to open detail
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      openServiceDetail(item);
+      return;
+    }
+
+    // 'y' to copy name
+    if (e.key === 'y') {
+      e.preventDefault();
+      navigator.clipboard.writeText(item.name);
+      return;
+    }
+
+    // 'r' to refresh
+    if (e.key === 'r') {
+      e.preventDefault();
+      loadServices($selectedNamespace);
+      return;
+    }
+  }
+
   onMount(() => {
     loadServices($selectedNamespace);
     const interval = setInterval(() => loadServices($selectedNamespace), 10000);
+    resetNavigation();
+    window.addEventListener('keydown', handleKeydown);
     return () => clearInterval(interval);
+  });
+
+  onDestroy(() => {
+    resetNavigation();
+    window.removeEventListener('keydown', handleKeydown);
   });
 
   $effect(() => {
@@ -71,7 +151,7 @@
   <div class="px-6 py-4 border-b border-border-subtle">
     <div class="flex items-center justify-between">
       <h1 class="text-xl font-semibold text-text-primary">Services</h1>
-      <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter services..." />
+      <ViewFilter bind:this={filterRef} value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter services..." />
     </div>
   </div>
 
@@ -80,7 +160,6 @@
     <table class="w-full">
       <thead>
         <tr class="text-left border-b border-border-subtle">
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-4"></th>
           <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Namespace" field="namespace" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Type" field="service_type" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
@@ -90,15 +169,13 @@
           <SortableHeader label="Age" field="age" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
         </tr>
       </thead>
-      <tbody>
-        {#each sortedData() as service}
+      <tbody bind:this={tableBody}>
+        {#each sortedData() as service, index}
+          {@const isSelected = $keyboardNavActive && $selectedRowIndex === index}
           <tr
-            class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer"
+            class="border-b border-border-subtle/50 cursor-pointer transition-colors {isSelected ? 'bg-accent-primary/20 ring-1 ring-accent-primary/50' : 'hover:bg-bg-secondary'}"
             onclick={() => openServiceDetail(service)}
           >
-            <td class="py-3 pr-2">
-              <div class="w-2 h-2 rounded-full bg-accent-success"></div>
-            </td>
             <td class="py-3 pr-4">
               <span class="text-accent-primary font-medium hover:underline">{service.name}</span>
             </td>

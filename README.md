@@ -131,8 +131,19 @@ kubectl cluster-info
 
 | Shortcut | Action |
 |----------|--------|
-| `⌘K` | Global search across all resources |
+| `j` / `k` | Navigate up/down in lists (vim-style) |
+| `gg` / `G` | Go to first/last row |
+| `Enter` | Open detail view |
+| `l` | View logs (Pods) |
+| `e` | Exec into pod (Pods) |
+| `d` | Delete resource |
+| `y` | Copy resource name |
+| `r` | Refresh view |
+| `⌘K` or `/` | Global search |
+| `⌘F` | Focus filter input |
 | `⌘P` | Open port forward panel |
+| `⌘W` | Close detail window |
+| `?` | Show keyboard shortcuts help |
 
 ### Theme Support
 
@@ -200,6 +211,7 @@ mkdir -p /mnt/c/Users/$(whoami)/.kube && cp ~/.kube/config /mnt/c/Users/$(whoami
 - [x] Global search (⌘K)
 - [x] Port forwarding with connection stats
 - [x] WSL kubeconfig detection
+- [x] Keyboard-first navigation (vim-style j/k, Enter to open, shortcuts for actions)
 - [ ] YAML editing
 - [ ] Real-time watch streams (K8s watch API)
 - [x] Dark/Light theme toggle

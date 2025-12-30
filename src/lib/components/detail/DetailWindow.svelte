@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
+  import { getCurrentWindow } from '@tauri-apps/api/window';
   // Complex components with special features (logs, exec, scaling)
   import PodDetail from './PodDetail.svelte';
   import DeploymentDetail from './DeploymentDetail.svelte';
@@ -8,6 +9,14 @@
   import ResourceDetail from './ResourceDetail.svelte';
   // Window controls
   import WindowControls from '../ui/WindowControls.svelte';
+
+  // Close window on Cmd+W
+  function handleKeydown(e: KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'w') {
+      e.preventDefault();
+      getCurrentWindow().close();
+    }
+  }
 
   // Resource types that can be displayed
   type ResourceType = 'pod' | 'deployment' | 'statefulset' | 'daemonset' | 'replicaset' |
@@ -26,6 +35,7 @@
   let lockedNamespace = $state<string>('');
   let resourceType = $state<ResourceType>('pod');
   let resourceName = $state<string>('');
+  let initialTab = $state<string>('');
   let isLoaded = $state<boolean>(false);
   let loadError = $state<string | null>(null);
 
@@ -37,6 +47,7 @@
     lockedNamespace = params.get('namespace') || '';
     resourceType = (params.get('type') as ResourceType) || 'pod';
     resourceName = params.get('name') || '';
+    initialTab = params.get('tab') || '';
 
     if (!resourceName) {
       loadError = 'No resource name specified';
@@ -47,6 +58,13 @@
     // Update window title (capitalize resource type only)
     const capitalizedType = resourceType.charAt(0).toUpperCase() + resourceType.slice(1);
     document.title = `${capitalizedType}: ${resourceName}`;
+
+    // Add keyboard listener for Cmd+W
+    window.addEventListener('keydown', handleKeydown);
+  });
+
+  onDestroy(() => {
+    window.removeEventListener('keydown', handleKeydown);
   });
 
   function getResourceIcon(type: ResourceType): string {
@@ -141,6 +159,7 @@
         context={lockedContext}
         namespace={lockedNamespace}
         name={resourceName}
+        initialTab={initialTab}
       />
     {:else if resourceType === 'deployment'}
       <DeploymentDetail

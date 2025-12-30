@@ -8,12 +8,15 @@
     context: string;
     namespace: string;
     name: string;
+    initialTab?: string;
   }
 
-  let { context, namespace, name }: Props = $props();
+  let { context, namespace, name, initialTab }: Props = $props();
 
   type TabType = 'overview' | 'containers' | 'env' | 'volumes' | 'events' | 'logs' | 'yaml';
-  let activeTab = $state<TabType>('overview');
+  const validTabs: TabType[] = ['overview', 'containers', 'env', 'volumes', 'events', 'logs', 'yaml'];
+  const startTab = (initialTab && validTabs.includes(initialTab as TabType)) ? initialTab as TabType : 'overview';
+  let activeTab = $state<TabType>(startTab);
 
   // Pod detail data
   interface PodDetail {
