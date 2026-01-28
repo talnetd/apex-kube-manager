@@ -469,6 +469,11 @@ const events = await invoke(`get_${resourceType}_events`, getInvokeParams());
 - [ ] Resource deletion (deployments, services, configmaps, etc.)
 - [ ] Node drain (evict pods with options)
 - [ ] Application icons
+- [ ] NetworkPolicy packet monitoring (requires Cilium CNI + Hubble integration)
+- [ ] Create UI for Namespaces (simple name input)
+- [ ] Create UI for ConfigMaps (key-value editor)
+- [x] Create/Edit/Delete UI for Secrets (key-value editor with base64 handling)
+- [x] Create/Edit UI for NetworkPolicies (graphical rule builder)
 - [x] Dark/Light theme toggle
 - [x] Pod exec terminal (via kubectl exec + PTY)
 - [x] Keyboard-first navigation (vim-style j/k, Enter to open, shortcuts for actions)

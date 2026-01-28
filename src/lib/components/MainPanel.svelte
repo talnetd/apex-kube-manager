@@ -56,7 +56,7 @@
     <ServiceList />
   {:else if view === 'ingresses'}
     <IngressList />
-  {:else if view === 'networkpolicies'}
+  {:else if view === 'network_policies'}
     <NetworkPolicyList />
   <!-- Config -->
   {:else if view === 'configmaps'}

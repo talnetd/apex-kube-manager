@@ -4247,6 +4247,250 @@ pub struct NetworkPolicyEvent {
     pub source: String,
 }
 
+// Input structs for creating network policies
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkPolicyRuleInput {
+    pub peers: Vec<NetworkPolicyPeerInput>,
+    pub ports: Vec<NetworkPolicyPortInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkPolicyPeerInput {
+    pub peer_type: String,  // "pod", "namespace", "ipBlock"
+    pub pod_selector: std::collections::HashMap<String, String>,
+    pub namespace_selector: std::collections::HashMap<String, String>,
+    pub ip_block: Option<String>,
+    pub ip_block_except: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkPolicyPortInput {
+    pub protocol: String,
+    pub port: Option<i32>,
+    pub end_port: Option<i32>,
+}
+
+pub async fn create_network_policy(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+    pod_selector: std::collections::HashMap<String, String>,
+    policy_types: Vec<String>,
+    ingress_rules: Vec<NetworkPolicyRuleInput>,
+    egress_rules: Vec<NetworkPolicyRuleInput>,
+) -> Result<()> {
+    use k8s_openapi::api::networking::v1::{
+        NetworkPolicy, NetworkPolicySpec, NetworkPolicyIngressRule, NetworkPolicyEgressRule,
+    };
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
+
+    let netpols: Api<NetworkPolicy> = Api::namespaced(client.clone(), namespace);
+
+    // Convert pod selector
+    let pod_label_selector = LabelSelector {
+        match_labels: if pod_selector.is_empty() { None } else { Some(pod_selector.into_iter().collect()) },
+        match_expressions: None,
+    };
+
+    // Convert ingress rules
+    let ingress = if ingress_rules.is_empty() && !policy_types.contains(&"Ingress".to_string()) {
+        None
+    } else {
+        Some(ingress_rules.iter().map(|rule| {
+            NetworkPolicyIngressRule {
+                from: if rule.peers.is_empty() {
+                    None
+                } else {
+                    Some(rule.peers.iter().map(|p| convert_peer_input(p)).collect())
+                },
+                ports: if rule.ports.is_empty() {
+                    None
+                } else {
+                    Some(rule.ports.iter().map(|p| convert_port_input(p)).collect())
+                },
+            }
+        }).collect())
+    };
+
+    // Convert egress rules
+    let egress = if egress_rules.is_empty() && !policy_types.contains(&"Egress".to_string()) {
+        None
+    } else {
+        Some(egress_rules.iter().map(|rule| {
+            NetworkPolicyEgressRule {
+                to: if rule.peers.is_empty() {
+                    None
+                } else {
+                    Some(rule.peers.iter().map(|p| convert_peer_input(p)).collect())
+                },
+                ports: if rule.ports.is_empty() {
+                    None
+                } else {
+                    Some(rule.ports.iter().map(|p| convert_port_input(p)).collect())
+                },
+            }
+        }).collect())
+    };
+
+    let np = NetworkPolicy {
+        metadata: k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta {
+            name: Some(name.to_string()),
+            namespace: Some(namespace.to_string()),
+            ..Default::default()
+        },
+        spec: Some(NetworkPolicySpec {
+            pod_selector: pod_label_selector,
+            policy_types: Some(policy_types),
+            ingress,
+            egress,
+        }),
+        ..Default::default()
+    };
+
+    netpols.create(&Default::default(), &np).await?;
+    Ok(())
+}
+
+fn convert_peer_input(p: &NetworkPolicyPeerInput) -> k8s_openapi::api::networking::v1::NetworkPolicyPeer {
+    use k8s_openapi::api::networking::v1::{NetworkPolicyPeer, IPBlock};
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
+
+    NetworkPolicyPeer {
+        ip_block: if p.peer_type == "ipBlock" {
+            p.ip_block.as_ref().map(|cidr| IPBlock {
+                cidr: cidr.clone(),
+                except: if p.ip_block_except.is_empty() { None } else { Some(p.ip_block_except.clone()) },
+            })
+        } else {
+            None
+        },
+        namespace_selector: if !p.namespace_selector.is_empty() {
+            Some(LabelSelector {
+                match_labels: Some(p.namespace_selector.clone().into_iter().collect()),
+                match_expressions: None,
+            })
+        } else {
+            None
+        },
+        pod_selector: if !p.pod_selector.is_empty() {
+            Some(LabelSelector {
+                match_labels: Some(p.pod_selector.clone().into_iter().collect()),
+                match_expressions: None,
+            })
+        } else if p.peer_type == "pod" || (p.peer_type != "ipBlock" && p.namespace_selector.is_empty()) {
+            // If peer_type is pod or no selectors specified, use empty selector (match all)
+            Some(LabelSelector {
+                match_labels: None,
+                match_expressions: None,
+            })
+        } else {
+            None
+        },
+    }
+}
+
+fn convert_port_input(p: &NetworkPolicyPortInput) -> k8s_openapi::api::networking::v1::NetworkPolicyPort {
+    use k8s_openapi::api::networking::v1::NetworkPolicyPort;
+    use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
+
+    NetworkPolicyPort {
+        protocol: Some(p.protocol.clone()),
+        port: p.port.map(|port| IntOrString::Int(port)),
+        end_port: p.end_port,
+    }
+}
+
+pub async fn delete_network_policy(client: &Client, namespace: &str, name: &str) -> Result<()> {
+    use k8s_openapi::api::networking::v1::NetworkPolicy;
+    let netpols: Api<NetworkPolicy> = Api::namespaced(client.clone(), namespace);
+    netpols.delete(name, &Default::default()).await?;
+    Ok(())
+}
+
+pub async fn update_network_policy(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+    pod_selector: std::collections::HashMap<String, String>,
+    policy_types: Vec<String>,
+    ingress_rules: Vec<NetworkPolicyRuleInput>,
+    egress_rules: Vec<NetworkPolicyRuleInput>,
+) -> Result<()> {
+    use k8s_openapi::api::networking::v1::{
+        NetworkPolicy, NetworkPolicySpec, NetworkPolicyIngressRule, NetworkPolicyEgressRule,
+    };
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
+
+    let netpols: Api<NetworkPolicy> = Api::namespaced(client.clone(), namespace);
+
+    // Get existing policy to preserve metadata
+    let existing = netpols.get(name).await?;
+    let mut metadata = existing.metadata.clone();
+
+    // Clear fields that shouldn't be set on update
+    metadata.managed_fields = None;
+
+    // Convert pod selector
+    let pod_label_selector = LabelSelector {
+        match_labels: if pod_selector.is_empty() { None } else { Some(pod_selector.into_iter().collect()) },
+        match_expressions: None,
+    };
+
+    // Convert ingress rules
+    let ingress = if ingress_rules.is_empty() && !policy_types.contains(&"Ingress".to_string()) {
+        None
+    } else {
+        Some(ingress_rules.iter().map(|rule| {
+            NetworkPolicyIngressRule {
+                from: if rule.peers.is_empty() {
+                    None
+                } else {
+                    Some(rule.peers.iter().map(|p| convert_peer_input(p)).collect())
+                },
+                ports: if rule.ports.is_empty() {
+                    None
+                } else {
+                    Some(rule.ports.iter().map(|p| convert_port_input(p)).collect())
+                },
+            }
+        }).collect())
+    };
+
+    // Convert egress rules
+    let egress = if egress_rules.is_empty() && !policy_types.contains(&"Egress".to_string()) {
+        None
+    } else {
+        Some(egress_rules.iter().map(|rule| {
+            NetworkPolicyEgressRule {
+                to: if rule.peers.is_empty() {
+                    None
+                } else {
+                    Some(rule.peers.iter().map(|p| convert_peer_input(p)).collect())
+                },
+                ports: if rule.ports.is_empty() {
+                    None
+                } else {
+                    Some(rule.ports.iter().map(|p| convert_port_input(p)).collect())
+                },
+            }
+        }).collect())
+    };
+
+    let np = NetworkPolicy {
+        metadata,
+        spec: Some(NetworkPolicySpec {
+            pod_selector: pod_label_selector,
+            policy_types: Some(policy_types),
+            ingress,
+            egress,
+        }),
+        ..Default::default()
+    };
+
+    netpols.replace(name, &Default::default(), &np).await?;
+    Ok(())
+}
+
 pub async fn get_networkpolicy_detail(client: &Client, namespace: &str, name: &str) -> Result<NetworkPolicyDetail> {
     use k8s_openapi::api::networking::v1::NetworkPolicy;
     let netpols: Api<NetworkPolicy> = Api::namespaced(client.clone(), namespace);
@@ -4292,7 +4536,12 @@ pub async fn get_networkpolicy_detail(client: &Client, namespace: &str, name: &s
         let ports = r.ports.clone().unwrap_or_default().iter().map(|p| {
             NetworkPolicyPort {
                 protocol: p.protocol.clone().unwrap_or_else(|| "TCP".to_string()),
-                port: p.port.as_ref().map(|p| format!("{:?}", p)).unwrap_or_else(|| "All".to_string()),
+                port: p.port.as_ref().map(|port| {
+                    match port {
+                        k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(i) => i.to_string(),
+                        k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::String(s) => s.clone(),
+                    }
+                }).unwrap_or_else(|| "All".to_string()),
                 end_port: p.end_port,
             }
         }).collect();
@@ -4334,7 +4583,12 @@ pub async fn get_networkpolicy_detail(client: &Client, namespace: &str, name: &s
         let ports = r.ports.clone().unwrap_or_default().iter().map(|p| {
             NetworkPolicyPort {
                 protocol: p.protocol.clone().unwrap_or_else(|| "TCP".to_string()),
-                port: p.port.as_ref().map(|p| format!("{:?}", p)).unwrap_or_else(|| "All".to_string()),
+                port: p.port.as_ref().map(|port| {
+                    match port {
+                        k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(i) => i.to_string(),
+                        k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::String(s) => s.clone(),
+                    }
+                }).unwrap_or_else(|| "All".to_string()),
                 end_port: p.end_port,
             }
         }).collect();
@@ -5372,3 +5626,84 @@ pub async fn apply_yaml(context_name: &str, yaml_content: &str) -> Result<String
         Err(AppError::Custom(format!("kubectl apply failed: {}", stderr)))
     }
 }
+
+// ============ Secret CRUD Operations ============
+
+pub async fn create_secret(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+    secret_type: &str,
+    data: std::collections::HashMap<String, String>,
+) -> Result<()> {
+    use k8s_openapi::api::core::v1::Secret;
+    use k8s_openapi::ByteString;
+
+    let secrets: Api<Secret> = Api::namespaced(client.clone(), namespace);
+
+    // Convert string data to base64-encoded ByteString
+    let encoded_data: std::collections::BTreeMap<String, ByteString> = data
+        .into_iter()
+        .map(|(k, v)| {
+            (k, ByteString(v.into_bytes()))
+        })
+        .collect();
+
+    let secret = Secret {
+        metadata: k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta {
+            name: Some(name.to_string()),
+            namespace: Some(namespace.to_string()),
+            ..Default::default()
+        },
+        type_: Some(secret_type.to_string()),
+        data: Some(encoded_data),
+        ..Default::default()
+    };
+
+    secrets.create(&Default::default(), &secret).await?;
+    Ok(())
+}
+
+pub async fn update_secret(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+    secret_type: &str,
+    data: std::collections::HashMap<String, String>,
+) -> Result<()> {
+    use k8s_openapi::api::core::v1::Secret;
+    use k8s_openapi::ByteString;
+
+    let secrets: Api<Secret> = Api::namespaced(client.clone(), namespace);
+
+    // Get existing secret to preserve metadata
+    let existing = secrets.get(name).await?;
+    let mut metadata = existing.metadata.clone();
+    metadata.managed_fields = None;
+
+    // Convert string data to base64-encoded ByteString
+    let encoded_data: std::collections::BTreeMap<String, ByteString> = data
+        .into_iter()
+        .map(|(k, v)| {
+            (k, ByteString(v.into_bytes()))
+        })
+        .collect();
+
+    let secret = Secret {
+        metadata,
+        type_: Some(secret_type.to_string()),
+        data: Some(encoded_data),
+        ..Default::default()
+    };
+
+    secrets.replace(name, &Default::default(), &secret).await?;
+    Ok(())
+}
+
+pub async fn delete_secret(client: &Client, namespace: &str, name: &str) -> Result<()> {
+    use k8s_openapi::api::core::v1::Secret;
+    let secrets: Api<Secret> = Api::namespaced(client.clone(), namespace);
+    secrets.delete(name, &Default::default()).await?;
+    Ok(())
+}
+

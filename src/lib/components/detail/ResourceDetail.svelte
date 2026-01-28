@@ -73,6 +73,19 @@
   let cordonLoading = $state<boolean>(false);
   let showCordonConfirm = $state<boolean>(false);
 
+  // Helper to format label selector maps as strings
+  function formatLabels(labels: Record<string, string> | null | undefined): string {
+    if (!labels || Object.keys(labels).length === 0) {
+      return '<all>';
+    }
+    return Object.entries(labels).map(([k, v]) => `${k}=${v}`).join(', ');
+  }
+
+  // Check if a label selector has any labels
+  function hasLabels(labels: Record<string, string> | null | undefined): boolean {
+    return labels != null && Object.keys(labels).length > 0;
+  }
+
   onMount(async () => {
     await loadDetail();
     existenceInterval = setInterval(checkExists, 5000);
@@ -840,7 +853,7 @@
             <div class="grid grid-cols-2 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Pod Selector</div>
-                <code class="text-sm text-text-primary">{detail.pod_selector || '<all pods>'}</code>
+                <code class="text-sm text-text-primary">{formatLabels(detail.pod_selector)}</code>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Policy Types</div>
@@ -1253,15 +1266,16 @@
                     <div class="text-xs text-text-muted uppercase mb-2">From</div>
                     <div class="space-y-2">
                       {#each rule.from as peer}
-                        <div class="text-sm bg-bg-tertiary rounded px-3 py-2">
-                          {#if peer.pod_selector}
-                            <span class="text-accent-primary">pods: </span><code class="text-text-secondary">{peer.pod_selector}</code>
-                          {/if}
-                          {#if peer.namespace_selector}
-                            <span class="text-accent-warning">ns: </span><code class="text-text-secondary">{peer.namespace_selector}</code>
-                          {/if}
+                        <div class="text-sm bg-bg-tertiary rounded px-3 py-2 flex flex-wrap gap-x-4 gap-y-1">
                           {#if peer.ip_block}
-                            <span class="text-accent-error">cidr: </span><code class="text-text-secondary">{peer.ip_block}</code>
+                            <span><span class="text-accent-error">cidr:</span> <code class="text-text-secondary">{peer.ip_block}</code></span>
+                          {:else}
+                            {#if hasLabels(peer.pod_selector) || !hasLabels(peer.namespace_selector)}
+                              <span><span class="text-accent-primary">pods:</span> <code class="text-text-secondary">{formatLabels(peer.pod_selector)}</code></span>
+                            {/if}
+                            {#if hasLabels(peer.namespace_selector)}
+                              <span><span class="text-accent-warning">namespaces:</span> <code class="text-text-secondary">{formatLabels(peer.namespace_selector)}</code></span>
+                            {/if}
                           {/if}
                         </div>
                       {/each}
@@ -1304,15 +1318,16 @@
                     <div class="text-xs text-text-muted uppercase mb-2">To</div>
                     <div class="space-y-2">
                       {#each rule.to as peer}
-                        <div class="text-sm bg-bg-tertiary rounded px-3 py-2">
-                          {#if peer.pod_selector}
-                            <span class="text-accent-primary">pods: </span><code class="text-text-secondary">{peer.pod_selector}</code>
-                          {/if}
-                          {#if peer.namespace_selector}
-                            <span class="text-accent-warning">ns: </span><code class="text-text-secondary">{peer.namespace_selector}</code>
-                          {/if}
+                        <div class="text-sm bg-bg-tertiary rounded px-3 py-2 flex flex-wrap gap-x-4 gap-y-1">
                           {#if peer.ip_block}
-                            <span class="text-accent-error">cidr: </span><code class="text-text-secondary">{peer.ip_block}</code>
+                            <span><span class="text-accent-error">cidr:</span> <code class="text-text-secondary">{peer.ip_block}</code></span>
+                          {:else}
+                            {#if hasLabels(peer.pod_selector) || !hasLabels(peer.namespace_selector)}
+                              <span><span class="text-accent-primary">pods:</span> <code class="text-text-secondary">{formatLabels(peer.pod_selector)}</code></span>
+                            {/if}
+                            {#if hasLabels(peer.namespace_selector)}
+                              <span><span class="text-accent-warning">namespaces:</span> <code class="text-text-secondary">{formatLabels(peer.namespace_selector)}</code></span>
+                            {/if}
                           {/if}
                         </div>
                       {/each}
@@ -1693,3 +1708,4 @@
     {/if}
   </div>
 </div>
+

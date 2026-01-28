@@ -629,6 +629,36 @@ pub async fn get_secret_events(context_name: String, namespace: String, name: St
     kubernetes::get_secret_events(&client, &namespace, &name).await
 }
 
+#[tauri::command]
+pub async fn create_secret(
+    context_name: String,
+    namespace: String,
+    name: String,
+    secret_type: String,
+    data: std::collections::HashMap<String, String>,
+) -> Result<()> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::create_secret(&client, &namespace, &name, &secret_type, data).await
+}
+
+#[tauri::command]
+pub async fn update_secret(
+    context_name: String,
+    namespace: String,
+    name: String,
+    secret_type: String,
+    data: std::collections::HashMap<String, String>,
+) -> Result<()> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::update_secret(&client, &namespace, &name, &secret_type, data).await
+}
+
+#[tauri::command]
+pub async fn delete_secret(context_name: String, namespace: String, name: String) -> Result<()> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::delete_secret(&client, &namespace, &name).await
+}
+
 // ============ Job Detail Commands ============
 
 #[tauri::command]
@@ -745,6 +775,56 @@ pub async fn get_networkpolicy_yaml(context_name: String, namespace: String, nam
 pub async fn get_networkpolicy_events(context_name: String, namespace: String, name: String) -> Result<Vec<NetworkPolicyEvent>> {
     let client = kubernetes::create_client_for_context(&context_name).await?;
     kubernetes::get_networkpolicy_events(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn create_network_policy(
+    context_name: String,
+    namespace: String,
+    name: String,
+    pod_selector: std::collections::HashMap<String, String>,
+    policy_types: Vec<String>,
+    ingress_rules: Vec<kubernetes::NetworkPolicyRuleInput>,
+    egress_rules: Vec<kubernetes::NetworkPolicyRuleInput>,
+) -> Result<()> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::create_network_policy(
+        &client,
+        &namespace,
+        &name,
+        pod_selector,
+        policy_types,
+        ingress_rules,
+        egress_rules,
+    ).await
+}
+
+#[tauri::command]
+pub async fn delete_network_policy(context_name: String, namespace: String, name: String) -> Result<()> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::delete_network_policy(&client, &namespace, &name).await
+}
+
+#[tauri::command]
+pub async fn update_network_policy(
+    context_name: String,
+    namespace: String,
+    name: String,
+    pod_selector: std::collections::HashMap<String, String>,
+    policy_types: Vec<String>,
+    ingress_rules: Vec<kubernetes::NetworkPolicyRuleInput>,
+    egress_rules: Vec<kubernetes::NetworkPolicyRuleInput>,
+) -> Result<()> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::update_network_policy(
+        &client,
+        &namespace,
+        &name,
+        pod_selector,
+        policy_types,
+        ingress_rules,
+        egress_rules,
+    ).await
 }
 
 // ============ HPA Detail Commands ============
