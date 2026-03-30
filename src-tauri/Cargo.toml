@@ -15,6 +15,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-shell = "2"
+tauri-plugin-notification = "2"
 kube = { version = "0.98", features = ["runtime", "client", "ws"] }
 k8s-openapi = { version = "0.24", features = ["v1_32"] }
 tokio = { version = "1", features = ["full"] }

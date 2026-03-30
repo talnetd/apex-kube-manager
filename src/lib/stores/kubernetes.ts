@@ -1,4 +1,5 @@
-import { writable, derived } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
+import { settings } from './settings';
 
 // Lazy invoke helper to ensure Tauri is ready
 async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -705,6 +706,28 @@ export async function stopNodeWatch() {
   }
 }
 
+// Helper to send native notification for Warning events
+async function sendEventNotification(event: ClusterEventInfo) {
+  try {
+    const { isPermissionGranted, requestPermission, sendNotification } = await import('@tauri-apps/plugin-notification');
+
+    let permissionGranted = await isPermissionGranted();
+    if (!permissionGranted) {
+      const permission = await requestPermission();
+      permissionGranted = permission === 'granted';
+    }
+
+    if (permissionGranted) {
+      sendNotification({
+        title: `${event.reason}: ${event.involved_kind}/${event.involved_object}`,
+        body: event.message,
+      });
+    }
+  } catch (e) {
+    console.error('Failed to send notification:', e);
+  }
+}
+
 // Event Watch Stream Functions
 export async function startEventWatch(namespace?: string | null) {
   await stopEventWatch();
@@ -712,9 +735,14 @@ export async function startEventWatch(namespace?: string | null) {
   if (!isContextReady()) return;
 
   try {
-    // Get initial snapshot
+    // Get initial snapshot - track event names to avoid notifying for existing events
     const initialEvents = await tauriInvoke<ClusterEventInfo[]>('get_events', { namespace });
     clusterEvents.set(initialEvents);
+
+    // Track existing event names to avoid notifying on initial sync
+    const existingEventKeys = new Set(
+      initialEvents.map(e => `${e.namespace}/${e.name}`)
+    );
 
     // Start watch stream
     const watchId = await tauriInvoke<string>('watch_events', { namespace });
@@ -727,7 +755,16 @@ export async function startEventWatch(namespace?: string | null) {
 
       clusterEvents.update(current => {
         if (event_type === 'applied') {
+          const eventKey = `${clusterEvent.namespace}/${clusterEvent.name}`;
           const idx = current.findIndex(e => e.name === clusterEvent.name && e.namespace === clusterEvent.namespace);
+
+          // Send notification for Warning events that are new (not from initial sync)
+          const isNewEvent = !existingEventKeys.has(eventKey);
+          if (isNewEvent && clusterEvent.type === 'Warning' && get(settings).notificationsEnabled) {
+            sendEventNotification(clusterEvent);
+            existingEventKeys.add(eventKey); // Mark as seen
+          }
+
           if (idx >= 0) {
             current[idx] = clusterEvent;
             return [...current];
