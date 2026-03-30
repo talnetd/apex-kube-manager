@@ -7,6 +7,7 @@
     selectedNamespace,
     pulseMetrics,
     isLoading,
+    isSwitchingContext,
     loadContexts,
     loadNamespaces,
     switchContext,
@@ -71,18 +72,20 @@
   }
 </script>
 
-<header class="h-14 bg-bg-secondary border-b border-border-subtle flex items-center px-4 gap-3">
+<header class="h-14 bg-bg-secondary border-b border-border-subtle flex items-center px-4 gap-3 relative">
   <!-- Context/Cluster Selector -->
   <div class="relative">
     <button onclick={(e) => {
+        if ($isSwitchingContext) return;
         e.stopPropagation();
         showContextDropdown = !showContextDropdown;
         showNamespaceDropdown = false;
       }}
-      class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-tertiary border border-border-subtle hover:border-accent-primary transition-colors"
+      disabled={$isSwitchingContext}
+      class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-tertiary border border-border-subtle hover:border-accent-primary transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
     >
-      <div class="w-2 h-2 rounded-full bg-accent-success"></div>
-      <span class="text-sm text-text-primary max-w-[180px] truncate">{$pulseMetrics?.cluster || $currentContext || 'Select Context'}</span>
+      <div class="w-2 h-2 rounded-full {$isSwitchingContext ? 'bg-accent-warning animate-pulse' : 'bg-accent-success'}"></div>
+      <span class="text-sm text-text-primary max-w-[180px] truncate">{$isSwitchingContext ? 'Switching...' : ($currentContext || 'Select Context')}</span>
       <svg class="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
       </svg>
@@ -298,4 +301,23 @@
   <div class="ml-2 pl-2 border-l border-border-subtle">
     <WindowControls />
   </div>
+
+  <!-- Context switching progress bar -->
+  {#if $isSwitchingContext}
+    <div class="absolute bottom-0 left-0 right-0 h-0.5 overflow-hidden" style="z-index: 1;">
+      <div class="h-full bg-accent-primary context-switch-bar"></div>
+    </div>
+  {/if}
 </header>
+
+<style>
+  .context-switch-bar {
+    width: 40%;
+    animation: context-switch-progress 1.2s ease-in-out infinite;
+  }
+
+  @keyframes context-switch-progress {
+    0% { transform: translateX(-150%); }
+    100% { transform: translateX(350%); }
+  }
+</style>
