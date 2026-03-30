@@ -85,7 +85,7 @@
       class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-tertiary border border-border-subtle hover:border-accent-primary transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
     >
       <div class="w-2 h-2 rounded-full {$isSwitchingContext ? 'bg-accent-warning animate-pulse' : 'bg-accent-success'}"></div>
-      <span class="text-sm text-text-primary max-w-[180px] truncate">{$isSwitchingContext ? 'Switching...' : ($pulseMetrics?.cluster || $currentContext || 'Select Context')}</span>
+      <span class="text-sm text-text-primary max-w-[180px] truncate">{$isSwitchingContext ? 'Switching...' : ($currentContext || 'Select Context')}</span>
       <svg class="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
       </svg>

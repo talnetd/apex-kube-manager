@@ -412,6 +412,8 @@ export async function switchContext(contextName: string) {
   try {
     isLoading.set(true);
     isSwitchingContext.set(true);
+    // Clear stale metrics so header shows currentContext name, not old cluster name
+    pulseMetrics.set(null);
     // Stop any active watch streams before switching
     await stopPodWatch();
     await stopDeploymentWatch();
