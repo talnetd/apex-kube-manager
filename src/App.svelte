@@ -11,6 +11,13 @@
   import { globalSearchOpen } from './lib/stores/search';
   import { portForwardPanelOpen } from './lib/stores/portforward';
   import {
+    currentContext,
+    selectedNamespace,
+    refreshTrigger,
+    startEventWatch,
+    stopEventWatch,
+  } from './lib/stores/kubernetes';
+  import {
     showKeyboardHelp,
     moveUp,
     moveDown,
@@ -110,12 +117,25 @@
     }
   }
 
+  // Global event watch — runs for the whole app lifetime so that
+  // Warning-event notifications fire regardless of which view is open.
+  // Restarts whenever the context, namespace, or manual refresh changes.
+  $effect(() => {
+    if (!$isInitialized) return;
+    const ctx = $currentContext;
+    const ns = $selectedNamespace;
+    const _trigger = $refreshTrigger;
+    if (!ctx) return;
+    startEventWatch(ns);
+  });
+
   onMount(() => {
     window.addEventListener('keydown', handleKeydown);
   });
 
   onDestroy(() => {
     window.removeEventListener('keydown', handleKeydown);
+    stopEventWatch();
   });
 </script>
 

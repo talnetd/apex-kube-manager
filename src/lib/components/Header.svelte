@@ -23,6 +23,7 @@
   import PortForwardPanel from './PortForwardPanel.svelte';
   import WindowControls from './ui/WindowControls.svelte';
   import ThemeToggle from './ui/ThemeToggle.svelte';
+  import NotificationToggle from './ui/NotificationToggle.svelte';
 
   let showContextDropdown = $state(false);
   let showNamespaceDropdown = $state(false);
@@ -293,6 +294,9 @@
       {/if}
     </div>
   {/if}
+
+  <!-- Notification Toggle -->
+  <NotificationToggle />
 
   <!-- Theme Toggle -->
   <ThemeToggle />
