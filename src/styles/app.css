@@ -36,6 +36,16 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Accent palette shared by light + dark (teal family) */
+.dark,
+.light {
+  --color-accent-primary: 0 212 170;
+  --color-accent-secondary: 0 212 170;
+  --color-accent-warning: 245 158 11;
+  --color-accent-error: 239 68 68;
+  --color-accent-success: 34 197 94;
+}
+
 /* Dark theme colors (default) */
 .dark {
   --color-bg-primary: 10 10 10;
@@ -59,6 +69,64 @@
   --color-text-secondary: 107 114 128;
   --color-text-muted: 156 163 175;
 }
+
+/* ===== Neon / Cyberpunk TUI theme ===== */
+.neon {
+  --color-bg-primary: 5 7 11;      /* near-black, blue bias */
+  --color-bg-secondary: 8 12 18;
+  --color-bg-tertiary: 13 20 28;
+  --color-bg-card: 8 13 20;
+  --color-border-subtle: 20 33 44;
+  --color-text-primary: 200 214 224;
+  --color-text-secondary: 105 126 141;
+  --color-text-muted: 57 80 95;
+  /* neon accents */
+  --color-accent-primary: 0 230 255;   /* cyan */
+  --color-accent-secondary: 255 46 151; /* magenta */
+  --color-accent-warning: 255 176 46;  /* amber */
+  --color-accent-error: 255 59 92;     /* red */
+  --color-accent-success: 18 255 160;  /* green */
+}
+
+/* Mono-first typography for the neon theme */
+.neon body,
+.neon {
+  font-family: 'Hack', ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+  letter-spacing: 0.1px;
+}
+
+/* CRT scanline overlay — decorative, never intercepts input */
+.neon body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.14) 0 1px,
+    transparent 1px 3px
+  );
+  mix-blend-mode: multiply;
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .neon body::before { opacity: 0.32; }
+}
+
+/* Neon scrollbar */
+.neon ::-webkit-scrollbar { width: 8px; height: 8px; }
+.neon ::-webkit-scrollbar-track { background: #05070b; }
+.neon ::-webkit-scrollbar-thumb {
+  background: #13202b;
+  border-radius: 4px;
+  box-shadow: inset 0 0 6px rgba(0, 230, 255, 0.25);
+}
+.neon ::-webkit-scrollbar-thumb:hover { background: #1d3040; }
+
+/* Neon selection */
+.neon ::selection { background: rgba(0, 230, 255, 0.28); color: #eaffff; }
 
 html, body, #app {
   height: 100%;

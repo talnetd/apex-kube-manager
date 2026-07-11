@@ -19,11 +19,12 @@ export default {
           subtle: 'rgb(var(--color-border-subtle) / <alpha-value>)'
         },
         accent: {
-          primary: '#00d4aa',
-          warning: '#f59e0b',
-          error: '#ef4444',
-		  success: '#22c55e',   
-		},
+          primary: 'rgb(var(--color-accent-primary) / <alpha-value>)',
+          secondary: 'rgb(var(--color-accent-secondary) / <alpha-value>)',
+          warning: 'rgb(var(--color-accent-warning) / <alpha-value>)',
+          error: 'rgb(var(--color-accent-error) / <alpha-value>)',
+          success: 'rgb(var(--color-accent-success) / <alpha-value>)',
+        },
         text: {
           primary: 'rgb(var(--color-text-primary) / <alpha-value>)',
           secondary: 'rgb(var(--color-text-secondary) / <alpha-value>)',
