@@ -1,15 +1,10 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import SortableHeader from '../ui/SortableHeader.svelte';
   import { sortData, toggleSort, type SortState } from '../../utils/sort';
   import {
     clusterEvents,
-    selectedNamespace,
     currentContext,
-    refreshTrigger,
-    startEventWatch,
-    stopEventWatch,
     type ClusterEventInfo,
   } from '../../stores/kubernetes';
   import { filterBySearch } from '../../stores/search';
@@ -54,20 +49,9 @@
     sort = toggleSort(sort, field);
   }
 
-  onMount(() => {
-    startEventWatch($selectedNamespace);
-  });
-
-  onDestroy(() => {
-    stopEventWatch();
-  });
-
-  $effect(() => {
-    const ctx = $currentContext;
-    const trigger = $refreshTrigger;
-    if (!ctx) return;
-    startEventWatch($selectedNamespace);
-  });
+  // NOTE: The event watch is started globally in App.svelte so that
+  // Warning-event notifications fire from any view, not just this one.
+  // This view only reads the shared clusterEvents store.
 
   function getTypeColor(type: string): string {
     return type === 'Warning'
