@@ -42,7 +42,7 @@
 
   // Get terminal theme based on the current theme
   function getTerminalTheme() {
-    const isDark = $resolvedTheme === 'dark';
+    const isDark = $resolvedTheme !== 'light';
     return {
       background: isDark ? '#0a0a0a' : '#ffffff',
       foreground: isDark ? '#ffffff' : '#1f2937',

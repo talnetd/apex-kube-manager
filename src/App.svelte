@@ -6,6 +6,8 @@
   import StartupScreen from './lib/components/StartupScreen.svelte';
   import GlobalSearch from './lib/components/GlobalSearch.svelte';
   import KeyboardHelp from './lib/components/ui/KeyboardHelp.svelte';
+  import CapacityRail from './lib/components/ui/CapacityRail.svelte';
+  import { pulseRailOpen } from './lib/stores/rail';
   import { currentView } from './lib/stores/navigation';
   import { isInitialized } from './lib/stores/startup';
   import { globalSearchOpen } from './lib/stores/search';
@@ -54,6 +56,13 @@
     if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
       e.preventDefault();
       portForwardPanelOpen.update(v => !v);
+      return;
+    }
+
+    // Cmd+E (Mac) or Ctrl+E (Windows/Linux) to toggle the Pulse rail
+    if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
+      e.preventDefault();
+      pulseRailOpen.update(v => !v);
       return;
     }
 
@@ -155,6 +164,9 @@
       <MainPanel view={$currentView} />
     </div>
   </div>
+
+  <!-- Pulse Rail: capacity + live events -->
+  <CapacityRail />
 
   <!-- Global Search Modal -->
   <GlobalSearch />

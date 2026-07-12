@@ -18,6 +18,7 @@
   } from '../stores/kubernetes';
   import { searchQuery, globalSearchOpen } from '../stores/search';
   import { activePortForwardCount, portForwardPanelOpen } from '../stores/portforward';
+  import { pulseRailOpen } from '../stores/rail';
   import { updateInfo, initUpdateCheck, checkForUpdates } from '../stores/updates';
   import { open } from '@tauri-apps/plugin-shell';
   import PortForwardPanel from './PortForwardPanel.svelte';
@@ -217,6 +218,17 @@
   >
     <svg class="w-5 h-5 {$isLoading ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+    </svg>
+  </button>
+
+  <!-- Pulse Rail Toggle (capacity + live events) -->
+  <button
+    onclick={() => pulseRailOpen.update(v => !v)}
+    class="p-2 rounded-lg hover:bg-bg-tertiary transition-colors {$pulseRailOpen ? 'text-accent-primary' : 'text-text-muted hover:text-text-primary'}"
+    title="Pulse rail — capacity & events (⌘E)"
+  >
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12h4l3 8 4-16 3 8h4" />
     </svg>
   </button>
 

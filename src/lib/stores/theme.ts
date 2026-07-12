@@ -1,8 +1,8 @@
 // src/lib/stores/theme.ts
 import { writable, derived, type Readable } from "svelte/store";
 
-export type Theme = "light" | "dark" | "system";
-export type ResolvedTheme = "light" | "dark";
+export type Theme = "light" | "dark" | "neon" | "system";
+export type ResolvedTheme = "light" | "dark" | "neon";
 
 const THEME_STORAGE_KEY = "apex-kube-manager-theme";
 
@@ -12,7 +12,12 @@ function getInitialTheme(): Theme {
 
   const stored = localStorage.getItem(THEME_STORAGE_KEY);
 
-  if (stored === "light" || stored === "dark" || stored === "system") {
+  if (
+    stored === "light" ||
+    stored === "dark" ||
+    stored === "neon" ||
+    stored === "system"
+  ) {
     return stored;
   }
 
@@ -73,13 +78,8 @@ resolvedTheme.subscribe((value: ResolvedTheme) => {
     typeof globalThis.window !== "undefined" &&
     typeof document !== "undefined"
   ) {
-    if (value === "dark") {
-      document.documentElement.classList.remove("light");
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      document.documentElement.classList.add("light");
-    }
+    document.documentElement.classList.remove("light", "dark", "neon");
+    document.documentElement.classList.add(value);
   }
 });
 

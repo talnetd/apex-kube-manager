@@ -20,7 +20,7 @@
 
   // Get CodeMirror theme based on current theme
   function getEditorTheme(): EditorView.Theme {
-	const isDark = $resolvedTheme === "dark";
+	const isDark = $resolvedTheme !== "light";
 	return EditorView.theme({
     '&': {
       backgroundColor: isDark ? "#0a0a0a" : "#ffffff",
