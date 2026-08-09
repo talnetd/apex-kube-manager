@@ -150,7 +150,7 @@ All resource views are fully functional with listing, namespace filtering (where
 | Resource | View File | Namespace Filter | Key Columns |
 |----------|-----------|------------------|-------------|
 | Namespaces | `NamespaceList.svelte` | No (cluster-scoped) | Name, Status, Age |
-| Nodes | `NodeList.svelte` | No (cluster-scoped) | Name, Status, Roles, Version, Internal IP, OS/Runtime, Age |
+| Nodes | `NodeList.svelte` | No (cluster-scoped) | Name, Status, Roles, CPU, Memory, Disk, Version, Internal IP, OS/Runtime, Taints, Age |
 | ServiceAccounts | `ServiceAccountList.svelte` | Yes | Name, Secrets, Age |
 
 ## Dashboard (Pulse View)
@@ -248,6 +248,12 @@ All commands defined in `src-tauri/src/commands.rs`:
 |---------|------------|---------|
 | `get_cluster_metrics` | - | `ClusterMetrics` |
 | `get_pulse_metrics` | `namespace: Option<String>` | `PulseMetrics` |
+| `get_node_metrics` | - | `Vec<NodeMetricsInfo>` |
+
+**Node metrics sources** (`get_node_metrics`, polled every 10s by `NodeList.svelte`):
+- CPU/memory usage from metrics-server (`/apis/metrics.k8s.io/v1beta1/nodes`), as a percentage of **allocatable** — matches `kubectl top nodes`
+- Disk usage from each kubelet's summary API (`/api/v1/nodes/{name}/proxy/stats/summary` → `node.fs`), which requires `nodes/proxy` RBAC access
+- Each source degrades independently: unavailable usage is `null` and the row renders `–` instead of a bar, never an app-wide error
 
 ### Pod Operations
 | Command | Parameters | Returns |
@@ -423,6 +429,7 @@ const events = await invoke(`get_${resourceType}_events`, getInvokeParams());
 | `MetadataSection.svelte` | Labels + Annotations grid |
 | `ConditionsTable.svelte` | Resource conditions table |
 | `CustomSelect.svelte` | Standard dropdown select (use this instead of native `<select>`) |
+| `UsageBar.svelte` | Compact table-cell usage bar (`percent: number \| null`, renders `–` when null) |
 
 **CustomSelect Usage** - Use this component for all dropdown selects across the app:
 ```svelte

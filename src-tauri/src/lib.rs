@@ -222,6 +222,7 @@ pub fn run() {
             commands::get_namespace_yaml,
             commands::get_namespace_events,
             commands::get_nodes,
+            commands::get_node_metrics,
             commands::get_node_detail,
             commands::get_node_yaml,
             commands::get_node_events,

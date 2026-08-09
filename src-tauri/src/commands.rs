@@ -9,7 +9,7 @@ use crate::kubernetes::{
     JobInfo, JobDetail, JobEvent,
     KubeContext, NamespaceInfo, NamespaceDetail, NamespaceEvent,
     NetworkPolicyInfo, NetworkPolicyDetail, NetworkPolicyEvent,
-    NodeInfo, NodeDetail, NodeEvent,
+    NodeInfo, NodeDetail, NodeEvent, NodeMetricsInfo,
     PersistentVolumeClaimInfo, PVCDetail, PVCEvent,
     PersistentVolumeInfo, PVDetail, PVEvent,
     PodDetail, PodEvent, PodInfo, PulseMetrics,
@@ -377,6 +377,12 @@ pub async fn get_namespaces_info() -> Result<Vec<NamespaceInfo>> {
 pub async fn get_nodes() -> Result<Vec<NodeInfo>> {
     let client = kubernetes::create_client().await?;
     kubernetes::list_nodes(&client).await
+}
+
+#[tauri::command]
+pub async fn get_node_metrics() -> Result<Vec<NodeMetricsInfo>> {
+    let client = kubernetes::create_client().await?;
+    kubernetes::list_node_metrics(&client).await
 }
 
 #[tauri::command]

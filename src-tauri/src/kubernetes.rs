@@ -414,6 +414,23 @@ pub struct NodeInfo {
     pub taints: Vec<NodeTaintInfo>,
 }
 
+/// Live per-node resource usage for the node list.
+/// Usage fields are None when the source is unavailable: CPU/memory come from
+/// metrics-server, disk from the kubelet summary API (needs `nodes/proxy`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeMetricsInfo {
+    pub name: String,
+    // CPU in millicores
+    pub cpu_usage: Option<i64>,
+    pub cpu_allocatable: i64,
+    // Memory in bytes
+    pub memory_usage: Option<i64>,
+    pub memory_allocatable: i64,
+    // Root filesystem in bytes
+    pub disk_usage: Option<i64>,
+    pub disk_capacity: Option<i64>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServiceAccountInfo {
     pub name: String,
@@ -2936,6 +2953,145 @@ async fn get_node_metrics(client: &Client) -> Option<(i64, i64)> {
     }
 
     Some((total_cpu, total_memory))
+}
+
+/// Per-node usage for the node list: CPU/memory from metrics-server,
+/// disk from each kubelet's summary API. Any source that is unavailable
+/// leaves its fields as None instead of failing the whole call.
+pub async fn list_node_metrics(client: &Client) -> Result<Vec<NodeMetricsInfo>> {
+    let nodes: Api<Node> = Api::all(client.clone());
+    let node_list = nodes.list(&ListParams::default()).await?;
+
+    let usage = get_per_node_usage(client).await.unwrap_or_default();
+
+    let names: Vec<String> = node_list
+        .items
+        .iter()
+        .filter_map(|n| n.metadata.name.clone())
+        .collect();
+    let disk = get_per_node_disk(client, &names).await;
+
+    let metrics = node_list
+        .items
+        .iter()
+        .map(|node| {
+            let name = node.metadata.name.clone().unwrap_or_default();
+            let allocatable = node.status.as_ref().and_then(|s| s.allocatable.as_ref());
+
+            let cpu_allocatable = allocatable
+                .and_then(|a| a.get("cpu"))
+                .map(|q| parse_cpu_quantity(&q.0))
+                .unwrap_or(0);
+            let memory_allocatable = allocatable
+                .and_then(|a| a.get("memory"))
+                .map(|q| parse_memory_quantity(&q.0))
+                .unwrap_or(0);
+
+            let node_usage = usage.get(&name);
+            let node_disk = disk.get(&name);
+
+            NodeMetricsInfo {
+                cpu_usage: node_usage.map(|(cpu, _)| *cpu),
+                memory_usage: node_usage.map(|(_, mem)| *mem),
+                disk_usage: node_disk.map(|(used, _)| *used),
+                disk_capacity: node_disk.map(|(_, capacity)| *capacity),
+                name,
+                cpu_allocatable,
+                memory_allocatable,
+            }
+        })
+        .collect();
+
+    Ok(metrics)
+}
+
+/// CPU (millicores) and memory (bytes) usage per node name from metrics-server.
+async fn get_per_node_usage(client: &Client) -> Option<std::collections::HashMap<String, (i64, i64)>> {
+    let request = http::Request::get("/apis/metrics.k8s.io/v1beta1/nodes")
+        .body(Default::default())
+        .ok()?;
+
+    let response: serde_json::Value = client.request(request).await.ok()?;
+    let items = response.get("items")?.as_array()?;
+
+    let mut usage = std::collections::HashMap::new();
+    for item in items {
+        let name = match item.pointer("/metadata/name").and_then(|v| v.as_str()) {
+            Some(name) => name.to_string(),
+            None => continue,
+        };
+        let cpu = item
+            .pointer("/usage/cpu")
+            .and_then(|v| v.as_str())
+            .map(parse_cpu_quantity)
+            .unwrap_or(0);
+        let memory = item
+            .pointer("/usage/memory")
+            .and_then(|v| v.as_str())
+            .map(parse_memory_quantity)
+            .unwrap_or(0);
+        usage.insert(name, (cpu, memory));
+    }
+
+    Some(usage)
+}
+
+/// Root filesystem (used, capacity) in bytes per node name, probed concurrently.
+/// Nodes whose kubelet cannot be reached are simply left out of the map.
+async fn get_per_node_disk(
+    client: &Client,
+    names: &[String],
+) -> std::collections::HashMap<String, (i64, i64)> {
+    use futures::stream::StreamExt;
+
+    let probes: Vec<_> = names
+        .iter()
+        .map(|name| {
+            let client = client.clone();
+            let name = name.clone();
+            async move {
+                let disk = get_node_disk_usage(&client, &name).await;
+                (name, disk)
+            }
+        })
+        .collect();
+
+    let results: Vec<(String, Option<(i64, i64)>)> = futures::stream::iter(probes)
+        .buffer_unordered(8)
+        .collect()
+        .await;
+
+    results
+        .into_iter()
+        .filter_map(|(name, disk)| disk.map(|d| (name, d)))
+        .collect()
+}
+
+/// Root filesystem (used, capacity) in bytes from the kubelet summary API,
+/// reached through the API server's node proxy.
+async fn get_node_disk_usage(client: &Client, node: &str) -> Option<(i64, i64)> {
+    let url = format!("/api/v1/nodes/{}/proxy/stats/summary", urlencoding::encode(node));
+    let request = http::Request::get(url).body(Default::default()).ok()?;
+
+    // A wedged kubelet otherwise blocks until the API server's own timeout.
+    let response: serde_json::Value = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        client.request(request),
+    )
+    .await
+    .ok()?
+    .ok()?;
+
+    let used = response.pointer("/node/fs/usedBytes").and_then(|v| v.as_i64())?;
+    let capacity = response
+        .pointer("/node/fs/capacityBytes")
+        .and_then(|v| v.as_i64())?;
+
+    if capacity > 0 {
+        Some((used, capacity))
+    } else {
+        None
+    }
 }
 
 fn get_pod_phase(status: Option<&k8s_openapi::api::core::v1::PodStatus>) -> String {

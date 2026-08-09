@@ -220,6 +220,19 @@ export interface NodeInfo {
   container_runtime: string;
 }
 
+export interface NodeMetricsInfo {
+  name: string;
+  // CPU in millicores
+  cpu_usage: number | null;
+  cpu_allocatable: number;
+  // Memory in bytes
+  memory_usage: number | null;
+  memory_allocatable: number;
+  // Root filesystem in bytes
+  disk_usage: number | null;
+  disk_capacity: number | null;
+}
+
 export interface ServiceAccountInfo {
   name: string;
   namespace: string;
@@ -325,6 +338,8 @@ export const pvcs = writable<PersistentVolumeClaimInfo[]>([]);
 // Cluster
 export const namespacesInfo = writable<NamespaceInfo[]>([]);
 export const nodes = writable<NodeInfo[]>([]);
+// Keyed by node name — merged into the node list rows.
+export const nodeMetrics = writable<Record<string, NodeMetricsInfo>>({});
 export const serviceAccounts = writable<ServiceAccountInfo[]>([]);
 export const clusterEvents = writable<ClusterEventInfo[]>([]);
 
@@ -415,6 +430,7 @@ export async function switchContext(contextName: string) {
     isSwitchingContext.set(true);
     // Clear stale metrics so header shows currentContext name, not old cluster name
     pulseMetrics.set(null);
+    nodeMetrics.set({});
     // Stop any active watch streams before switching
     await stopPodWatch();
     await stopDeploymentWatch();
@@ -1035,6 +1051,19 @@ export async function loadNodes() {
     error.set(String(e));
   } finally {
     isLoading.set(false);
+  }
+}
+
+// Polled separately from the node watch: usage changes constantly, and a
+// missing metrics-server or `nodes/proxy` permission must not surface as an
+// app-wide error — rows just show no bars.
+export async function loadNodeMetrics() {
+  if (!isContextReady()) return;
+  try {
+    const metrics = await tauriInvoke<NodeMetricsInfo[]>('get_node_metrics');
+    nodeMetrics.set(Object.fromEntries(metrics.map((m) => [m.name, m])));
+  } catch (e) {
+    console.warn('Failed to load node metrics:', e);
   }
 }
 
