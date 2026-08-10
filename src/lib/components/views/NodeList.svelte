@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
+  import { get } from 'svelte/store';
   import { invoke } from '@tauri-apps/api/core';
   import SortableHeader from '../ui/SortableHeader.svelte';
   import { sortData, toggleSort, type SortState } from '../../utils/sort';
@@ -59,11 +60,11 @@
       const m = metrics[node.name];
       return {
         ...node,
-        cpu_pct: percent(m?.cpu_usage, m?.cpu_allocatable),
-        memory_pct: percent(m?.memory_usage, m?.memory_allocatable),
+        cpu_pct: percent(m?.cpu_usage, node.cpu_allocatable),
+        memory_pct: percent(m?.memory_usage, node.memory_allocatable),
         disk_pct: percent(m?.disk_usage, m?.disk_capacity),
-        cpu_detail: m?.cpu_usage != null ? `${formatCpu(m.cpu_usage)} / ${formatCpu(m.cpu_allocatable)}` : '',
-        memory_detail: m?.memory_usage != null ? `${formatBytes(m.memory_usage)} / ${formatBytes(m.memory_allocatable)}` : '',
+        cpu_detail: m?.cpu_usage != null ? `${formatCpu(m.cpu_usage)} / ${formatCpu(node.cpu_allocatable)}` : '',
+        memory_detail: m?.memory_usage != null ? `${formatBytes(m.memory_usage)} / ${formatBytes(node.memory_allocatable)}` : '',
         disk_detail: m?.disk_usage != null && m?.disk_capacity != null ? `${formatBytes(m.disk_usage)} / ${formatBytes(m.disk_capacity)}` : '',
       };
     });
@@ -91,6 +92,31 @@
   // Update total rows when filtered data changes
   $effect(() => {
     totalRows.set(sortedData().length);
+  });
+
+  // The usage columns are sortable and their values change on every poll, so
+  // rows move under a positional selection. Track the selected node by name and
+  // follow it, instead of letting the highlight land on whatever row inherits
+  // the index — otherwise Enter opens a node the user never picked.
+  let anchoredName: string | null = null;
+
+  $effect(() => {
+    const idx = $selectedRowIndex;
+    untrack(() => {
+      const items = sortedData();
+      anchoredName = idx >= 0 && idx < items.length ? items[idx].name : null;
+    });
+  });
+
+  $effect(() => {
+    const items = sortedData();
+    untrack(() => {
+      if (anchoredName === null) return;
+      const idx = items.findIndex((item) => item.name === anchoredName);
+      if (idx !== get(selectedRowIndex)) {
+        selectedRowIndex.set(idx);
+      }
+    });
   });
 
   // Scroll selected row into view
@@ -138,15 +164,14 @@
     // 'r' to refresh
     if (e.key === 'r') {
       e.preventDefault();
-      startNodeWatch();
-      loadNodeMetrics();
+      startNodeWatch().then(() => loadNodeMetrics());
       return;
     }
   }
 
   onMount(() => {
-    startNodeWatch();
-    loadNodeMetrics();
+    // Initial load is left to the $effect below — it also runs on mount, and
+    // starting the watch twice concurrently leaks the first event stream.
     metricsTimer = setInterval(loadNodeMetrics, METRICS_INTERVAL);
     resetNavigation();
     window.addEventListener('keydown', handleKeydown);
@@ -163,8 +188,8 @@
     const ctx = $currentContext;
     const trigger = $refreshTrigger;
     if (!ctx) return;
-    startNodeWatch();
-    loadNodeMetrics();
+    // Metrics need the watched node names, so wait for the watch's initial list.
+    startNodeWatch().then(() => loadNodeMetrics());
   });
 
   function getStatusColor(status: string): string {
@@ -205,7 +230,7 @@
         </tr>
       </thead>
       <tbody bind:this={tableBody}>
-        {#each sortedData() as node, index}
+        {#each sortedData() as node, index (node.name)}
           {@const isSelected = $keyboardNavActive && $selectedRowIndex === index}
           <tr class="border-b border-border-subtle/50 cursor-pointer transition-colors {isSelected ? 'bg-accent-primary/20 ring-1 ring-accent-primary/50' : 'hover:bg-bg-secondary'}" onclick={() => openDetail(node)}>
             <td class="py-3 pr-4">

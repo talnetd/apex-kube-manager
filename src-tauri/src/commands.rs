@@ -379,10 +379,15 @@ pub async fn get_nodes() -> Result<Vec<NodeInfo>> {
     kubernetes::list_nodes(&client).await
 }
 
+/// `node_names` comes from the caller's already-watched node list, so polling
+/// usage never re-fetches the node objects themselves.
 #[tauri::command]
-pub async fn get_node_metrics() -> Result<Vec<NodeMetricsInfo>> {
-    let client = kubernetes::create_client().await?;
-    kubernetes::list_node_metrics(&client).await
+pub async fn get_node_metrics(
+    context_name: String,
+    node_names: Vec<String>,
+) -> Result<Vec<NodeMetricsInfo>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    kubernetes::list_node_metrics(&client, &context_name, &node_names).await
 }
 
 #[tauri::command]

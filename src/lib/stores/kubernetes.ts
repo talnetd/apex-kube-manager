@@ -208,6 +208,12 @@ export interface NamespaceInfo {
   age: string;
 }
 
+export interface NodeTaintInfo {
+  key: string;
+  value: string | null;
+  effect: string;
+}
+
 export interface NodeInfo {
   name: string;
   status: string;
@@ -218,16 +224,18 @@ export interface NodeInfo {
   os_image: string;
   kernel: string;
   container_runtime: string;
+  taints: NodeTaintInfo[];
+  // Denominators for the usage columns
+  cpu_allocatable: number;    // millicores
+  memory_allocatable: number; // bytes
 }
 
 export interface NodeMetricsInfo {
   name: string;
   // CPU in millicores
   cpu_usage: number | null;
-  cpu_allocatable: number;
   // Memory in bytes
   memory_usage: number | null;
-  memory_allocatable: number;
   // Root filesystem in bytes
   disk_usage: number | null;
   disk_capacity: number | null;
@@ -1057,13 +1065,32 @@ export async function loadNodes() {
 // Polled separately from the node watch: usage changes constantly, and a
 // missing metrics-server or `nodes/proxy` permission must not surface as an
 // app-wide error — rows just show no bars.
+let nodeMetricsInFlight = false;
+
 export async function loadNodeMetrics() {
   if (!isContextReady()) return;
+  // A slow poll (unreachable kubelets) can outlast the interval. Without this,
+  // polls stack up and a late response overwrites a newer one.
+  if (nodeMetricsInFlight) return;
+
+  // Node names collide across clusters, so a poll that resolves after a context
+  // switch would paint the old cluster's usage onto the new cluster's rows.
+  const context = _currentContext;
+  const nodeNames = get(nodes).map((n) => n.name);
+  if (nodeNames.length === 0) return;
+
+  nodeMetricsInFlight = true;
   try {
-    const metrics = await tauriInvoke<NodeMetricsInfo[]>('get_node_metrics');
+    const metrics = await tauriInvoke<NodeMetricsInfo[]>('get_node_metrics', {
+      contextName: context,
+      nodeNames,
+    });
+    if (_currentContext !== context) return;
     nodeMetrics.set(Object.fromEntries(metrics.map((m) => [m.name, m])));
   } catch (e) {
     console.warn('Failed to load node metrics:', e);
+  } finally {
+    nodeMetricsInFlight = false;
   }
 }
 
