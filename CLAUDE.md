@@ -255,7 +255,9 @@ All commands defined in `src-tauri/src/commands.rs`:
 - Disk usage from each kubelet's summary API (`/api/v1/nodes/{name}/proxy/stats/summary` → `node.fs`), which requires `nodes/proxy` RBAC access
 - Each source degrades independently: unavailable usage is `null` and the row renders `–` instead of a bar, never an app-wide error. A quantity that fails to parse is also `null` — never a confident `0%`
 - `node_names` is supplied by the caller from its watch stream, so polling never re-LISTs node objects; allocatable denominators ride along on `NodeInfo`
-- Disk results are cached 60s per cluster, and a sweep where *every* node refuses (401/403/404) backs off for 10 min rather than re-probing on each poll
+- The two sources are fetched concurrently, and the disk sweep is time-boxed to 3s (8 kubelets at a time, 2s per probe). CPU/memory come from one cheap call and must never queue behind a large or unhealthy fleet — whatever answers in time is cached, the rest fills in on later polls
+- Disk results are cached 60s per cluster. A **finished** sweep in which every node refuses backs off for 10 min rather than re-probing each poll; a partial sweep never condemns the endpoint, since it says nothing about nodes it didn't reach
+- 401/403 backs off immediately (the cluster won't serve this to anyone), but 404 needs *two* consecutive such sweeps — a node deleted mid-sweep 404s exactly like an absent subresource, and on a single-node cluster that one 404 would otherwise disable disk for 10 min. See `classify_sweep` in `kubernetes.rs`, which is unit-tested
 
 **Polling invariants** (`loadNodeMetrics` in `kubernetes.ts`) — worth preserving when editing:
 - In-flight guard: a slow poll (unreachable kubelets) can outlast the 10s interval; without it, polls stack and a late response overwrites a newer one
