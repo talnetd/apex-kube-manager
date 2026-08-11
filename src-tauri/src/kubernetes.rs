@@ -3276,7 +3276,9 @@ async fn probe_node_disk(client: &Client, node: &str) -> DiskProbe {
     let response = match response {
         // Timed out — this node is unreachable, but the endpoint may be fine.
         Err(_) => return DiskProbe::Failed,
-        Ok(Err(kube::Error::Api(err))) if matches!(err.code, 401 | 403) => return DiskProbe::Denied,
+        Ok(Err(kube::Error::Api(err))) if matches!(err.code, 401 | 403) => {
+            return DiskProbe::Denied
+        }
         Ok(Err(kube::Error::Api(err))) if err.code == 404 => return DiskProbe::NotFound,
         Ok(Err(_)) => return DiskProbe::Failed,
         Ok(Ok(response)) => response,
@@ -6119,7 +6121,11 @@ mod tests {
 
     #[test]
     fn one_answering_node_keeps_the_endpoint_alive() {
-        let probed = sweep(vec![DiskProbe::Denied, DiskProbe::Ok(1, 2), DiskProbe::NotFound]);
+        let probed = sweep(vec![
+            DiskProbe::Denied,
+            DiskProbe::Ok(1, 2),
+            DiskProbe::NotFound,
+        ]);
         assert_eq!(classify_sweep(&probed, true), SweepVerdict::KeepProbing);
 
         // A node that merely failed is not a refusal either.
@@ -6130,7 +6136,10 @@ mod tests {
     #[test]
     fn authorization_refusal_is_conclusive_but_404_alone_is_not() {
         // 401/403 means the cluster won't serve this to us, whoever we ask.
-        assert_eq!(classify_sweep(&sweep(vec![DiskProbe::Denied]), true), SweepVerdict::Refused);
+        assert_eq!(
+            classify_sweep(&sweep(vec![DiskProbe::Denied]), true),
+            SweepVerdict::Refused
+        );
         assert_eq!(
             classify_sweep(&sweep(vec![DiskProbe::NotFound, DiskProbe::Denied]), true),
             SweepVerdict::Refused
