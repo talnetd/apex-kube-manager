@@ -150,7 +150,7 @@ All resource views are fully functional with listing, namespace filtering (where
 | Resource | View File | Namespace Filter | Key Columns |
 |----------|-----------|------------------|-------------|
 | Namespaces | `NamespaceList.svelte` | No (cluster-scoped) | Name, Status, Age |
-| Nodes | `NodeList.svelte` | No (cluster-scoped) | Name, Status, Roles, Version, Internal IP, OS/Runtime, Age |
+| Nodes | `NodeList.svelte` | No (cluster-scoped) | Name, Status, Roles, CPU, Memory, Disk, Version, Internal IP, OS/Runtime, Taints, Age |
 | ServiceAccounts | `ServiceAccountList.svelte` | Yes | Name, Secrets, Age |
 
 ## Dashboard (Pulse View)
@@ -248,6 +248,19 @@ All commands defined in `src-tauri/src/commands.rs`:
 |---------|------------|---------|
 | `get_cluster_metrics` | - | `ClusterMetrics` |
 | `get_pulse_metrics` | `namespace: Option<String>` | `PulseMetrics` |
+| `get_node_metrics` | `context_name, node_names: Vec<String>` | `Vec<NodeMetricsInfo>` |
+
+**Node metrics sources** (`get_node_metrics`, polled every 10s by `NodeList.svelte`):
+- CPU/memory usage from metrics-server (`/apis/metrics.k8s.io/v1beta1/nodes`), as a percentage of **allocatable** — matches `kubectl top nodes`
+- Disk usage from each kubelet's summary API (`/api/v1/nodes/{name}/proxy/stats/summary` → `node.fs`), which requires `nodes/proxy` RBAC access
+- Each source degrades independently: unavailable usage is `null` and the row renders `–` instead of a bar, never an app-wide error. A quantity that fails to parse is also `null` — never a confident `0%`
+- `node_names` is supplied by the caller from its watch stream, so polling never re-LISTs node objects; allocatable denominators ride along on `NodeInfo`
+- Disk results are cached 60s per cluster, and a sweep where *every* node refuses (401/403/404) backs off for 10 min rather than re-probing on each poll
+
+**Polling invariants** (`loadNodeMetrics` in `kubernetes.ts`) — worth preserving when editing:
+- In-flight guard: a slow poll (unreachable kubelets) can outlast the 10s interval; without it, polls stack and a late response overwrites a newer one
+- Context guard: node names collide across clusters, so a poll resolving after a context switch must be dropped, not painted onto the new cluster's rows
+- `NodeList.svelte` re-anchors `selectedRowIndex` by node name after each re-sort — the usage columns are sortable and change every poll, so a positional selection would drift onto a different node
 
 ### Pod Operations
 | Command | Parameters | Returns |
@@ -423,6 +436,7 @@ const events = await invoke(`get_${resourceType}_events`, getInvokeParams());
 | `MetadataSection.svelte` | Labels + Annotations grid |
 | `ConditionsTable.svelte` | Resource conditions table |
 | `CustomSelect.svelte` | Standard dropdown select (use this instead of native `<select>`) |
+| `UsageBar.svelte` | Compact table-cell usage bar (`percent: number \| null`, renders `–` when null) |
 
 **CustomSelect Usage** - Use this component for all dropdown selects across the app:
 ```svelte

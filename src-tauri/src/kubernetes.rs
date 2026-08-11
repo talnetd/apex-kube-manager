@@ -412,6 +412,27 @@ pub struct NodeInfo {
     pub kernel: String,
     pub container_runtime: String,
     pub taints: Vec<NodeTaintInfo>,
+    // Denominators for the usage columns, carried here so the metrics poll
+    // doesn't have to re-LIST every node object just to read them.
+    pub cpu_allocatable: i64,      // millicores
+    pub memory_allocatable: i64,   // bytes
+}
+
+/// Live per-node resource usage for the node list.
+/// Usage fields are None when the source is unavailable: CPU/memory come from
+/// metrics-server, disk from the kubelet summary API (needs `nodes/proxy`).
+/// Allocatable denominators come from `NodeInfo`, which the node watch already
+/// keeps current.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeMetricsInfo {
+    pub name: String,
+    // CPU in millicores
+    pub cpu_usage: Option<i64>,
+    // Memory in bytes
+    pub memory_usage: Option<i64>,
+    // Root filesystem in bytes
+    pub disk_usage: Option<i64>,
+    pub disk_capacity: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -932,6 +953,8 @@ pub fn node_to_info(node: &Node) -> Option<NodeInfo> {
         })
         .unwrap_or_default();
 
+    let (cpu_allocatable, memory_allocatable) = node_allocatable(status);
+
     Some(NodeInfo {
         name: metadata.name.clone()?,
         status: final_status,
@@ -943,7 +966,23 @@ pub fn node_to_info(node: &Node) -> Option<NodeInfo> {
         kernel: node_info.map(|i| i.kernel_version.clone()).unwrap_or_default(),
         container_runtime: node_info.map(|i| i.container_runtime_version.clone()).unwrap_or_default(),
         taints,
+        cpu_allocatable,
+        memory_allocatable,
     })
+}
+
+/// Allocatable CPU (millicores) and memory (bytes) for a node.
+fn node_allocatable(status: Option<&k8s_openapi::api::core::v1::NodeStatus>) -> (i64, i64) {
+    let allocatable = status.and_then(|s| s.allocatable.as_ref());
+    let cpu = allocatable
+        .and_then(|a| a.get("cpu"))
+        .map(|q| parse_cpu_quantity(&q.0))
+        .unwrap_or(0);
+    let memory = allocatable
+        .and_then(|a| a.get("memory"))
+        .map(|q| parse_memory_quantity(&q.0))
+        .unwrap_or(0);
+    (cpu, memory)
 }
 
 pub async fn get_logs(client: &Client, namespace: &str, pod_name: &str, container: Option<&str>, tail_lines: Option<i64>, previous: Option<bool>) -> Result<String> {
@@ -2523,6 +2562,8 @@ pub async fn list_nodes(client: &Client) -> Result<Vec<NodeInfo>> {
                 })
                 .unwrap_or_default();
 
+            let (cpu_allocatable, memory_allocatable) = node_allocatable(status);
+
             NodeInfo {
                 name: metadata.name.clone().unwrap_or_default(),
                 status: final_status,
@@ -2534,6 +2575,8 @@ pub async fn list_nodes(client: &Client) -> Result<Vec<NodeInfo>> {
                 kernel: node_info.map(|i| i.kernel_version.clone()).unwrap_or_default(),
                 container_runtime: node_info.map(|i| i.container_runtime_version.clone()).unwrap_or_default(),
                 taints,
+                cpu_allocatable,
+                memory_allocatable,
             }
         })
         .collect();
@@ -2938,6 +2981,241 @@ async fn get_node_metrics(client: &Client) -> Option<(i64, i64)> {
     Some((total_cpu, total_memory))
 }
 
+/// Per-node usage for the node list: CPU/memory from metrics-server,
+/// disk from each kubelet's summary API. Any source that is unavailable
+/// leaves its fields as None instead of failing the whole call.
+///
+/// Node names come from the caller — the node list already holds them from
+/// its watch stream, so this never re-LISTs the (large) node objects.
+pub async fn list_node_metrics(
+    client: &Client,
+    context: &str,
+    node_names: &[String],
+) -> Result<Vec<NodeMetricsInfo>> {
+    let usage = get_per_node_usage(client).await.unwrap_or_default();
+    let disk = get_per_node_disk(client, context, node_names).await;
+
+    let metrics = node_names
+        .iter()
+        .map(|name| {
+            let node_usage = usage.get(name);
+            let node_disk = disk.get(name);
+
+            NodeMetricsInfo {
+                name: name.clone(),
+                cpu_usage: node_usage.map(|(cpu, _)| *cpu),
+                memory_usage: node_usage.map(|(_, mem)| *mem),
+                disk_usage: node_disk.map(|(used, _)| *used),
+                disk_capacity: node_disk.map(|(_, capacity)| *capacity),
+            }
+        })
+        .collect();
+
+    Ok(metrics)
+}
+
+/// CPU (millicores) and memory (bytes) usage per node name from metrics-server.
+/// A node whose quantities don't parse is omitted rather than reported as 0.
+async fn get_per_node_usage(client: &Client) -> Option<std::collections::HashMap<String, (i64, i64)>> {
+    let request = http::Request::get("/apis/metrics.k8s.io/v1beta1/nodes")
+        .body(Default::default())
+        .ok()?;
+
+    let response: serde_json::Value = client.request(request).await.ok()?;
+    let items = response.get("items")?.as_array()?;
+
+    let mut usage = std::collections::HashMap::new();
+    for item in items {
+        let name = match item.pointer("/metadata/name").and_then(|v| v.as_str()) {
+            Some(name) => name.to_string(),
+            None => continue,
+        };
+        let cpu = item
+            .pointer("/usage/cpu")
+            .and_then(|v| v.as_str())
+            .and_then(try_parse_cpu_quantity);
+        let memory = item
+            .pointer("/usage/memory")
+            .and_then(|v| v.as_str())
+            .and_then(try_parse_memory_quantity);
+
+        if let (Some(cpu), Some(memory)) = (cpu, memory) {
+            usage.insert(name, (cpu, memory));
+        }
+    }
+
+    Some(usage)
+}
+
+/// Disk usage changes slowly and each probe pulls a multi-MB payload, so
+/// results are cached well past the list's refresh interval.
+const DISK_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(60);
+/// How long to stop probing after the cluster definitively refuses. Without
+/// this, a cluster without `nodes/proxy` access generates a steady stream of
+/// 403s for as long as the node list is open.
+const DISK_DENIED_BACKOFF: std::time::Duration = std::time::Duration::from_secs(600);
+
+struct DiskStatsCache {
+    /// Cache is per-cluster: node names collide across contexts.
+    context: String,
+    entries: std::collections::HashMap<String, (std::time::Instant, (i64, i64))>,
+    denied_until: Option<std::time::Instant>,
+}
+
+static DISK_CACHE: std::sync::OnceLock<std::sync::Mutex<DiskStatsCache>> = std::sync::OnceLock::new();
+
+fn disk_cache() -> &'static std::sync::Mutex<DiskStatsCache> {
+    DISK_CACHE.get_or_init(|| {
+        std::sync::Mutex::new(DiskStatsCache {
+            context: String::new(),
+            entries: std::collections::HashMap::new(),
+            denied_until: None,
+        })
+    })
+}
+
+#[derive(PartialEq)]
+enum DiskProbe {
+    Ok(i64, i64),
+    /// This node failed; others may still answer.
+    Failed,
+    /// The API server refused. Only meaningful across a whole sweep: one node
+    /// 404s when it has just been deleted, but every node refusing means the
+    /// cluster won't serve this at all.
+    Denied,
+}
+
+/// Root filesystem (used, capacity) in bytes per node name, served from cache
+/// where fresh and probed concurrently otherwise. Nodes whose kubelet cannot
+/// be reached are simply left out of the map.
+async fn get_per_node_disk(
+    client: &Client,
+    context: &str,
+    names: &[String],
+) -> std::collections::HashMap<String, (i64, i64)> {
+    use futures::stream::StreamExt;
+
+    let now = std::time::Instant::now();
+    let mut result = std::collections::HashMap::new();
+    let mut stale: Vec<String> = Vec::new();
+
+    {
+        let mut cache = match disk_cache().lock() {
+            Ok(cache) => cache,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+
+        // Switching clusters invalidates everything — same names, different nodes.
+        if cache.context != context {
+            cache.context = context.to_string();
+            cache.entries.clear();
+            cache.denied_until = None;
+        }
+
+        if cache.denied_until.map(|until| now < until).unwrap_or(false) {
+            return result;
+        }
+
+        for name in names {
+            match cache.entries.get(name) {
+                Some((fetched, disk)) if now.duration_since(*fetched) < DISK_CACHE_TTL => {
+                    result.insert(name.clone(), *disk);
+                }
+                _ => stale.push(name.clone()),
+            }
+        }
+    }
+
+    if stale.is_empty() {
+        return result;
+    }
+
+    let probes: Vec<_> = stale
+        .into_iter()
+        .map(|name| {
+            let client = client.clone();
+            async move {
+                let probe = probe_node_disk(&client, &name).await;
+                (name, probe)
+            }
+        })
+        .collect();
+
+    let probed: Vec<(String, DiskProbe)> = futures::stream::iter(probes)
+        .buffer_unordered(8)
+        .collect()
+        .await;
+
+    let mut cache = match disk_cache().lock() {
+        Ok(cache) => cache,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+
+    // A context switch mid-probe means these results belong to the old cluster.
+    if cache.context != context {
+        return result;
+    }
+
+    // Every node refusing means the cluster won't serve this endpoint at all —
+    // back off instead of retrying on every poll for as long as the view is open.
+    if !probed.is_empty() && probed.iter().all(|(_, probe)| *probe == DiskProbe::Denied) {
+        cache.denied_until = Some(std::time::Instant::now() + DISK_DENIED_BACKOFF);
+        cache.entries.clear();
+        return std::collections::HashMap::new();
+    }
+
+    for (name, probe) in probed {
+        if let DiskProbe::Ok(used, capacity) = probe {
+            cache
+                .entries
+                .insert(name.clone(), (std::time::Instant::now(), (used, capacity)));
+            result.insert(name, (used, capacity));
+        }
+    }
+
+    // Drop nodes that have left the cluster so the cache can't grow forever.
+    cache.entries.retain(|name, _| names.contains(name));
+
+    result
+}
+
+/// Root filesystem (used, capacity) in bytes from the kubelet summary API,
+/// reached through the API server's node proxy.
+async fn probe_node_disk(client: &Client, node: &str) -> DiskProbe {
+    let url = format!("/api/v1/nodes/{}/proxy/stats/summary", urlencoding::encode(node));
+    let request = match http::Request::get(url).body(Default::default()) {
+        Ok(request) => request,
+        Err(_) => return DiskProbe::Failed,
+    };
+
+    // A wedged kubelet otherwise blocks until the API server's own timeout.
+    let response = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        client.request::<serde_json::Value>(request),
+    )
+    .await;
+
+    let response = match response {
+        // Timed out — this node is unreachable, but the endpoint may be fine.
+        Err(_) => return DiskProbe::Failed,
+        Ok(Err(kube::Error::Api(err))) if matches!(err.code, 401 | 403 | 404) => {
+            return DiskProbe::Denied
+        }
+        Ok(Err(_)) => return DiskProbe::Failed,
+        Ok(Ok(response)) => response,
+    };
+
+    let used = response.pointer("/node/fs/usedBytes").and_then(|v| v.as_i64());
+    let capacity = response
+        .pointer("/node/fs/capacityBytes")
+        .and_then(|v| v.as_i64());
+
+    match (used, capacity) {
+        (Some(used), Some(capacity)) if capacity > 0 => DiskProbe::Ok(used, capacity),
+        _ => DiskProbe::Failed,
+    }
+}
+
 fn get_pod_phase(status: Option<&k8s_openapi::api::core::v1::PodStatus>) -> String {
     status
         .and_then(|s| s.phase.clone())
@@ -3032,53 +3310,61 @@ fn get_age(timestamp: Option<&k8s_openapi::apimachinery::pkg::apis::meta::v1::Ti
 
 /// Parse CPU quantity string to millicores (e.g., "4" -> 4000, "500m" -> 500)
 fn parse_cpu_quantity(quantity: &str) -> i64 {
+    try_parse_cpu_quantity(quantity).unwrap_or(0)
+}
+
+/// Parse a CPU quantity to millicores, or None if it isn't understood.
+/// Callers that render usage need the None case: reporting an unparseable
+/// quantity as 0 draws a confident "0%" instead of "no data".
+fn try_parse_cpu_quantity(quantity: &str) -> Option<i64> {
     let quantity = quantity.trim();
     if let Some(stripped) = quantity.strip_suffix('m') {
         // Already in millicores
-        stripped.parse::<i64>().unwrap_or(0)
+        stripped.parse::<f64>().ok().map(|v| v as i64)
+    } else if let Some(stripped) = quantity.strip_suffix('u') {
+        // Microcores to millicores
+        stripped.parse::<f64>().ok().map(|v| (v / 1_000.0) as i64)
     } else if let Some(stripped) = quantity.strip_suffix('n') {
         // Nanocores to millicores
-        stripped.parse::<i64>().unwrap_or(0) / 1_000_000
+        stripped.parse::<f64>().ok().map(|v| (v / 1_000_000.0) as i64)
     } else {
-        // Whole cores to millicores
-        quantity.parse::<f64>().unwrap_or(0.0) as i64 * 1000
+        // Whole cores to millicores — multiply before the cast, or "3.5" truncates to 3000m
+        quantity.parse::<f64>().ok().map(|v| (v * 1000.0) as i64)
     }
 }
 
 /// Parse memory quantity string to bytes (e.g., "16Gi" -> 17179869184, "1024Mi" -> 1073741824)
 fn parse_memory_quantity(quantity: &str) -> i64 {
+    try_parse_memory_quantity(quantity).unwrap_or(0)
+}
+
+/// Parse a memory quantity to bytes, or None if it isn't understood.
+/// See `try_parse_cpu_quantity` for why the None case matters.
+fn try_parse_memory_quantity(quantity: &str) -> Option<i64> {
     let quantity = quantity.trim();
 
-    // Binary suffixes (Ki, Mi, Gi, Ti, Pi, Ei)
-    if let Some(stripped) = quantity.strip_suffix("Ki") {
-        return stripped.parse::<i64>().unwrap_or(0) * 1024;
-    }
-    if let Some(stripped) = quantity.strip_suffix("Mi") {
-        return stripped.parse::<i64>().unwrap_or(0) * 1024 * 1024;
-    }
-    if let Some(stripped) = quantity.strip_suffix("Gi") {
-        return stripped.parse::<i64>().unwrap_or(0) * 1024 * 1024 * 1024;
-    }
-    if let Some(stripped) = quantity.strip_suffix("Ti") {
-        return stripped.parse::<i64>().unwrap_or(0) * 1024 * 1024 * 1024 * 1024;
-    }
+    // (suffix, multiplier) — binary first, so "Ki" wins over "k"
+    const UNITS: &[(&str, f64)] = &[
+        ("Ki", 1024.0),
+        ("Mi", 1024.0 * 1024.0),
+        ("Gi", 1024.0 * 1024.0 * 1024.0),
+        ("Ti", 1024.0 * 1024.0 * 1024.0 * 1024.0),
+        ("Pi", 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0),
+        ("k", 1e3),
+        ("M", 1e6),
+        ("G", 1e9),
+        ("T", 1e12),
+        ("P", 1e15),
+    ];
 
-    // Decimal suffixes (k, M, G, T)
-    if let Some(stripped) = quantity.strip_suffix('k') {
-        return stripped.parse::<i64>().unwrap_or(0) * 1000;
-    }
-    if let Some(stripped) = quantity.strip_suffix('M') {
-        return stripped.parse::<i64>().unwrap_or(0) * 1000 * 1000;
-    }
-    if let Some(stripped) = quantity.strip_suffix('G') {
-        return stripped.parse::<i64>().unwrap_or(0) * 1000 * 1000 * 1000;
-    }
-    if let Some(stripped) = quantity.strip_suffix('T') {
-        return stripped.parse::<i64>().unwrap_or(0) * 1000 * 1000 * 1000 * 1000;
+    for (suffix, multiplier) in UNITS {
+        if let Some(stripped) = quantity.strip_suffix(suffix) {
+            return stripped.parse::<f64>().ok().map(|v| (v * multiplier) as i64);
+        }
     }
 
     // Plain bytes
-    quantity.parse::<i64>().unwrap_or(0)
+    quantity.parse::<f64>().ok().map(|v| v as i64)
 }
 
 // ============ Pod Detail Types ============
@@ -5707,3 +5993,41 @@ pub async fn delete_secret(client: &Client, namespace: &str, name: &str) -> Resu
     Ok(())
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_cpu_quantity() {
+        // Suffixed forms as reported by metrics-server
+        assert_eq!(parse_cpu_quantity("250m"), 250);
+        assert_eq!(parse_cpu_quantity("217109897n"), 217);
+        assert_eq!(parse_cpu_quantity("850500u"), 850);
+
+        // Whole and fractional cores: the multiply must happen before the cast
+        assert_eq!(parse_cpu_quantity("8"), 8000);
+        assert_eq!(parse_cpu_quantity("3.5"), 3500);
+        assert_eq!(parse_cpu_quantity("0.9"), 900);
+    }
+
+    #[test]
+    fn test_parse_memory_quantity() {
+        assert_eq!(parse_memory_quantity("1024"), 1024);
+        assert_eq!(parse_memory_quantity("9795648Ki"), 9795648 * 1024);
+        assert_eq!(parse_memory_quantity("16Gi"), 16 * 1024 * 1024 * 1024);
+        assert_eq!(parse_memory_quantity("1.5Gi"), 1610612736);
+        // Binary suffix must win over the decimal one it contains
+        assert_eq!(parse_memory_quantity("1Ki"), 1024);
+        assert_eq!(parse_memory_quantity("1k"), 1000);
+    }
+
+    #[test]
+    fn unparseable_quantities_are_none_not_zero() {
+        // A row must degrade to "–" rather than draw a confident 0%
+        assert_eq!(try_parse_cpu_quantity("banana"), None);
+        assert_eq!(try_parse_cpu_quantity(""), None);
+        assert_eq!(try_parse_memory_quantity("banana"), None);
+        assert_eq!(try_parse_memory_quantity("12Xi"), None);
+    }
+}

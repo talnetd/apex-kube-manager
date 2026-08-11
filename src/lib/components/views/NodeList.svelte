@@ -1,11 +1,13 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
+  import { get } from 'svelte/store';
   import { invoke } from '@tauri-apps/api/core';
   import SortableHeader from '../ui/SortableHeader.svelte';
   import { sortData, toggleSort, type SortState } from '../../utils/sort';
-  import { nodes, currentContext, refreshTrigger, startNodeWatch, stopNodeWatch } from '../../stores/kubernetes';
+  import { nodes, nodeMetrics, currentContext, refreshTrigger, startNodeWatch, stopNodeWatch, loadNodeMetrics } from '../../stores/kubernetes';
   import { filterBySearch } from '../../stores/search';
   import ViewFilter from '../ui/ViewFilter.svelte';
+  import UsageBar from '../ui/UsageBar.svelte';
   import {
     selectedRowIndex,
     keyboardNavActive,
@@ -31,8 +33,45 @@
     }
   }
 
+  const METRICS_INTERVAL = 10000;
+  let metricsTimer: ReturnType<typeof setInterval> | null = null;
+
+  function percent(used: number | null | undefined, total: number | null | undefined): number | null {
+    if (used == null || !total) return null;
+    return (used / total) * 100;
+  }
+
+  function formatCpu(millicores: number): string {
+    if (millicores >= 1000) return `${(millicores / 1000).toFixed(2)} cores`;
+    return `${Math.round(millicores)}m`;
+  }
+
+  function formatBytes(bytes: number): string {
+    const gib = bytes / 1024 ** 3;
+    if (gib >= 1) return `${gib.toFixed(1)} Gi`;
+    return `${(bytes / 1024 ** 2).toFixed(0)} Mi`;
+  }
+
+  // Usage lives in a separate store (polled), so merge it onto the watched
+  // node rows — that also makes the percentages sortable via `sortData`.
+  const rows = $derived(() => {
+    const metrics = $nodeMetrics;
+    return $nodes.map((node) => {
+      const m = metrics[node.name];
+      return {
+        ...node,
+        cpu_pct: percent(m?.cpu_usage, node.cpu_allocatable),
+        memory_pct: percent(m?.memory_usage, node.memory_allocatable),
+        disk_pct: percent(m?.disk_usage, m?.disk_capacity),
+        cpu_detail: m?.cpu_usage != null ? `${formatCpu(m.cpu_usage)} / ${formatCpu(node.cpu_allocatable)}` : '',
+        memory_detail: m?.memory_usage != null ? `${formatBytes(m.memory_usage)} / ${formatBytes(node.memory_allocatable)}` : '',
+        disk_detail: m?.disk_usage != null && m?.disk_capacity != null ? `${formatBytes(m.disk_usage)} / ${formatBytes(m.disk_capacity)}` : '',
+      };
+    });
+  });
+
   const sortedData = $derived(() => {
-    const filtered = filterBySearch($nodes, filterQuery, ['name', 'status', 'roles']);
+    const filtered = filterBySearch(rows(), filterQuery, ['name', 'status', 'roles']);
     return sortData(filtered, sort.field, sort.direction);
   });
 
@@ -53,6 +92,31 @@
   // Update total rows when filtered data changes
   $effect(() => {
     totalRows.set(sortedData().length);
+  });
+
+  // The usage columns are sortable and their values change on every poll, so
+  // rows move under a positional selection. Track the selected node by name and
+  // follow it, instead of letting the highlight land on whatever row inherits
+  // the index — otherwise Enter opens a node the user never picked.
+  let anchoredName: string | null = null;
+
+  $effect(() => {
+    const idx = $selectedRowIndex;
+    untrack(() => {
+      const items = sortedData();
+      anchoredName = idx >= 0 && idx < items.length ? items[idx].name : null;
+    });
+  });
+
+  $effect(() => {
+    const items = sortedData();
+    untrack(() => {
+      if (anchoredName === null) return;
+      const idx = items.findIndex((item) => item.name === anchoredName);
+      if (idx !== get(selectedRowIndex)) {
+        selectedRowIndex.set(idx);
+      }
+    });
   });
 
   // Scroll selected row into view
@@ -100,19 +164,22 @@
     // 'r' to refresh
     if (e.key === 'r') {
       e.preventDefault();
-      startNodeWatch();
+      startNodeWatch().then(() => loadNodeMetrics());
       return;
     }
   }
 
   onMount(() => {
-    startNodeWatch();
+    // Initial load is left to the $effect below — it also runs on mount, and
+    // starting the watch twice concurrently leaks the first event stream.
+    metricsTimer = setInterval(loadNodeMetrics, METRICS_INTERVAL);
     resetNavigation();
     window.addEventListener('keydown', handleKeydown);
   });
 
   onDestroy(() => {
     stopNodeWatch();
+    if (metricsTimer) clearInterval(metricsTimer);
     resetNavigation();
     window.removeEventListener('keydown', handleKeydown);
   });
@@ -121,7 +188,8 @@
     const ctx = $currentContext;
     const trigger = $refreshTrigger;
     if (!ctx) return;
-    startNodeWatch();
+    // Metrics need the watched node names, so wait for the watch's initial list.
+    startNodeWatch().then(() => loadNodeMetrics());
   });
 
   function getStatusColor(status: string): string {
@@ -151,6 +219,9 @@
           <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Status" field="status" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium">Roles</th>
+          <SortableHeader label="CPU" field="cpu_pct" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
+          <SortableHeader label="Memory" field="memory_pct" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
+          <SortableHeader label="Disk" field="disk_pct" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Version" field="version" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="Internal IP" field="internal_ip" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
           <SortableHeader label="OS / Runtime" field="os_image" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
@@ -159,7 +230,7 @@
         </tr>
       </thead>
       <tbody bind:this={tableBody}>
-        {#each sortedData() as node, index}
+        {#each sortedData() as node, index (node.name)}
           {@const isSelected = $keyboardNavActive && $selectedRowIndex === index}
           <tr class="border-b border-border-subtle/50 cursor-pointer transition-colors {isSelected ? 'bg-accent-primary/20 ring-1 ring-accent-primary/50' : 'hover:bg-bg-secondary'}" onclick={() => openDetail(node)}>
             <td class="py-3 pr-4">
@@ -174,6 +245,15 @@
                   <span class="text-xs bg-accent-primary/10 text-accent-primary px-2 py-0.5 rounded">{role}</span>
                 {/each}
               </div>
+            </td>
+            <td class="py-3 pr-4">
+              <UsageBar percent={node.cpu_pct} detail={node.cpu_detail} unavailableHint="No CPU usage — metrics-server not available" />
+            </td>
+            <td class="py-3 pr-4">
+              <UsageBar percent={node.memory_pct} detail={node.memory_detail} unavailableHint="No memory usage — metrics-server not available" />
+            </td>
+            <td class="py-3 pr-4">
+              <UsageBar percent={node.disk_pct} detail={node.disk_detail} unavailableHint="No disk usage — kubelet stats unreachable (needs nodes/proxy access)" />
             </td>
             <td class="py-3 pr-4">
               <span class="text-text-secondary text-sm">{node.version}</span>
