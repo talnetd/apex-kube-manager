@@ -2992,8 +2992,13 @@ pub async fn list_node_metrics(
     context: &str,
     node_names: &[String],
 ) -> Result<Vec<NodeMetricsInfo>> {
-    let usage = get_per_node_usage(client).await.unwrap_or_default();
-    let disk = get_per_node_disk(client, context, node_names).await;
+    // Usage is a single cheap call; disk is a fan-out across every kubelet.
+    // Run them together so the cheap one doesn't queue behind the expensive one.
+    let (usage, disk) = futures::join!(
+        get_per_node_usage(client),
+        get_per_node_disk(client, context, node_names)
+    );
+    let usage = usage.unwrap_or_default();
 
     let metrics = node_names
         .iter()
@@ -3054,12 +3059,21 @@ const DISK_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(60);
 /// this, a cluster without `nodes/proxy` access generates a steady stream of
 /// 403s for as long as the node list is open.
 const DISK_DENIED_BACKOFF: std::time::Duration = std::time::Duration::from_secs(600);
+/// How many kubelets to probe at once.
+const DISK_PROBE_CONCURRENCY: usize = 8;
+/// Ceiling on a single sweep. CPU and memory are returned by the same command,
+/// so an unhealthy or very large fleet must not hold them up: whatever answers
+/// within the budget is cached, and the rest fills in on later polls.
+const DISK_SWEEP_BUDGET: std::time::Duration = std::time::Duration::from_secs(3);
 
 struct DiskStatsCache {
     /// Cache is per-cluster: node names collide across contexts.
     context: String,
     entries: std::collections::HashMap<String, (std::time::Instant, (i64, i64))>,
     denied_until: Option<std::time::Instant>,
+    /// Consecutive finished sweeps in which every node 404'd. One such sweep is
+    /// not proof the endpoint is absent, so the backoff waits for a second.
+    consecutive_not_found: u32,
 }
 
 static DISK_CACHE: std::sync::OnceLock<std::sync::Mutex<DiskStatsCache>> = std::sync::OnceLock::new();
@@ -3070,19 +3084,50 @@ fn disk_cache() -> &'static std::sync::Mutex<DiskStatsCache> {
             context: String::new(),
             entries: std::collections::HashMap::new(),
             denied_until: None,
+            consecutive_not_found: 0,
         })
     })
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 enum DiskProbe {
     Ok(i64, i64),
     /// This node failed; others may still answer.
     Failed,
-    /// The API server refused. Only meaningful across a whole sweep: one node
-    /// 404s when it has just been deleted, but every node refusing means the
-    /// cluster won't serve this at all.
+    /// Refused on authorization grounds (401/403). Unambiguous — the cluster
+    /// will not serve this to us whichever node we ask about.
     Denied,
+    /// The endpoint wasn't there (404). Ambiguous: a node deleted mid-sweep
+    /// 404s exactly like a cluster that doesn't serve the proxy subresource,
+    /// so on its own this is not enough to write the endpoint off.
+    NotFound,
+}
+
+/// What a sweep says about the endpoint as a whole, as opposed to one node.
+#[derive(Debug, PartialEq)]
+enum SweepVerdict {
+    /// Someone answered, or the sweep didn't finish — keep probing.
+    KeepProbing,
+    /// Every node 404'd. Needs a second such sweep before backing off.
+    AllNotFound,
+    /// Every node refused, at least one on authorization grounds.
+    Refused,
+}
+
+/// A partial sweep says nothing about the nodes it never reached, so only a
+/// sweep that ran to completion can condemn the endpoint.
+fn classify_sweep(probed: &[(String, DiskProbe)], swept_fully: bool) -> SweepVerdict {
+    let refused = |probe: &DiskProbe| matches!(probe, DiskProbe::Denied | DiskProbe::NotFound);
+
+    if !swept_fully || probed.is_empty() || !probed.iter().all(|(_, probe)| refused(probe)) {
+        return SweepVerdict::KeepProbing;
+    }
+
+    if probed.iter().any(|(_, probe)| *probe == DiskProbe::Denied) {
+        SweepVerdict::Refused
+    } else {
+        SweepVerdict::AllNotFound
+    }
 }
 
 /// Root filesystem (used, capacity) in bytes per node name, served from cache
@@ -3110,6 +3155,7 @@ async fn get_per_node_disk(
             cache.context = context.to_string();
             cache.entries.clear();
             cache.denied_until = None;
+            cache.consecutive_not_found = 0;
         }
 
         if cache.denied_until.map(|until| now < until).unwrap_or(false) {
@@ -3141,10 +3187,25 @@ async fn get_per_node_disk(
         })
         .collect();
 
-    let probed: Vec<(String, DiskProbe)> = futures::stream::iter(probes)
-        .buffer_unordered(8)
-        .collect()
-        .await;
+    let expected = probes.len();
+
+    // Collect as results arrive rather than awaiting the whole set, so that
+    // spending the budget still leaves us with everything that did answer.
+    let mut probed: Vec<(String, DiskProbe)> = Vec::new();
+    let mut stream = Box::pin(
+        futures::stream::iter(probes).buffer_unordered(DISK_PROBE_CONCURRENCY),
+    );
+    let deadline = tokio::time::Instant::now() + DISK_SWEEP_BUDGET;
+    loop {
+        match tokio::time::timeout_at(deadline, stream.next()).await {
+            Ok(Some(probe)) => probed.push(probe),
+            // Sweep finished on its own.
+            Ok(None) => break,
+            // Budget spent — keep what came back, drop the rest.
+            Err(_) => break,
+        }
+    }
+    let swept_fully = probed.len() == expected;
 
     let mut cache = match disk_cache().lock() {
         Ok(cache) => cache,
@@ -3156,12 +3217,27 @@ async fn get_per_node_disk(
         return result;
     }
 
-    // Every node refusing means the cluster won't serve this endpoint at all —
-    // back off instead of retrying on every poll for as long as the view is open.
-    if !probed.is_empty() && probed.iter().all(|(_, probe)| *probe == DiskProbe::Denied) {
-        cache.denied_until = Some(std::time::Instant::now() + DISK_DENIED_BACKOFF);
-        cache.entries.clear();
-        return std::collections::HashMap::new();
+    // Back off rather than retrying on every poll for as long as the view is
+    // open. An authorization refusal is conclusive immediately; a sweep of pure
+    // 404s waits for a second one, so that a single-node cluster isn't left
+    // without disk stats for ten minutes because one node was being replaced.
+    match classify_sweep(&probed, swept_fully) {
+        SweepVerdict::Refused => {
+            cache.denied_until = Some(std::time::Instant::now() + DISK_DENIED_BACKOFF);
+            cache.entries.clear();
+            cache.consecutive_not_found = 0;
+            return std::collections::HashMap::new();
+        }
+        SweepVerdict::AllNotFound => {
+            cache.consecutive_not_found = cache.consecutive_not_found.saturating_add(1);
+            if cache.consecutive_not_found >= 2 {
+                cache.denied_until = Some(std::time::Instant::now() + DISK_DENIED_BACKOFF);
+                cache.entries.clear();
+                cache.consecutive_not_found = 0;
+                return std::collections::HashMap::new();
+            }
+        }
+        SweepVerdict::KeepProbing => cache.consecutive_not_found = 0,
     }
 
     for (name, probe) in probed {
@@ -3189,8 +3265,10 @@ async fn probe_node_disk(client: &Client, node: &str) -> DiskProbe {
     };
 
     // A wedged kubelet otherwise blocks until the API server's own timeout.
+    // Kept under DISK_SWEEP_BUDGET so a slow node gives its slot back to the
+    // fan-out rather than silently eating the whole sweep.
     let response = tokio::time::timeout(
-        std::time::Duration::from_secs(5),
+        std::time::Duration::from_secs(2),
         client.request::<serde_json::Value>(request),
     )
     .await;
@@ -3198,9 +3276,10 @@ async fn probe_node_disk(client: &Client, node: &str) -> DiskProbe {
     let response = match response {
         // Timed out — this node is unreachable, but the endpoint may be fine.
         Err(_) => return DiskProbe::Failed,
-        Ok(Err(kube::Error::Api(err))) if matches!(err.code, 401 | 403 | 404) => {
+        Ok(Err(kube::Error::Api(err))) if matches!(err.code, 401 | 403) => {
             return DiskProbe::Denied
         }
+        Ok(Err(kube::Error::Api(err))) if err.code == 404 => return DiskProbe::NotFound,
         Ok(Err(_)) => return DiskProbe::Failed,
         Ok(Ok(response)) => response,
     };
@@ -6020,6 +6099,59 @@ mod tests {
         // Binary suffix must win over the decimal one it contains
         assert_eq!(parse_memory_quantity("1Ki"), 1024);
         assert_eq!(parse_memory_quantity("1k"), 1000);
+    }
+
+    /// Name the probes so `classify_sweep` gets the shape it sees in practice.
+    fn sweep(probes: Vec<DiskProbe>) -> Vec<(String, DiskProbe)> {
+        probes
+            .into_iter()
+            .enumerate()
+            .map(|(i, probe)| (format!("node-{i}"), probe))
+            .collect()
+    }
+
+    #[test]
+    fn a_partial_sweep_never_condemns_the_endpoint() {
+        // The budget ran out before the rest of the fleet answered — what came
+        // back says nothing about the nodes never reached.
+        let probed = sweep(vec![DiskProbe::Denied, DiskProbe::NotFound]);
+        assert_eq!(classify_sweep(&probed, false), SweepVerdict::KeepProbing);
+        assert_eq!(classify_sweep(&[], true), SweepVerdict::KeepProbing);
+    }
+
+    #[test]
+    fn one_answering_node_keeps_the_endpoint_alive() {
+        let probed = sweep(vec![
+            DiskProbe::Denied,
+            DiskProbe::Ok(1, 2),
+            DiskProbe::NotFound,
+        ]);
+        assert_eq!(classify_sweep(&probed, true), SweepVerdict::KeepProbing);
+
+        // A node that merely failed is not a refusal either.
+        let probed = sweep(vec![DiskProbe::Denied, DiskProbe::Failed]);
+        assert_eq!(classify_sweep(&probed, true), SweepVerdict::KeepProbing);
+    }
+
+    #[test]
+    fn authorization_refusal_is_conclusive_but_404_alone_is_not() {
+        // 401/403 means the cluster won't serve this to us, whoever we ask.
+        assert_eq!(
+            classify_sweep(&sweep(vec![DiskProbe::Denied]), true),
+            SweepVerdict::Refused
+        );
+        assert_eq!(
+            classify_sweep(&sweep(vec![DiskProbe::NotFound, DiskProbe::Denied]), true),
+            SweepVerdict::Refused
+        );
+
+        // A single-node cluster whose one node is being replaced 404s exactly
+        // like a cluster that doesn't serve the subresource. The caller requires
+        // a second such sweep, so this must not report Refused.
+        assert_eq!(
+            classify_sweep(&sweep(vec![DiskProbe::NotFound]), true),
+            SweepVerdict::AllNotFound
+        );
     }
 
     #[test]
