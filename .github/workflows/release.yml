@@ -10,7 +10,40 @@ permissions:
   contents: write
 
 jobs:
+  # Create the draft once, up front. tauri-action finds an existing draft by
+  # tag, but three jobs racing to create one can leave duplicate drafts.
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRERELEASE: ${{ contains(github.ref_name, '-') }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists (re-run), reusing it."
+            exit 0
+          fi
+          cat > notes.md <<'NOTES'
+          ## Download
+
+          **macOS:**
+          - Apple Silicon (M1/M2/M3): `Apex.Kube.Manager_*_aarch64.dmg`
+          - Intel: `Apex.Kube.Manager_*_x64.dmg`
+
+          ## Requirements
+          - macOS 11 (Big Sur) or later
+          - kubectl installed and configured
+          - Valid kubeconfig at ~/.kube/config
+
+          The macOS build is signed with a Developer ID certificate and notarized by Apple, so it opens normally on first launch.
+          NOTES
+          gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --verify-tag --draft \
+            --prerelease="$PRERELEASE" \
+            --title "Apex Kube Manager $GITHUB_REF_NAME" --notes-file notes.md
+
   build-macos:
+    needs: create-release
     runs-on: macos-latest
     strategy:
       fail-fast: false
@@ -83,20 +116,9 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Apex Kube Manager ${{ github.ref_name }}'
-          releaseBody: |
-            ## Download
-
-            **macOS:**
-            - Apple Silicon (M1/M2/M3): `Apex.Kube.Manager_*_aarch64.dmg`
-            - Intel: `Apex.Kube.Manager_*_x64.dmg`
-
-            ## Requirements
-            - macOS 11 (Big Sur) or later
-            - kubectl installed and configured
-            - Valid kubeconfig at ~/.kube/config
-
-            The macOS build is signed with a Developer ID certificate and notarized by Apple, so it opens normally on first launch.
-          releaseDraft: false
+          # Uploads into the draft from create-release; the publish job at the
+          # end makes it public only if every build and the macOS verify pass.
+          releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           args: --target ${{ matrix.target }}
 
@@ -112,7 +134,15 @@ jobs:
           dmg=$(ls "$bundle"/dmg/*.dmg)
 
           codesign --verify --deep --strict --verbose=2 "$app"
-          spctl -a -vv -t exec "$app"
+          # The bundler only warns ("skipping app notarization") when it has no
+          # notarization credentials, so require an Apple-notarized verdict and
+          # a stapled ticket explicitly.
+          assessment=$(spctl -a -vv -t exec "$app" 2>&1)
+          echo "$assessment"
+          if ! grep -q "source=Notarized Developer ID" <<<"$assessment"; then
+            echo "::error::App is not notarized (spctl: $assessment)"
+            exit 1
+          fi
           xcrun stapler validate "$app"
           codesign --verify --verbose=2 "$dmg"
 
@@ -138,6 +168,7 @@ jobs:
         run: rm -rf "$RUNNER_TEMP/asc"
 
   build-linux:
+    needs: create-release
     runs-on: ubuntu-22.04
 
     steps:
@@ -168,10 +199,13 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Apex Kube Manager ${{ github.ref_name }}'
-          releaseDraft: false
+          # Uploads into the draft from create-release; the publish job at the
+          # end makes it public only if every build and the macOS verify pass.
+          releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
 
   build-windows:
+    needs: create-release
     runs-on: windows-latest
 
     steps:
@@ -197,5 +231,23 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Apex Kube Manager ${{ github.ref_name }}'
-          releaseDraft: false
+          # Uploads into the draft from create-release; the publish job at the
+          # end makes it public only if every build and the macOS verify pass.
+          releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
+
+  # Runs only when every build (and the macOS verify step) succeeded, so a
+  # failed or unsigned build never leaves a public release behind.
+  publish:
+    needs: [build-macos, build-linux, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRERELEASE: ${{ contains(github.ref_name, '-') }}
+        run: |
+          gh release edit "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" \
+            --draft=false --prerelease="$PRERELEASE"

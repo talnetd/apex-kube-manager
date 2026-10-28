@@ -34,7 +34,7 @@ Local builds (`npm run tauri build`) stay unsigned: `signingIdentity` is `null` 
 |--------|----------|-------|
 | `APPLE_CERTIFICATE` | Yes | Base64 of the exported Developer ID Application `.p12` |
 | `APPLE_CERTIFICATE_PASSWORD` | Yes | Password you set when exporting the `.p12` |
-| `APPLE_SIGNING_IDENTITY` | Yes | Full identity name, e.g. `Developer ID Application: Tin Aung Lin (ZYN774L23Z)` |
+| `APPLE_SIGNING_IDENTITY` | Yes | Full identity name, e.g. `Developer ID Application: <Your Name> (<TEAMID>)` |
 | `APPLE_API_ISSUER` | Yes | App Store Connect API Issuer ID (UUID) |
 | `APPLE_API_KEY` | Yes | App Store Connect API Key ID (10 characters) |
 | `APPLE_API_PRIVATE_KEY` | Yes | Contents of `AuthKey_<KEY_ID>.p8` |
@@ -53,7 +53,7 @@ The workflow fails early with a clear error if any required secret is missing.
 ## 2. Export the certificate as .p12
 
 1. Open **Keychain Access** > **login** keychain > **My Certificates**.
-2. Find `Developer ID Application: Tin Aung Lin (ZYN774L23Z)` and expand it to confirm the private key is underneath.
+2. Find `Developer ID Application: <Your Name> (<TEAMID>)` and expand it to confirm the private key is underneath.
 3. Right-click the certificate > **Export...**, choose **Personal Information Exchange (.p12)**, save as `cert.p12`.
 4. Set a strong export password. That becomes `APPLE_CERTIFICATE_PASSWORD`.
 
@@ -70,12 +70,12 @@ Run from the folder holding `cert.p12` and the `.p8`:
 ```bash
 base64 -i cert.p12 | gh secret set APPLE_CERTIFICATE -R talnetd/apex-kube-manager
 gh secret set APPLE_CERTIFICATE_PASSWORD -R talnetd/apex-kube-manager   # prompts for the value
-gh secret set APPLE_SIGNING_IDENTITY -R talnetd/apex-kube-manager -b "Developer ID Application: Tin Aung Lin (ZYN774L23Z)"
+gh secret set APPLE_SIGNING_IDENTITY -R talnetd/apex-kube-manager -b "Developer ID Application: <Your Name> (<TEAMID>)"
 gh secret set APPLE_API_ISSUER -R talnetd/apex-kube-manager -b "<ISSUER_ID>"
 gh secret set APPLE_API_KEY -R talnetd/apex-kube-manager -b "<KEY_ID>"
 gh secret set APPLE_API_PRIVATE_KEY -R talnetd/apex-kube-manager < AuthKey_<KEY_ID>.p8
 # Optional TeamIdentifier check:
-gh variable set APPLE_TEAM_ID -R talnetd/apex-kube-manager -b "ZYN774L23Z"
+gh variable set APPLE_TEAM_ID -R talnetd/apex-kube-manager -b "<TEAMID>"
 rm cert.p12
 ```
 
@@ -89,6 +89,8 @@ gh secret list -R talnetd/apex-kube-manager
 
 ## 4. Test with a release candidate tag
 
+Every build first creates a **draft** release. A final `publish` job makes it public only after all three platforms built and the macOS verify step passed; if any job fails, the release stays a draft and no user sees it.
+
 Tags containing `-` (e.g. `v0.1.13-rc1`) are published as **prereleases** on every platform.
 The in-app update checker uses `/releases/latest`, which ignores prereleases, so users are not prompted.
 
@@ -97,11 +99,15 @@ git tag v0.1.13-rc1 && git push origin v0.1.13-rc1
 gh run watch -R talnetd/apex-kube-manager
 ```
 
-Then download the `.dmg` from the prerelease and check it on a Mac:
+Then download the `.dmg` from the prerelease and check the app inside it on a Mac.
+The `.dmg` is signed but not notarized (only the `.app` is), so check the stapled app, not the dmg.
+The file name uses the version from `tauri.conf.json`, not the tag:
 
 ```bash
-spctl -a -vv -t open --context context:primary-signature "Apex.Kube.Manager_0.1.13-rc1_aarch64.dmg"
+hdiutil attach -nobrowse -readonly "Apex.Kube.Manager_<VERSION>_aarch64.dmg"
+spctl -a -vv -t exec "/Volumes/Apex Kube Manager/Apex Kube Manager.app"   # expect source=Notarized Developer ID
 xcrun stapler validate "/Volumes/Apex Kube Manager/Apex Kube Manager.app"
+hdiutil detach "/Volumes/Apex Kube Manager"
 ```
 
 Delete the prerelease and tag when done:
