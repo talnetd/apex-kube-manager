@@ -91,7 +91,7 @@ jobs:
             - Intel: `Apex.Kube.Manager_*_x64.dmg`
 
             ## Requirements
-            - macOS 10.15+ (Catalina or later)
+            - macOS 11 (Big Sur) or later
             - kubectl installed and configured
             - Valid kubeconfig at ~/.kube/config
 

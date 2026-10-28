@@ -21,6 +21,10 @@ secrets, so switching to another Apple team later is a secrets change, not a cod
 The bundler notarizes and staples the `.app`, not the `.dmg`. The `.dmg` is signed, and the
 verify step mounts it and checks that the app inside carries the stapled ticket.
 
+The minimum supported version is **macOS 11 (Big Sur)** (`bundle.macOS.minimumSystemVersion: "11.0"`).
+The UI uses Tailwind 4, which needs Safari 16.4+ WebKit features (`color-mix`, `@property`, cascade layers).
+WKWebView ships with Safari, and Safari 16.4+ only exists on macOS 11 and later.
+
 Local builds (`npm run tauri build`) stay unsigned: `signingIdentity` is `null` in
 `src-tauri/tauri.conf.json` and the `APPLE_*` variables are only set in CI.
 

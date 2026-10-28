@@ -41,7 +41,7 @@
     "macOS": {
       "signingIdentity": null,
       "hardenedRuntime": true,
-      "minimumSystemVersion": "10.15"
+      "minimumSystemVersion": "11.0"
     }
   },
   "plugins": {
