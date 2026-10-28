@@ -1,0 +1,205 @@
+name: Dev build
+run-name: Dev build ${{ inputs.ref || github.head_ref || github.ref_name }}
+
+# Builds a downloadable macOS .dmg after every merge to master, and on demand
+# for any branch. Never creates releases or tags: the .dmg is a workflow
+# artifact only. See docs/dev-builds.md.
+
+on:
+  push:
+    branches: [master]
+    paths-ignore: ['apps/**', 'docs/**', 'spec/**', '**.md']
+  # workflow_dispatch only works once this file is on the default branch, so
+  # a PR that edits this workflow builds once to prove the change works.
+  pull_request:
+    branches: [master]
+    paths: ['.github/workflows/dev-build.yml']
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag or SHA to build (default: the branch you run from)'
+        required: false
+        type: string
+      x86_64:
+        description: 'Also build Intel (x86_64)'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: dev-build-${{ inputs.ref || github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-macos:
+    name: macOS ${{ matrix.target }}
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(inputs.x86_64 && '["aarch64-apple-darwin","x86_64-apple-darwin"]' || '["aarch64-apple-darwin"]') }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.target }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Dev builds never fail for missing secrets: with all six present they
+      # are signed and notarized like release.yml, otherwise ad-hoc signed.
+      - name: Detect signing secrets and dev version
+        id: meta
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+          TARGET: ${{ matrix.target }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          signed=true
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
+                      APPLE_API_ISSUER APPLE_API_KEY APPLE_API_PRIVATE_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::notice::$name is not set, building unsigned"
+              signed=false
+            fi
+          done
+
+          short_sha=$(git rev-parse --short=7 HEAD)
+          base=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          version="${base}-dev.${RUN_NUMBER}"
+          arch="${TARGET%%-*}"
+
+          {
+            echo "signed=$signed"
+            echo "short_sha=$short_sha"
+            echo "version=$version"
+            echo "artifact=apex-dev-${short_sha}-${arch}"
+          } >> "$GITHUB_OUTPUT"
+
+      # notarytool needs the App Store Connect key as a file on disk.
+      - name: Write App Store Connect API key
+        if: steps.meta.outputs.signed == 'true'
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+        run: |
+          umask 077
+          mkdir -p "$RUNNER_TEMP/asc"
+          key_path="$RUNNER_TEMP/asc/AuthKey_${APPLE_API_KEY}.p8"
+          printf '%s\n' "$APPLE_API_PRIVATE_KEY" > "$key_path"
+          echo "APPLE_API_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+
+      # The version is overridden with --config for this runner only; nothing
+      # committed changes. The update checker reads CARGO_PKG_VERSION (still
+      # the base version), so a dev build prompts only for a real newer release.
+      - name: Build (signed + notarized)
+        if: steps.meta.outputs.signed == 'true'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          TARGET: ${{ matrix.target }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          npm run tauri build -- --target "$TARGET" --bundles app,dmg \
+            --config "{\"version\":\"$VERSION\"}"
+
+      # Ad-hoc signature ("-") so the bundle is consistently signed; macOS
+      # still quarantines it, hence the xattr step in the job summary.
+      - name: Build (unsigned)
+        if: steps.meta.outputs.signed != 'true'
+        env:
+          TARGET: ${{ matrix.target }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          npm run tauri build -- --target "$TARGET" --bundles app,dmg \
+            --config "{\"version\":\"$VERSION\",\"bundle\":{\"macOS\":{\"signingIdentity\":\"-\"}}}"
+
+      - name: Verify signature and notarization
+        if: steps.meta.outputs.signed == 'true'
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          app="src-tauri/target/$TARGET/release/bundle/macos/Apex Kube Manager.app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          assessment=$(spctl -a -vv -t exec "$app" 2>&1 || true)
+          echo "$assessment"
+          if ! grep -q "source=Notarized Developer ID" <<<"$assessment"; then
+            echo "::error::App is not notarized (spctl: $assessment)"
+            exit 1
+          fi
+          xcrun stapler validate "$app"
+
+      - name: Remove App Store Connect API key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/asc"
+
+      - name: Upload .dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.artifact }}
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Job summary
+        env:
+          SIGNED: ${{ steps.meta.outputs.signed }}
+          ARTIFACT: ${{ steps.meta.outputs.artifact }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          SHORT_SHA: ${{ steps.meta.outputs.short_sha }}
+        run: |
+          {
+            echo "## Dev build \`$VERSION\` (\`$SHORT_SHA\`)"
+            echo
+            if [ "$SIGNED" = "true" ]; then
+              echo "Signed with Developer ID and notarized. Opens normally."
+            else
+              echo "**Unsigned** (APPLE_* secrets not set). macOS will say the app is damaged until you clear quarantine."
+            fi
+            echo
+            echo "### Download"
+            echo
+            echo '```bash'
+            echo "gh run download $GITHUB_RUN_ID -R $GITHUB_REPOSITORY -n $ARTIFACT"
+            echo '```'
+            if [ "$SIGNED" != "true" ]; then
+              echo
+              echo "### One-time step after dragging the app to /Applications"
+              echo
+              echo '```bash'
+              echo 'xattr -dr com.apple.quarantine "/Applications/Apex Kube Manager.app"'
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

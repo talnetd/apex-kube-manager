@@ -25,6 +25,14 @@ The minimum supported version is **macOS 11 (Big Sur)** (`bundle.macOS.minimumSy
 The UI uses Tailwind 4, which needs Safari 16.4+ WebKit features (`color-mix`, `@property`, cascade layers).
 WKWebView ships with Safari, and Safari 16.4+ only exists on macOS 11 and later.
 
+Per-merge dev builds (workflow artifacts, no release) use the same secrets but never fail
+without them. See [dev-builds.md](dev-builds.md):
+
+```bash
+gh run list -R talnetd/apex-kube-manager --workflow dev-build.yml -L 3
+gh run download <run-id> -R talnetd/apex-kube-manager --name apex-dev-<sha>-aarch64
+```
+
 Local builds (`npm run tauri build`) stay unsigned: `signingIdentity` is `null` in
 `src-tauri/tauri.conf.json` and the `APPLE_*` variables are only set in CI.
 
