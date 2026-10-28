@@ -7,12 +7,13 @@ import { settings } from "./settings";
 import { currentContext } from "./kubernetes";
 
 /**
- * Context names containing `prod`, `prd` or `production` as a token
- * (bounded by a non-letter or the ends, case-insensitive) are auto-flagged.
- * `eks-prod-eu`, `gke_PRD1`, `cluster/production` match; `product-dev` and
- * `reproduce-bug` don't.
+ * Context names containing `prod` or `prd` (substring, case-insensitive)
+ * are auto-flagged. Missing a production cluster is the unsafe direction, so
+ * glued names (`eksprod`, `preprod`, `gke-prod1`) count. Only the common
+ * false positive "product" is excluded (but "production" still counts);
+ * anything else is fixed with an unmark.
  */
-export const AUTO_PROD_PATTERN = /(^|[^a-z])(prod|prd|production)([^a-z]|$)/i;
+export const AUTO_PROD_PATTERN = /prod(?!uct(?!ion))|prd/i;
 
 export type ProdSource = "manual" | "auto" | "none";
 

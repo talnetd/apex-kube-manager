@@ -49,13 +49,18 @@ describe('density', () => {
 });
 
 describe('production guard (spec 4.6)', () => {
-  it('auto-flags prod / prd / production as a token', () => {
-    for (const name of ['eks-prod-eu', 'gke-PRD-1', 'prod', 'production', 'arn:aws:eks:eu-west-1:1:cluster/prod2', 'ctx_prd']) {
+  it('auto-flags prod / prd substrings, except "product"', () => {
+    for (const name of ['eks-prod-eu', 'eksprod', 'preprod', 'prd-eu', 'gke_prod1', 'gke-PRD-1', 'production', 'arn:aws:eks:eu-west-1:1:cluster/prod2']) {
       expect(resolveProd(name, {}), name).toBe(true);
     }
-    for (const name of ['staging', '', 'product-dev', 'reproduce-bug', 'myprodcluster']) {
+    for (const name of ['staging', '', 'product-dev', 'products']) {
       expect(resolveProd(name, {}), name).toBe(false);
     }
+  });
+
+  it('a manual unmark overrides the auto flag', () => {
+    unmarkProd('preprod');
+    expect(isProdContext('preprod')).toBe(false);
   });
 
   it('manual overrides win and reset returns to auto', () => {

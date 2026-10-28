@@ -105,7 +105,7 @@
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={getResourceIcon(resourceType)} />
       </svg>
       <div class="pointer-events-none">
-        <h1 class="text-lg font-semibold text-text-primary"><span class="capitalize">{resourceType}</span>: {resourceName}</h1>
+        <h1 class="text-[18px]/7 font-semibold text-text-primary"><span class="capitalize">{resourceType}</span>: {resourceName}</h1>
         <div class="flex items-center gap-2 text-xs text-text-muted">
           <span class="flex items-center gap-1">
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

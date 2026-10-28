@@ -27,7 +27,7 @@
       onclick={(e) => e.stopPropagation()}
     >
       <div class="flex items-center justify-between mb-6">
-        <h2 class="text-lg font-semibold text-text-primary">Keyboard Shortcuts</h2>
+        <h2 class="text-[18px]/7 font-semibold text-text-primary">Keyboard Shortcuts</h2>
         <button
           onclick={close}
           class="p-1 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"

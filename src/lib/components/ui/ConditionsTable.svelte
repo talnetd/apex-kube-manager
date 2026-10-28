@@ -28,7 +28,7 @@
 </script>
 
 <section>
-  <h2 class="text-lg font-semibold text-text-primary mb-4">{title}</h2>
+  <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">{title}</h2>
   <div class="bg-bg-secondary rounded-lg overflow-hidden">
     <table class="w-full">
       <thead>

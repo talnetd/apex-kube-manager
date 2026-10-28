@@ -168,7 +168,7 @@
     >
       <!-- Header -->
       <div class="flex items-center justify-between p-4 border-b border-border-subtle">
-        <h2 class="text-lg font-semibold text-text-primary">{isEditMode ? 'Edit' : 'Create'} Secret</h2>
+        <h2 class="text-[18px]/7 font-semibold text-text-primary">{isEditMode ? 'Edit' : 'Create'} Secret</h2>
         <button
           onclick={handleClose}
           class="p-1 hover:bg-bg-tertiary rounded-sm transition-colors"

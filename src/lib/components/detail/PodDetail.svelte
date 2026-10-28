@@ -436,7 +436,7 @@
       <div class="p-6 space-y-6">
         <!-- Status Section -->
         <section>
-          <h2 class="text-lg font-semibold text-text-primary mb-4">Status</h2>
+          <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Status</h2>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="bg-bg-secondary rounded-lg p-4">
               <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Phase</div>
@@ -459,7 +459,7 @@
 
         <!-- Conditions Section -->
         <section>
-          <h2 class="text-lg font-semibold text-text-primary mb-4">Conditions</h2>
+          <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Conditions</h2>
           <div class="bg-bg-secondary rounded-lg overflow-hidden">
             <table class="w-full text-base">
               <thead class="bg-bg-tertiary">
@@ -487,7 +487,7 @@
         <!-- Labels & Annotations -->
         <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Labels</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Labels</h2>
             <div class="bg-bg-secondary rounded-lg p-4">
               {#if Object.keys(podDetail.labels).length > 0}
                 <div class="flex flex-wrap gap-2">
@@ -503,7 +503,7 @@
             </div>
           </div>
           <div>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Annotations</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Annotations</h2>
             <div class="bg-bg-secondary rounded-lg p-4 max-h-48 overflow-auto">
               {#if Object.keys(podDetail.annotations).length > 0}
                 <div class="space-y-1">
@@ -527,7 +527,7 @@
         <!-- Init Containers -->
         {#if podDetail.init_containers.length > 0}
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Init Containers ({podDetail.init_containers.length})</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Init Containers ({podDetail.init_containers.length})</h2>
             <div class="space-y-4">
               {#each podDetail.init_containers as container}
                 <div class="bg-bg-secondary rounded-lg p-4">
@@ -564,7 +564,7 @@
 
         <!-- Containers -->
         <section>
-          <h2 class="text-lg font-semibold text-text-primary mb-4">Containers ({podDetail.containers.length})</h2>
+          <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Containers ({podDetail.containers.length})</h2>
           <div class="space-y-4">
             {#each podDetail.containers as container}
               <div class="bg-bg-secondary rounded-lg p-4">
@@ -631,7 +631,7 @@
         <div class="space-y-6">
           {#each [...podDetail.containers, ...podDetail.init_containers] as container}
             <section>
-              <h2 class="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
+              <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4 flex items-center gap-2">
                 <span>{container.name}</span>
                 <span class="text-xs px-2 py-0.5 rounded-sm bg-bg-tertiary text-text-muted">{container.env_vars.length} vars</span>
               </h2>
@@ -693,7 +693,7 @@
       <div class="p-6 space-y-6">
         <!-- Volume Definitions -->
         <section>
-          <h2 class="text-lg font-semibold text-text-primary mb-4">Volumes ({podDetail.volumes.length})</h2>
+          <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Volumes ({podDetail.volumes.length})</h2>
           {#if podDetail.volumes.length > 0}
             <div class="bg-bg-secondary rounded-lg overflow-hidden">
               <table class="w-full text-base">
@@ -731,7 +731,7 @@
 
         <!-- Volume Mounts by Container -->
         <section>
-          <h2 class="text-lg font-semibold text-text-primary mb-4">Volume Mounts</h2>
+          <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Volume Mounts</h2>
           <div class="space-y-4">
             {#each [...podDetail.containers, ...podDetail.init_containers] as container}
               {#if container.volume_mounts.length > 0}
