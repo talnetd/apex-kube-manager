@@ -47,12 +47,6 @@
     </svg>
   `;
 
-  const NeonIcon = `
-    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-        d="M13 2L4.5 13.5H11l-1 8.5 8.5-11.5H12l1-8.5z" />
-    </svg>
-  `;
 
   const CheckIcon = `
     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -68,7 +62,6 @@
 
   function currentIcon() {
     if ($resolvedTheme === "light") return SunIcon;
-    if ($resolvedTheme === "neon") return NeonIcon;
     return MoonIcon;
   }
 </script>
@@ -79,8 +72,7 @@
 	title="Change theme"
 	class="h-9 w-9 inline-flex items-center justify-center rounded-lg
 			bg-transparent hover:bg-bg-tertiary transition-colors
-			text-text-secondary hover:text-text-primary
-			focus:outline-hidden"
+			text-text-secondary hover:text-text-primary"
 	>
 	<span aria-hidden="true">{@html currentIcon()}</span>
   </button>
@@ -115,18 +107,6 @@
         {/if}
       </button>
 
-      <button
-        on:click={() => selectTheme("neon")}
-        class="w-full flex items-center justify-between px-4 py-2.5 text-sm text-text-primary hover:bg-bg-tertiary transition-colors"
-      >
-        <div class="flex items-center gap-2">
-          <span aria-hidden="true">{@html NeonIcon}</span>
-          <span>Neon</span>
-        </div>
-        {#if $theme === "neon"}
-          <span aria-hidden="true">{@html CheckIcon}</span>
-        {/if}
-      </button>
 
       <button
         on:click={() => selectTheme("system")}

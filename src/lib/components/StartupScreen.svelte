@@ -55,12 +55,12 @@
   <div class="w-full max-w-md px-8">
     <!-- Logo -->
     <div class="text-center mb-12 {mounted ? 'animate-fade-in' : 'opacity-0'}">
-      <div class="inline-flex items-center justify-center w-20 h-20 bg-linear-to-br from-accent-primary to-accent-primary/50 rounded-2xl mb-6 shadow-lg shadow-accent-primary/20">
-        <svg class="w-10 h-10 text-bg-primary" viewBox="0 0 24 24" fill="currentColor">
+      <div class="inline-flex items-center justify-center w-20 h-20 bg-linear-to-br from-accent-primary to-accent-primary/50 rounded-xl mb-6 shadow-lg shadow-accent-primary/20">
+        <svg class="w-10 h-10 text-on-accent" viewBox="0 0 24 24" fill="currentColor">
           <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </div>
-      <h1 class="text-2xl font-bold text-text-primary mb-2">Apex Kube Manager</h1>
+      <h1 class="text-xl font-bold text-text-primary mb-2">Apex Kube Manager</h1>
       <p class="text-text-muted text-sm">Initializing your Kubernetes environment</p>
     </div>
 

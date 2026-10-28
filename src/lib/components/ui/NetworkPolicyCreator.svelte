@@ -504,7 +504,7 @@
               </p>
               <button
                 onclick={addIngressRule}
-                class="text-sm px-3 py-1.5 bg-accent-primary text-bg-primary rounded-sm hover:bg-accent-primary/80 transition-colors"
+                class="text-sm px-3 py-1.5 bg-accent-primary text-on-accent rounded-sm hover:bg-accent-primary/80 transition-colors"
               >
                 + Add Ingress Rule
               </button>
@@ -682,7 +682,7 @@
               </p>
               <button
                 onclick={addEgressRule}
-                class="text-sm px-3 py-1.5 bg-accent-primary text-bg-primary rounded-sm hover:bg-accent-primary/80 transition-colors"
+                class="text-sm px-3 py-1.5 bg-accent-primary text-on-accent rounded-sm hover:bg-accent-primary/80 transition-colors"
               >
                 + Add Egress Rule
               </button>
@@ -864,7 +864,7 @@
           <button
             onclick={handleSave}
             disabled={isCreating}
-            class="px-4 py-2 text-sm bg-accent-primary text-bg-primary rounded-sm hover:bg-accent-primary/80 transition-colors disabled:opacity-50"
+            class="px-4 py-2 text-sm bg-accent-primary text-on-accent rounded-sm hover:bg-accent-primary/80 transition-colors disabled:opacity-50"
           >
             {isCreating ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Policy' : 'Create Policy')}
           </button>

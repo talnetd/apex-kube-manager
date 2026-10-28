@@ -9,6 +9,11 @@
   import ResourceDetail from './ResourceDetail.svelte';
   // Window controls
   import WindowControls from '../ui/WindowControls.svelte';
+  import Toaster from '../ui/Toaster.svelte';
+  // Separate webview: apply theme + density here too, and follow changes
+  // made in the main window through the storage event.
+  import '../../stores/theme';
+  import '../../stores/density';
 
   // Close window on Cmd+W
   function handleKeydown(e: KeyboardEvent) {
@@ -188,10 +193,12 @@
           <svg class="w-16 h-16 text-text-muted mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d={getResourceIcon(resourceType)} />
           </svg>
-          <h2 class="text-xl text-text-primary mb-2"><span class="capitalize">{resourceType}</span> Details</h2>
+          <h2 class="text-lg text-text-primary mb-2"><span class="capitalize">{resourceType}</span> Details</h2>
           <p class="text-text-muted">Detail view coming soon...</p>
         </div>
       </div>
     {/if}
   </main>
 </div>
+
+<Toaster />

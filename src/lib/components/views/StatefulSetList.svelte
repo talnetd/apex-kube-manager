@@ -121,7 +121,7 @@
   <!-- Toolbar -->
   <div class="px-6 py-4 border-b border-border-subtle">
     <div class="flex items-center justify-between">
-      <h1 class="text-xl font-semibold text-text-primary">StatefulSets</h1>
+      <h1 class="text-lg font-semibold text-text-primary">StatefulSets</h1>
       <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter statefulsets..." />
     </div>
   </div>
@@ -227,7 +227,7 @@
           type="number"
           bind:value={scaleReplicas}
           min="0"
-          class="w-24 text-center text-3xl font-bold bg-bg-primary border border-border-subtle rounded-lg py-3 text-text-primary focus:outline-hidden focus:border-accent-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          class="w-24 text-center text-xl font-bold bg-bg-primary border border-border-subtle rounded-lg py-3 text-text-primary focus:outline-hidden focus:border-accent-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         />
         <button
           onclick={() => scaleReplicas++}

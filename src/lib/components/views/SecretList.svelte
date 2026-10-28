@@ -117,11 +117,11 @@
   <!-- Toolbar -->
   <div class="px-6 py-4 border-b border-border-subtle">
     <div class="flex items-center justify-between">
-      <h1 class="text-xl font-semibold text-text-primary">Secrets</h1>
+      <h1 class="text-lg font-semibold text-text-primary">Secrets</h1>
       <div class="flex items-center gap-3">
         <button
           onclick={() => showCreator = true}
-          class="flex items-center gap-2 px-3 py-1.5 bg-accent-primary text-bg-primary text-sm font-medium rounded-sm hover:bg-accent-primary/80 transition-colors"
+          class="flex items-center gap-2 px-3 py-1.5 bg-accent-primary text-on-accent text-sm font-medium rounded-sm hover:bg-accent-primary/80 transition-colors"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />

@@ -63,7 +63,7 @@
   <!-- Toolbar -->
   <div class="px-6 py-4 border-b border-border-subtle">
     <div class="flex items-center justify-between">
-      <h1 class="text-xl font-semibold text-text-primary">ReplicaSets</h1>
+      <h1 class="text-lg font-semibold text-text-primary">ReplicaSets</h1>
       <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter replicasets..." />
     </div>
   </div>

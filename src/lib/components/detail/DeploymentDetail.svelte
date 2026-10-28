@@ -624,7 +624,7 @@
       <div class="flex items-center gap-3 mb-6">
         <button
           onclick={() => scaleReplicas = Math.max(0, scaleReplicas - 1)}
-          class="w-12 h-12 rounded-lg bg-bg-tertiary hover:bg-accent-error/20 hover:text-accent-error border border-border-subtle text-text-primary text-2xl font-bold transition-colors flex items-center justify-center"
+          class="w-12 h-12 rounded-lg bg-bg-tertiary hover:bg-accent-error/20 hover:text-accent-error border border-border-subtle text-text-primary text-xl font-bold transition-colors flex items-center justify-center"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
@@ -634,11 +634,11 @@
           type="number"
           bind:value={scaleReplicas}
           min="0"
-          class="w-24 text-center text-3xl font-bold bg-bg-primary border border-border-subtle rounded-lg py-3 text-text-primary focus:outline-hidden focus:border-accent-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          class="w-24 text-center text-xl font-bold bg-bg-primary border border-border-subtle rounded-lg py-3 text-text-primary focus:outline-hidden focus:border-accent-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         />
         <button
           onclick={() => scaleReplicas++}
-          class="w-12 h-12 rounded-lg bg-bg-tertiary hover:bg-accent-success/20 hover:text-accent-success border border-border-subtle text-text-primary text-2xl font-bold transition-colors flex items-center justify-center"
+          class="w-12 h-12 rounded-lg bg-bg-tertiary hover:bg-accent-success/20 hover:text-accent-success border border-border-subtle text-text-primary text-xl font-bold transition-colors flex items-center justify-center"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />

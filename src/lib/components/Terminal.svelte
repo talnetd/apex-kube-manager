@@ -40,20 +40,37 @@
   let unlistenExit: UnlistenFn | null = null;
   let unlistenError: UnlistenFn | null = null;
 
-  // Get terminal theme based on the current theme
+  // Chrome colours come from the design tokens (app.css runtime layer), read
+  // at init and on theme change, so the terminal carries no palette of its
+  // own. ANSI colours below are content, not chrome, and stay fixed.
+  function token(name: string, fallback: string): string {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  }
+
+  // xterm parses hex / rgba() only, so derive the selection tint by hand.
+  function withAlpha(hex: string, alpha: number): string {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+    if (!m) return hex;
+    const n = parseInt(m[1], 16);
+    return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+  }
+
   function getTerminalTheme() {
     const isDark = $resolvedTheme !== 'light';
+    const app = token('--ui-app', isDark ? '#0e0e10' : '#ffffff');
+    const accent = token('--ui-accent', isDark ? '#5e63e6' : '#4f52d9');
     return {
-      background: isDark ? '#0a0a0a' : '#ffffff',
-      foreground: isDark ? '#ffffff' : '#1f2937',
-      cursor: '#00d4aa',
-      cursorAccent: isDark ? '#0a0a0a' : '#ffffff',
-      selectionBackground: 'rgba(0, 212, 170, 0.3)',
+      background: app,
+      foreground: token('--ui-primary', isDark ? '#ededf0' : '#18181b'),
+      cursor: accent,
+      cursorAccent: app,
+      selectionBackground: withAlpha(accent, 0.3),
       // xterm 6 draws its own scrollbar (no native ::-webkit-scrollbar), so
       // it is themed here instead of in CSS.
-      scrollbarSliderBackground: isDark ? '#333333' : '#d0d0d0',
-      scrollbarSliderHoverBackground: isDark ? '#444444' : '#b0b0b0',
-      scrollbarSliderActiveBackground: isDark ? '#555555' : '#9ca3af',
+      scrollbarSliderBackground: token('--ui-line', isDark ? '#2e2e34' : '#dedee3'),
+      scrollbarSliderHoverBackground: token('--ui-line-strong', isDark ? '#3f3f46' : '#c8c8cf'),
+      scrollbarSliderActiveBackground: token('--ui-muted', isDark ? '#8d8d97' : '#6a6a73'),
       black: isDark ? '#000000' : '#1f2937',
       red: '#ef4444',
       green: '#22c55e',
@@ -134,7 +151,7 @@
 
   // Update terminal theme when the theme changes
   $effect(() => {
-    const theme = $resolvedTheme;
+    $resolvedTheme;
 	if (terminal) {
 	  terminal.options.theme = getTerminalTheme();
 	}

@@ -494,23 +494,23 @@
             <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Desired</div>
-                <span class="text-xl font-bold text-text-primary">{detail.replicas ?? 0}</span>
+                <span class="text-lg font-bold text-text-primary">{detail.replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Ready</div>
-                <span class="text-xl font-bold text-accent-success">{detail.ready_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-accent-success">{detail.ready_replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Available</div>
-                <span class="text-xl font-bold text-accent-primary">{detail.available_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-accent-primary">{detail.available_replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Up-to-date</div>
-                <span class="text-xl font-bold text-text-primary">{detail.updated_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-text-primary">{detail.updated_replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Unavailable</div>
-                <span class="text-xl font-bold {(detail.unavailable_replicas ?? 0) > 0 ? 'text-accent-error' : 'text-text-primary'}">{detail.unavailable_replicas ?? 0}</span>
+                <span class="text-lg font-bold {(detail.unavailable_replicas ?? 0) > 0 ? 'text-accent-error' : 'text-text-primary'}">{detail.unavailable_replicas ?? 0}</span>
               </div>
             </div>
           </section>
@@ -530,19 +530,19 @@
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Desired</div>
-                <span class="text-xl font-bold text-text-primary">{detail.replicas ?? 0}</span>
+                <span class="text-lg font-bold text-text-primary">{detail.replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Ready</div>
-                <span class="text-xl font-bold text-accent-success">{detail.ready_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-accent-success">{detail.ready_replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Current</div>
-                <span class="text-xl font-bold text-accent-primary">{detail.current_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-accent-primary">{detail.current_replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Updated</div>
-                <span class="text-xl font-bold text-text-primary">{detail.updated_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-text-primary">{detail.updated_replicas ?? 0}</span>
               </div>
             </div>
           </section>
@@ -562,23 +562,23 @@
             <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Desired</div>
-                <span class="text-xl font-bold text-text-primary">{detail.desired_number_scheduled ?? 0}</span>
+                <span class="text-lg font-bold text-text-primary">{detail.desired_number_scheduled ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Current</div>
-                <span class="text-xl font-bold text-accent-primary">{detail.current_number_scheduled ?? 0}</span>
+                <span class="text-lg font-bold text-accent-primary">{detail.current_number_scheduled ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Ready</div>
-                <span class="text-xl font-bold text-accent-success">{detail.number_ready ?? 0}</span>
+                <span class="text-lg font-bold text-accent-success">{detail.number_ready ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Available</div>
-                <span class="text-xl font-bold text-accent-success">{detail.number_available ?? 0}</span>
+                <span class="text-lg font-bold text-accent-success">{detail.number_available ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Misscheduled</div>
-                <span class="text-xl font-bold {(detail.number_misscheduled ?? 0) > 0 ? 'text-accent-error' : 'text-text-primary'}">{detail.number_misscheduled ?? 0}</span>
+                <span class="text-lg font-bold {(detail.number_misscheduled ?? 0) > 0 ? 'text-accent-error' : 'text-text-primary'}">{detail.number_misscheduled ?? 0}</span>
               </div>
             </div>
           </section>
@@ -590,19 +590,19 @@
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Desired</div>
-                <span class="text-xl font-bold text-text-primary">{detail.replicas ?? 0}</span>
+                <span class="text-lg font-bold text-text-primary">{detail.replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Ready</div>
-                <span class="text-xl font-bold text-accent-success">{detail.ready_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-accent-success">{detail.ready_replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Available</div>
-                <span class="text-xl font-bold text-accent-primary">{detail.available_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-accent-primary">{detail.available_replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Fully Labeled</div>
-                <span class="text-xl font-bold text-text-primary">{detail.fully_labeled_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-text-primary">{detail.fully_labeled_replicas ?? 0}</span>
               </div>
             </div>
           </section>
@@ -633,15 +633,15 @@
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Active</div>
-                <span class="text-xl font-bold text-accent-primary">{detail.active ?? 0}</span>
+                <span class="text-lg font-bold text-accent-primary">{detail.active ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Succeeded</div>
-                <span class="text-xl font-bold text-accent-success">{detail.succeeded ?? 0}</span>
+                <span class="text-lg font-bold text-accent-success">{detail.succeeded ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Failed</div>
-                <span class="text-xl font-bold {(detail.failed ?? 0) > 0 ? 'text-accent-error' : 'text-text-primary'}">{detail.failed ?? 0}</span>
+                <span class="text-lg font-bold {(detail.failed ?? 0) > 0 ? 'text-accent-error' : 'text-text-primary'}">{detail.failed ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Completions</div>
@@ -688,7 +688,7 @@
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Active Jobs</div>
-                <span class="text-xl font-bold text-accent-primary">{detail.active_jobs ?? 0}</span>
+                <span class="text-lg font-bold text-accent-primary">{detail.active_jobs ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Last Schedule</div>
@@ -821,11 +821,11 @@
             <div class="grid grid-cols-2 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Data Keys</div>
-                <span class="text-xl font-bold text-accent-primary">{Object.keys(detail.data || {}).length}</span>
+                <span class="text-lg font-bold text-accent-primary">{Object.keys(detail.data || {}).length}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Binary Keys</div>
-                <span class="text-xl font-bold text-text-primary">{(detail.binary_data_keys || []).length}</span>
+                <span class="text-lg font-bold text-text-primary">{(detail.binary_data_keys || []).length}</span>
               </div>
             </div>
           </section>
@@ -841,7 +841,7 @@
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Data Keys</div>
-                <span class="text-xl font-bold text-accent-primary">{(detail.data_keys || []).length}</span>
+                <span class="text-lg font-bold text-accent-primary">{(detail.data_keys || []).length}</span>
               </div>
             </div>
           </section>
@@ -877,19 +877,19 @@
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Min Replicas</div>
-                <span class="text-xl font-bold text-text-primary">{detail.min_replicas ?? 1}</span>
+                <span class="text-lg font-bold text-text-primary">{detail.min_replicas ?? 1}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Max Replicas</div>
-                <span class="text-xl font-bold text-text-primary">{detail.max_replicas}</span>
+                <span class="text-lg font-bold text-text-primary">{detail.max_replicas}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Current</div>
-                <span class="text-xl font-bold text-accent-success">{detail.current_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-accent-success">{detail.current_replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Desired</div>
-                <span class="text-xl font-bold text-accent-primary">{detail.desired_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-accent-primary">{detail.desired_replicas ?? 0}</span>
               </div>
             </div>
           </section>
@@ -905,7 +905,7 @@
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Capacity</div>
-                <span class="text-xl font-bold text-accent-primary">{detail.capacity}</span>
+                <span class="text-lg font-bold text-accent-primary">{detail.capacity}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Access Modes</div>
@@ -937,7 +937,7 @@
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Capacity</div>
-                <span class="text-xl font-bold text-accent-primary">{detail.capacity || 'Pending'}</span>
+                <span class="text-lg font-bold text-accent-primary">{detail.capacity || 'Pending'}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Access Modes</div>
@@ -1086,11 +1086,11 @@
             <div class="grid grid-cols-2 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Secrets</div>
-                <span class="text-xl font-bold text-accent-primary">{(detail.secrets || []).length}</span>
+                <span class="text-lg font-bold text-accent-primary">{(detail.secrets || []).length}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Image Pull Secrets</div>
-                <span class="text-xl font-bold text-text-primary">{(detail.image_pull_secrets || []).length}</span>
+                <span class="text-lg font-bold text-text-primary">{(detail.image_pull_secrets || []).length}</span>
               </div>
             </div>
           </section>

@@ -151,7 +151,7 @@
     <div class="px-6 py-4 border-b border-border-subtle">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <h1 class="text-xl font-semibold text-text-primary">Pulse</h1>
+          <h1 class="text-lg font-semibold text-text-primary">Pulse</h1>
           {#if $selectedNamespace}
             <span class="px-2 py-0.5 bg-accent-primary/20 text-accent-primary text-sm rounded-sm">
               {$selectedNamespace}
@@ -205,7 +205,7 @@
                 </svg>
                 <!-- Center text -->
                 <div class="absolute inset-0 flex flex-col items-center justify-center">
-                  <span class="text-2xl font-bold text-text-primary">{cpuUsage().toFixed(0)}%</span>
+                  <span class="text-xl font-bold text-text-primary">{cpuUsage().toFixed(0)}%</span>
                   <span class="text-xs text-text-muted">usage</span>
                 </div>
               </div>
@@ -269,7 +269,7 @@
                 </svg>
                 <!-- Center text -->
                 <div class="absolute inset-0 flex flex-col items-center justify-center">
-                  <span class="text-2xl font-bold text-text-primary">{memoryUsage().toFixed(0)}%</span>
+                  <span class="text-xl font-bold text-text-primary">{memoryUsage().toFixed(0)}%</span>
                   <span class="text-xs text-text-muted">usage</span>
                 </div>
               </div>
@@ -342,7 +342,7 @@
               </div>
               {#if hasStatus}
                 {@const statusValue = value as ResourceCount}
-                <div class="text-xl font-bold">
+                <div class="text-lg font-bold">
                   <span class="text-accent-success">{statusValue.ok}</span>
                   {#if statusValue.fail > 0}
                     <span class="text-text-muted">:</span>
@@ -350,7 +350,7 @@
                   {/if}
                 </div>
               {:else}
-                <div class="text-2xl font-bold">{value}</div>
+                <div class="text-xl font-bold">{value}</div>
               {/if}
               <div class="text-xs opacity-70 mt-0.5">{card.label}</div>
             </div>

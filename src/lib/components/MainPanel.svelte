@@ -82,7 +82,7 @@
   {:else}
     <div class="flex items-center justify-center h-full">
       <div class="text-center">
-        <h2 class="text-xl text-text-primary mb-2 capitalize">{view}</h2>
+        <h2 class="text-lg text-text-primary mb-2 capitalize">{view}</h2>
         <p class="text-text-muted">Coming soon...</p>
       </div>
     </div>

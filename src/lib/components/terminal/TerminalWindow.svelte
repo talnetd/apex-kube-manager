@@ -2,6 +2,9 @@
   import { onMount } from 'svelte';
   import Terminal from '../Terminal.svelte';
   import WindowControls from '../ui/WindowControls.svelte';
+  // Separate webview: apply theme + density here too.
+  import '../../stores/theme';
+  import '../../stores/density';
 
   // Parameters from URL
   let context = $state<string>('');

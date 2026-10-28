@@ -150,7 +150,7 @@
   <!-- Toolbar -->
   <div class="px-6 py-4 border-b border-border-subtle">
     <div class="flex items-center justify-between">
-      <h1 class="text-xl font-semibold text-text-primary">Services</h1>
+      <h1 class="text-lg font-semibold text-text-primary">Services</h1>
       <ViewFilter bind:this={filterRef} value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter services..." />
     </div>
   </div>

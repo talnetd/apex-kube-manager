@@ -95,5 +95,6 @@ export const keyboardShortcuts: KeyboardShortcut[] = [
   { key: '⌘F', description: 'Focus filter input', category: 'global' },
   { key: '⌘P', description: 'Port forwards panel', category: 'global' },
   { key: '⌘W', description: 'Close detail window', category: 'global' },
+  { key: '⌘⇧D', description: 'Toggle density', category: 'global' },
   { key: '?', description: 'Show keyboard shortcuts', category: 'global' },
 ];

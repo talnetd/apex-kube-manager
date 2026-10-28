@@ -216,7 +216,7 @@
   <!-- Toolbar -->
   <div class="px-6 py-4 border-b border-border-subtle">
     <div class="flex items-center justify-between">
-      <h1 class="text-xl font-semibold text-text-primary">Pods</h1>
+      <h1 class="text-lg font-semibold text-text-primary">Pods</h1>
       <div class="flex items-center gap-3">
         <!-- Filter Pills -->
         <div class="flex items-center gap-1">

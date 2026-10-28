@@ -20,7 +20,7 @@
   <div class="flex items-start justify-between">
     <div>
       <p class="text-sm text-text-muted uppercase tracking-wide mb-1">{label}</p>
-      <p class="text-3xl font-semibold {variantColors[variant]}">{value}</p>
+      <p class="text-xl font-semibold {variantColors[variant]}">{value}</p>
     </div>
     {#if icon}
       <div class="p-2 bg-bg-tertiary rounded-lg">

@@ -333,7 +333,7 @@
           <button
             onclick={handleSave}
             disabled={isSaving}
-            class="px-4 py-2 text-sm bg-accent-primary text-bg-primary rounded-sm hover:bg-accent-primary/80 transition-colors disabled:opacity-50"
+            class="px-4 py-2 text-sm bg-accent-primary text-on-accent rounded-sm hover:bg-accent-primary/80 transition-colors disabled:opacity-50"
           >
             {isSaving ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Secret' : 'Create Secret')}
           </button>
