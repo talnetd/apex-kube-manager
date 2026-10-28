@@ -10,25 +10,25 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "@codemirror/lang-yaml": "^6.1.2",
-    "@codemirror/state": "^6.5.2",
-    "@codemirror/view": "^6.38.8",
-    "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-shell": "^2",
-    "@tauri-apps/plugin-notification": "^2",
-    "@xterm/addon-fit": "^0.10",
-    "@xterm/addon-web-links": "^0.11",
-    "@xterm/xterm": "^5",
+    "@codemirror/lang-yaml": "^6.1.3",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-notification": "^2.8.0",
+    "@tauri-apps/plugin-shell": "^2.6.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/xterm": "^6.0.0",
     "codemirror": "^6.0.2"
   },
   "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "^4",
-    "@tauri-apps/cli": "^2",
-    "autoprefixer": "^10",
-    "postcss": "^8",
-    "svelte": "^5",
-    "tailwindcss": "^3",
-    "typescript": "^5",
-    "vite": "^5"
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "@tauri-apps/cli": "^2.12.4",
+    "svelte": "^5.57.3",
+    "svelte-check": "^4.7.7",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.5"
   }
 }

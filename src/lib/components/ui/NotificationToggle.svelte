@@ -8,7 +8,7 @@
   class="h-9 w-9 inline-flex items-center justify-center rounded-lg
       bg-transparent hover:bg-bg-tertiary transition-colors
       {$settings.notificationsEnabled ? 'text-text-secondary hover:text-text-primary' : 'text-text-muted hover:text-text-secondary'}
-      focus:outline-none"
+      focus:outline-hidden"
 >
   {#if $settings.notificationsEnabled}
     <!-- Bell icon -->

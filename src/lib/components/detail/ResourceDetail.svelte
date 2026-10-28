@@ -427,7 +427,7 @@
           {/if}
         </div>
       </div>
-      <span class="text-xs text-text-muted bg-bg-tertiary px-2 py-1 rounded">Read-only</span>
+      <span class="text-xs text-text-muted bg-bg-tertiary px-2 py-1 rounded-sm">Read-only</span>
     </div>
   {/if}
 
@@ -518,7 +518,7 @@
             <section>
               <h2 class="text-lg font-semibold text-text-primary mb-4">Strategy</h2>
               <div class="bg-bg-secondary rounded-lg p-4">
-                <span class="text-sm px-2 py-0.5 rounded bg-accent-primary/10 text-accent-primary">{detail.strategy}</span>
+                <span class="text-sm px-2 py-0.5 rounded-sm bg-accent-primary/10 text-accent-primary">{detail.strategy}</span>
               </div>
             </section>
           {/if}
@@ -612,7 +612,7 @@
               <div class="bg-bg-secondary rounded-lg p-4">
                 {#each detail.owner_references as owner}
                   <div class="flex items-center gap-2">
-                    <span class="text-xs px-2 py-0.5 rounded bg-accent-primary/10 text-accent-primary">{owner.kind}</span>
+                    <span class="text-xs px-2 py-0.5 rounded-sm bg-accent-primary/10 text-accent-primary">{owner.kind}</span>
                     <span class="text-sm text-text-primary font-mono">{owner.name}</span>
                   </div>
                 {/each}
@@ -627,7 +627,7 @@
             <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Status</div>
-                <span class="text-sm px-2 py-0.5 rounded {detail.completion_time ? 'text-accent-success bg-accent-success/10' : detail.active > 0 ? 'text-accent-primary bg-accent-primary/10' : 'text-accent-warning bg-accent-warning/10'}">
+                <span class="text-sm px-2 py-0.5 rounded-sm {detail.completion_time ? 'text-accent-success bg-accent-success/10' : detail.active > 0 ? 'text-accent-primary bg-accent-primary/10' : 'text-accent-warning bg-accent-warning/10'}">
                   {detail.completion_time ? 'Complete' : detail.active > 0 ? 'Running' : 'Pending'}
                 </span>
               </div>
@@ -682,7 +682,7 @@
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Suspended</div>
-                <span class="text-sm px-2 py-0.5 rounded {detail.suspend ? 'text-accent-warning bg-accent-warning/10' : 'text-accent-success bg-accent-success/10'}">
+                <span class="text-sm px-2 py-0.5 rounded-sm {detail.suspend ? 'text-accent-warning bg-accent-warning/10' : 'text-accent-success bg-accent-success/10'}">
                   {detail.suspend ? 'Yes' : 'No'}
                 </span>
               </div>
@@ -721,7 +721,7 @@
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Type</div>
-                <span class="text-sm px-2 py-0.5 rounded bg-accent-primary/10 text-accent-primary">{detail.service_type}</span>
+                <span class="text-sm px-2 py-0.5 rounded-sm bg-accent-primary/10 text-accent-primary">{detail.service_type}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Cluster IP</div>
@@ -859,7 +859,7 @@
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Policy Types</div>
                 <div class="flex gap-2">
                   {#each (detail.policy_types || []) as ptype}
-                    <span class="text-xs px-2 py-0.5 rounded {ptype === 'Ingress' ? 'bg-accent-success/10 text-accent-success' : 'bg-accent-warning/10 text-accent-warning'}">{ptype}</span>
+                    <span class="text-xs px-2 py-0.5 rounded-sm {ptype === 'Ingress' ? 'bg-accent-success/10 text-accent-success' : 'bg-accent-warning/10 text-accent-warning'}">{ptype}</span>
                   {/each}
                 </div>
               </div>
@@ -901,7 +901,7 @@
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Status</div>
-                <span class="text-sm px-2 py-0.5 rounded {detail.phase === 'Bound' ? 'text-accent-success bg-accent-success/10' : detail.phase === 'Available' ? 'text-accent-primary bg-accent-primary/10' : 'text-accent-warning bg-accent-warning/10'}">{detail.phase}</span>
+                <span class="text-sm px-2 py-0.5 rounded-sm {detail.phase === 'Bound' ? 'text-accent-success bg-accent-success/10' : detail.phase === 'Available' ? 'text-accent-primary bg-accent-primary/10' : 'text-accent-warning bg-accent-warning/10'}">{detail.phase}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Capacity</div>
@@ -933,7 +933,7 @@
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Status</div>
-                <span class="text-sm px-2 py-0.5 rounded {detail.phase === 'Bound' ? 'text-accent-success bg-accent-success/10' : 'text-accent-warning bg-accent-warning/10'}">{detail.phase}</span>
+                <span class="text-sm px-2 py-0.5 rounded-sm {detail.phase === 'Bound' ? 'text-accent-success bg-accent-success/10' : 'text-accent-warning bg-accent-warning/10'}">{detail.phase}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Capacity</div>
@@ -965,14 +965,14 @@
             <div class="grid grid-cols-2 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Status</div>
-                <span class="text-sm px-2 py-0.5 rounded {detail.phase === 'Active' ? 'text-accent-success bg-accent-success/10' : 'text-accent-warning bg-accent-warning/10'}">{detail.phase}</span>
+                <span class="text-sm px-2 py-0.5 rounded-sm {detail.phase === 'Active' ? 'text-accent-success bg-accent-success/10' : 'text-accent-warning bg-accent-warning/10'}">{detail.phase}</span>
               </div>
               {#if detail.finalizers && detail.finalizers.length > 0}
                 <div class="bg-bg-secondary rounded-lg p-4">
                   <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Finalizers</div>
                   <div class="flex flex-wrap gap-1">
                     {#each detail.finalizers as f}
-                      <span class="text-xs bg-bg-tertiary px-2 py-0.5 rounded text-text-secondary">{f}</span>
+                      <span class="text-xs bg-bg-tertiary px-2 py-0.5 rounded-sm text-text-secondary">{f}</span>
                     {/each}
                   </div>
                 </div>
@@ -987,7 +987,7 @@
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Status</div>
-                <span class="text-sm px-2 py-0.5 rounded {detail.status === 'Ready' ? 'text-accent-success bg-accent-success/10' : 'text-accent-error bg-accent-error/10'}">{detail.status}</span>
+                <span class="text-sm px-2 py-0.5 rounded-sm {detail.status === 'Ready' ? 'text-accent-success bg-accent-success/10' : 'text-accent-error bg-accent-error/10'}">{detail.status}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Roles</div>
@@ -1125,7 +1125,7 @@
           <button
             onclick={loadPods}
             disabled={isDeleted}
-            class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors disabled:opacity-50"
+            class="text-xs px-3 py-1 bg-bg-tertiary rounded-sm hover:bg-border-subtle transition-colors disabled:opacity-50"
           >
             Refresh
           </button>
@@ -1150,7 +1150,7 @@
                   <tr class="border-t border-border-subtle hover:bg-bg-tertiary">
                     <td class="px-4 py-2 text-text-primary font-mono text-xs">{pod.name}</td>
                     <td class="px-4 py-2">
-                      <span class="text-xs px-2 py-0.5 rounded {getPodStatusColor(pod.status)}">{pod.status}</span>
+                      <span class="text-xs px-2 py-0.5 rounded-sm {getPodStatusColor(pod.status)}">{pod.status}</span>
                     </td>
                     <td class="px-4 py-2 text-text-secondary">{pod.ready}</td>
                     <td class="px-4 py-2 text-text-secondary">{pod.restarts}</td>
@@ -1212,7 +1212,7 @@
             <button
               onclick={loadSecretData}
               disabled={isDeleted}
-              class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors disabled:opacity-50"
+              class="text-xs px-3 py-1 bg-bg-tertiary rounded-sm hover:bg-border-subtle transition-colors disabled:opacity-50"
             >
               {Object.keys(secretData).length > 0 ? 'Refresh' : 'Load Data'}
             </button>
@@ -1227,7 +1227,7 @@
                       {#if secretData[key]}
                         <button
                           onclick={() => toggleReveal(key)}
-                          class="text-xs px-2 py-1 rounded bg-bg-tertiary hover:bg-accent-warning/20 text-text-muted hover:text-accent-warning transition-colors"
+                          class="text-xs px-2 py-1 rounded-sm bg-bg-tertiary hover:bg-accent-warning/20 text-text-muted hover:text-accent-warning transition-colors"
                         >
                           {revealedKeys.has(key) ? 'Hide' : 'Reveal'}
                         </button>
@@ -1266,7 +1266,7 @@
                     <div class="text-xs text-text-muted uppercase mb-2">From</div>
                     <div class="space-y-2">
                       {#each rule.from as peer}
-                        <div class="text-sm bg-bg-tertiary rounded px-3 py-2 flex flex-wrap gap-x-4 gap-y-1">
+                        <div class="text-sm bg-bg-tertiary rounded-sm px-3 py-2 flex flex-wrap gap-x-4 gap-y-1">
                           {#if peer.ip_block}
                             <span><span class="text-accent-error">cidr:</span> <code class="text-text-secondary">{peer.ip_block}</code></span>
                           {:else}
@@ -1289,7 +1289,7 @@
                     <div class="text-xs text-text-muted uppercase mb-2">Ports</div>
                     <div class="flex flex-wrap gap-2">
                       {#each rule.ports as port}
-                        <span class="text-xs bg-bg-tertiary px-2 py-1 rounded text-text-primary">{port.protocol}/{port.port}</span>
+                        <span class="text-xs bg-bg-tertiary px-2 py-1 rounded-sm text-text-primary">{port.protocol}/{port.port}</span>
                       {/each}
                     </div>
                   </div>
@@ -1318,7 +1318,7 @@
                     <div class="text-xs text-text-muted uppercase mb-2">To</div>
                     <div class="space-y-2">
                       {#each rule.to as peer}
-                        <div class="text-sm bg-bg-tertiary rounded px-3 py-2 flex flex-wrap gap-x-4 gap-y-1">
+                        <div class="text-sm bg-bg-tertiary rounded-sm px-3 py-2 flex flex-wrap gap-x-4 gap-y-1">
                           {#if peer.ip_block}
                             <span><span class="text-accent-error">cidr:</span> <code class="text-text-secondary">{peer.ip_block}</code></span>
                           {:else}
@@ -1341,7 +1341,7 @@
                     <div class="text-xs text-text-muted uppercase mb-2">Ports</div>
                     <div class="flex flex-wrap gap-2">
                       {#each rule.ports as port}
-                        <span class="text-xs bg-bg-tertiary px-2 py-1 rounded text-text-primary">{port.protocol}/{port.port}</span>
+                        <span class="text-xs bg-bg-tertiary px-2 py-1 rounded-sm text-text-primary">{port.protocol}/{port.port}</span>
                       {/each}
                     </div>
                   </div>
@@ -1366,7 +1366,7 @@
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="flex items-center justify-between mb-2">
                   <span class="text-sm font-medium text-text-primary">{metric.name || metric.metric_type}</span>
-                  <span class="text-xs px-2 py-0.5 rounded bg-accent-primary/10 text-accent-primary">{metric.metric_type}</span>
+                  <span class="text-xs px-2 py-0.5 rounded-sm bg-accent-primary/10 text-accent-primary">{metric.metric_type}</span>
                 </div>
                 <div class="grid grid-cols-2 gap-4 mt-3">
                   <div>
@@ -1455,13 +1455,13 @@
                       <td class="px-4 py-2 text-text-primary font-mono">{taint.key}</td>
                       <td class="px-4 py-2 text-text-secondary">{taint.value || '-'}</td>
                       <td class="px-4 py-2">
-                        <span class="text-xs px-2 py-0.5 rounded {taint.effect === 'NoSchedule' ? 'bg-accent-error/10 text-accent-error' : taint.effect === 'PreferNoSchedule' ? 'bg-accent-warning/10 text-accent-warning' : 'bg-accent-primary/10 text-accent-primary'}">{taint.effect}</span>
+                        <span class="text-xs px-2 py-0.5 rounded-sm {taint.effect === 'NoSchedule' ? 'bg-accent-error/10 text-accent-error' : taint.effect === 'PreferNoSchedule' ? 'bg-accent-warning/10 text-accent-warning' : 'bg-accent-primary/10 text-accent-primary'}">{taint.effect}</span>
                       </td>
                       <td class="px-4 py-2 text-right">
                         <button
                           onclick={() => handleRemoveTaintClick(taint.key, taint.effect)}
                           disabled={isDeleted || taintActionLoading}
-                          class="text-xs px-2 py-1 text-accent-error hover:bg-accent-error/10 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          class="text-xs px-2 py-1 text-accent-error hover:bg-accent-error/10 rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Remove
                         </button>
@@ -1515,7 +1515,7 @@
                 bind:value={newTaintKey}
                 placeholder="e.g., dedicated, gpu, node-role"
                 disabled={taintActionLoading}
-                class="w-full px-3 py-2 bg-bg-primary border border-border-subtle rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent-primary disabled:opacity-50"
+                class="w-full px-3 py-2 bg-bg-primary border border-border-subtle rounded-lg text-text-primary placeholder-text-muted focus:outline-hidden focus:border-accent-primary disabled:opacity-50"
               />
             </div>
 
@@ -1527,7 +1527,7 @@
                 bind:value={newTaintValue}
                 placeholder="e.g., special-user, nvidia"
                 disabled={taintActionLoading}
-                class="w-full px-3 py-2 bg-bg-primary border border-border-subtle rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent-primary disabled:opacity-50"
+                class="w-full px-3 py-2 bg-bg-primary border border-border-subtle rounded-lg text-text-primary placeholder-text-muted focus:outline-hidden focus:border-accent-primary disabled:opacity-50"
               />
             </div>
 

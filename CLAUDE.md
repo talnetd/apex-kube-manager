@@ -6,7 +6,7 @@ A native desktop Kubernetes cluster management application built with Tauri 2 + 
 
 - **Backend**: Rust with Tauri 2
 - **Frontend**: Svelte 5 with TypeScript
-- **Styling**: TailwindCSS 3 with custom dark theme
+- **Styling**: TailwindCSS 4 (CSS-first `@theme` in `src/styles/app.css`, via `@tailwindcss/vite`)
 - **Kubernetes**: `kube-rs` crate for K8s API interactions
 - **Terminal**: xterm.js for pod exec
 
@@ -45,11 +45,10 @@ apex-kube-manager/
 │   │       ├── startup.ts       # App initialization state
 │   │       ├── kubernetes.ts    # All K8s state (contexts, all resources, metrics)
 │   │       └── navigation.ts    # UI navigation state
-│   ├── styles/app.css           # TailwindCSS imports + global styles
+│   ├── styles/app.css           # Tailwind import, `@theme` tokens, theme palettes, global styles
 │   ├── App.svelte               # Root component
 │   └── main.ts                  # Svelte mount entry point
 │
-├── tailwind.config.js           # Dark theme color palette
 └── package.json                 # Frontend dependencies
 ```
 
@@ -334,7 +333,7 @@ sidebarCollapsed: boolean
 
 ## UI Theme (TailwindCSS)
 
-Custom dark theme in `tailwind.config.js`:
+Theme tokens live in `src/styles/app.css` (`@theme inline`). Each theme class (`.dark`, `.light`, `.neon` on `<html>`) sets raw `R G B` triplets as `--rgb-*`; utilities resolve `rgb(var(--rgb-*))` so opacity modifiers (`bg-accent-primary/20`) work. Dark values:
 ```javascript
 colors: {
   bg: {
@@ -551,9 +550,9 @@ Press `?` anytime to show the keyboard shortcuts help modal.
 ## Key Dependencies
 
 ### Rust (Cargo.toml)
-- `tauri` v2, `kube` v0.98, `k8s-openapi` v0.24
+- `tauri` v2, `kube` v4, `k8s-openapi` v0.28 (`v1_36`; `Time` is `jiff::Timestamp`, see `TimestampExt` in `kubernetes.rs`)
 - `tokio`, `serde`, `chrono`, `thiserror`, `tracing`
 
 ### Frontend (package.json)
-- `@tauri-apps/api` v2, `svelte` v5, `tailwindcss` v3
-- `@xterm/xterm` v5, `@xterm/addon-fit`
+- `@tauri-apps/api` v2, `svelte` v5, `vite` v8, `tailwindcss` v4
+- `@xterm/xterm` v6, `@xterm/addon-fit`

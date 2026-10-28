@@ -123,7 +123,7 @@
                   : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary'}"
             >
               <svg
-                class="w-4 h-4 flex-shrink-0"
+                class="w-4 h-4 shrink-0"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -162,7 +162,7 @@
       {/if}
       <button
         onclick={(e) => { e.stopPropagation(); toggleSidebar(); }}
-        class="p-1 rounded hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
+        class="p-1 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
         title={$sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       >
         <svg

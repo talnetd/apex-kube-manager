@@ -153,7 +153,7 @@
         <div class="flex items-center gap-3">
           <h1 class="text-xl font-semibold text-text-primary">Pulse</h1>
           {#if $selectedNamespace}
-            <span class="px-2 py-0.5 bg-accent-primary/20 text-accent-primary text-sm rounded">
+            <span class="px-2 py-0.5 bg-accent-primary/20 text-accent-primary text-sm rounded-sm">
               {$selectedNamespace}
             </span>
           {/if}
@@ -172,7 +172,7 @@
           <div class="relative bg-bg-secondary rounded-xl border border-border-subtle p-6 overflow-hidden">
             <div class="relative flex items-center gap-6">
               <!-- Ring Gauge -->
-              <div class="relative w-32 h-32 flex-shrink-0">
+              <div class="relative w-32 h-32 shrink-0">
                 <svg class="w-full h-full -rotate-90" viewBox="0 0 120 120">
                   <!-- Background ring -->
                   <circle
@@ -236,7 +236,7 @@
           <div class="relative bg-bg-secondary rounded-xl border border-border-subtle p-6 overflow-hidden">
             <div class="relative flex items-center gap-6">
               <!-- Ring Gauge -->
-              <div class="relative w-32 h-32 flex-shrink-0">
+              <div class="relative w-32 h-32 shrink-0">
                 <svg class="w-full h-full -rotate-90" viewBox="0 0 120 120">
                   <!-- Background ring -->
                   <circle
@@ -330,7 +330,7 @@
             class="group relative overflow-hidden rounded-lg border {getColorClass(card.color, hasFail)} p-3 transition-all duration-200 hover:scale-[1.02] hover:shadow-lg text-left cursor-pointer"
           >
             <!-- Background glow effect -->
-            <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-current/5 to-transparent"></div>
+            <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-linear-to-br from-current/5 to-transparent"></div>
 
             <div class="relative">
               <div class="flex items-center justify-between mb-1">

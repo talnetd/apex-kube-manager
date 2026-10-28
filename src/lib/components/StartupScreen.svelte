@@ -55,7 +55,7 @@
   <div class="w-full max-w-md px-8">
     <!-- Logo -->
     <div class="text-center mb-12 {mounted ? 'animate-fade-in' : 'opacity-0'}">
-      <div class="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-accent-primary to-accent-primary/50 rounded-2xl mb-6 shadow-lg shadow-accent-primary/20">
+      <div class="inline-flex items-center justify-center w-20 h-20 bg-linear-to-br from-accent-primary to-accent-primary/50 rounded-2xl mb-6 shadow-lg shadow-accent-primary/20">
         <svg class="w-10 h-10 text-bg-primary" viewBox="0 0 24 24" fill="currentColor">
           <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
@@ -72,7 +72,7 @@
       </div>
       <div class="h-1.5 bg-bg-tertiary rounded-full overflow-hidden">
         <div
-          class="h-full bg-gradient-to-r from-accent-primary to-accent-success transition-all duration-500 ease-out"
+          class="h-full bg-linear-to-r from-accent-primary to-accent-success transition-all duration-500 ease-out"
           style="width: {$startupProgress}%"
         ></div>
       </div>

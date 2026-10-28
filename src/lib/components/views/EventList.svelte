@@ -186,14 +186,14 @@
         {#each sortedData() as event}
           <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors">
             <td class="py-3 pr-4">
-              <span class="px-2 py-0.5 rounded text-xs font-medium {getTypeColor(event.type)}">{event.type}</span>
+              <span class="px-2 py-0.5 rounded-sm text-xs font-medium {getTypeColor(event.type)}">{event.type}</span>
             </td>
             <td class="py-3 pr-4">
               <span class="text-text-primary font-medium">{event.reason}</span>
             </td>
             <td class="py-3 pr-4">
               <div class="flex items-center gap-1.5">
-                <span class="text-xs bg-bg-tertiary text-text-muted px-1.5 py-0.5 rounded">{event.involved_kind}</span>
+                <span class="text-xs bg-bg-tertiary text-text-muted px-1.5 py-0.5 rounded-sm">{event.involved_kind}</span>
                 {#if isClickable(event.involved_kind)}
                   <button
                     onclick={() => openResourceDetail(event)}
@@ -214,7 +214,7 @@
                 <span class="text-text-secondary text-sm line-clamp-2 flex-1" title={event.message}>{event.message}</span>
                 <button
                   onclick={() => copyMessage(event)}
-                  class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-bg-tertiary transition-all shrink-0"
+                  class="opacity-0 group-hover:opacity-100 p-1 rounded-sm hover:bg-bg-tertiary transition-all shrink-0"
                   title="Copy message"
                 >
                   {#if copiedName === event.name}

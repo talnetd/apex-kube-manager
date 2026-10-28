@@ -92,7 +92,7 @@
                 {formatCpu($pulseMetrics.cpu_usage ?? 0)} / {formatCpu($pulseMetrics.cpu_allocatable)}
               </span>
             </div>
-            <div class="h-1.5 rounded-sm bg-bg-tertiary border border-border-subtle overflow-hidden">
+            <div class="h-1.5 rounded-xs bg-bg-tertiary border border-border-subtle overflow-hidden">
               <div class="h-full bg-accent-primary" style="width:{cpuPct()}%"></div>
             </div>
           </div>
@@ -104,7 +104,7 @@
                 {formatMemory($pulseMetrics.memory_usage ?? 0)} / {formatMemory($pulseMetrics.memory_allocatable)}
               </span>
             </div>
-            <div class="h-1.5 rounded-sm bg-bg-tertiary border border-border-subtle overflow-hidden">
+            <div class="h-1.5 rounded-xs bg-bg-tertiary border border-border-subtle overflow-hidden">
               <div class="h-full bg-accent-secondary" style="width:{memPct()}%"></div>
             </div>
           </div>

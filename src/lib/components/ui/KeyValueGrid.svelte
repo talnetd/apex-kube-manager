@@ -15,7 +15,7 @@
     <div class="space-y-2">
       {#each entries as [key, value]}
         <div class="flex flex-wrap gap-2">
-          <span class="px-2 py-0.5 bg-accent-primary/20 text-accent-primary text-xs font-mono rounded">
+          <span class="px-2 py-0.5 bg-accent-primary/20 text-accent-primary text-xs font-mono rounded-sm">
             {key}
           </span>
           <span class="text-text-secondary text-sm font-mono break-all">

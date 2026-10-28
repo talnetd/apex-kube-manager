@@ -234,7 +234,7 @@
         {#each $portForwards as forward}
           <div class="flex items-center justify-between px-4 py-2.5 border-b border-border-subtle/50 hover:bg-bg-tertiary/30 transition-colors group">
             <div class="flex items-center gap-3 min-w-0 flex-1">
-              <div class="w-1.5 h-1.5 rounded-full flex-shrink-0 {getStatusIndicator(forward.status)}"></div>
+              <div class="w-1.5 h-1.5 rounded-full shrink-0 {getStatusIndicator(forward.status)}"></div>
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-1.5 text-sm">
                   <span class="font-mono text-accent-primary">{forward.local_port}</span>
@@ -247,11 +247,11 @@
                   <span class="truncate">{forward.resource_type === 'service' ? 'svc/' : ''}{forward.resource_name}</span>
                   {#if forward.status === 'active' && (forward.total_connections > 0 || forward.bytes_sent > 0 || forward.bytes_received > 0)}
                     <span class="text-text-muted/60">·</span>
-                    <span class="flex-shrink-0" title="{forward.active_connections} active / {forward.total_connections} total connections">
+                    <span class="shrink-0" title="{forward.active_connections} active / {forward.total_connections} total connections">
                       {forward.active_connections}/{forward.total_connections} conn
                     </span>
                     <span class="text-text-muted/60">·</span>
-                    <span class="flex-shrink-0" title="Sent: {formatBytes(forward.bytes_sent)}, Received: {formatBytes(forward.bytes_received)}">
+                    <span class="shrink-0" title="Sent: {formatBytes(forward.bytes_sent)}, Received: {formatBytes(forward.bytes_received)}">
                       ↑{formatBytes(forward.bytes_sent)} ↓{formatBytes(forward.bytes_received)}
                     </span>
                   {/if}
@@ -261,7 +261,7 @@
             {#if forward.status === 'active' || forward.status === 'starting'}
               <button
                 onclick={() => handleStopForward(forward.id)}
-                class="p-1.5 text-text-muted hover:text-accent-error hover:bg-accent-error/10 rounded transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+                class="p-1.5 text-text-muted hover:text-accent-error hover:bg-accent-error/10 rounded-sm transition-colors opacity-0 group-hover:opacity-100 shrink-0"
                 title="Stop"
               >
                 <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
@@ -290,7 +290,7 @@
         <div class="p-4 space-y-3 bg-bg-tertiary/30 overflow-visible">
           <!-- Error -->
           {#if formError}
-            <div class="text-xs text-accent-error bg-accent-error/10 px-2 py-1.5 rounded">
+            <div class="text-xs text-accent-error bg-accent-error/10 px-2 py-1.5 rounded-sm">
               {formError}
             </div>
           {/if}
@@ -337,7 +337,7 @@
                 min="1"
                 max="65535"
                 placeholder="Local"
-                class="w-full px-3 py-2 bg-bg-primary border border-border-subtle rounded-lg text-sm text-text-primary text-center font-mono focus:outline-none focus:border-accent-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                class="w-full px-3 py-2 bg-bg-primary border border-border-subtle rounded-lg text-sm text-text-primary text-center font-mono focus:outline-hidden focus:border-accent-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
               <div class="text-xs text-text-muted text-center mt-1">Local</div>
             </div>
@@ -364,7 +364,7 @@
                   max="65535"
                   placeholder="Port"
                   disabled={isLoadingPorts}
-                  class="w-full px-3 py-2 bg-bg-primary border border-border-subtle rounded-lg text-sm text-text-primary text-center font-mono focus:outline-none focus:border-accent-primary disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  class="w-full px-3 py-2 bg-bg-primary border border-border-subtle rounded-lg text-sm text-text-primary text-center font-mono focus:outline-hidden focus:border-accent-primary disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
               {/if}
               <div class="text-xs text-text-muted text-center mt-1">

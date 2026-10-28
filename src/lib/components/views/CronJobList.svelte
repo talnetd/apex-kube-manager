@@ -86,13 +86,13 @@
               <span class="text-text-secondary text-sm">{cj.namespace}</span>
             </td>
             <td class="py-3 pr-4">
-              <code class="text-xs bg-bg-tertiary px-2 py-0.5 rounded text-accent-primary">{cj.schedule}</code>
+              <code class="text-xs bg-bg-tertiary px-2 py-0.5 rounded-sm text-accent-primary">{cj.schedule}</code>
             </td>
             <td class="py-3 pr-4">
               {#if cj.suspend}
-                <span class="px-2 py-0.5 rounded text-xs font-medium text-accent-warning bg-accent-warning/10">Suspended</span>
+                <span class="px-2 py-0.5 rounded-sm text-xs font-medium text-accent-warning bg-accent-warning/10">Suspended</span>
               {:else}
-                <span class="px-2 py-0.5 rounded text-xs font-medium text-accent-success bg-accent-success/10">Active</span>
+                <span class="px-2 py-0.5 rounded-sm text-xs font-medium text-accent-success bg-accent-success/10">Active</span>
               {/if}
             </td>
             <td class="py-3 pr-4">
@@ -107,7 +107,7 @@
             <td class="py-3">
               <div class="flex items-center gap-1">
                 <button
-                  class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-success transition-colors"
+                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-success transition-colors"
                   title="Trigger Now"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -116,7 +116,7 @@
                   </svg>
                 </button>
                 <button
-                  class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-warning transition-colors"
+                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-warning transition-colors"
                   title="{cj.suspend ? 'Resume' : 'Suspend'}"
                 >
                   {#if cj.suspend}

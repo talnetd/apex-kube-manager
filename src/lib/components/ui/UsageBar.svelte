@@ -28,7 +28,7 @@
   <span class="text-text-muted text-xs" title={unavailableHint}>&ndash;</span>
 {:else}
   <div class="flex items-center gap-2" title={detail}>
-    <div class="w-14 h-1.5 rounded-sm bg-bg-tertiary border border-border-subtle overflow-hidden shrink-0">
+    <div class="w-14 h-1.5 rounded-xs bg-bg-tertiary border border-border-subtle overflow-hidden shrink-0">
       <div class="h-full {barColor} transition-all duration-300" style="width:{width}%"></div>
     </div>
     <span class="text-xs tabular-nums {textColor} w-9 text-right">{Math.round(value)}%</span>

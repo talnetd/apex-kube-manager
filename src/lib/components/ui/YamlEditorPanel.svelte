@@ -96,7 +96,7 @@
     <div class="flex items-center gap-2">
       <span class="text-sm text-text-muted">{resourceType} YAML Manifest</span>
       {#if isEditing}
-        <span class="text-xs px-2 py-0.5 rounded bg-accent-warning/20 text-accent-warning">Editing</span>
+        <span class="text-xs px-2 py-0.5 rounded-sm bg-accent-warning/20 text-accent-warning">Editing</span>
       {/if}
     </div>
     <div class="flex items-center gap-2">
@@ -104,14 +104,14 @@
         <button
           onclick={cancelEditing}
           disabled={isSaving}
-          class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors disabled:opacity-50"
+          class="text-xs px-3 py-1 bg-bg-tertiary rounded-sm hover:bg-border-subtle transition-colors disabled:opacity-50"
         >
           Cancel
         </button>
         <button
           onclick={saveYaml}
           disabled={isSaving || isDeleted}
-          class="text-xs px-3 py-1 bg-accent-primary text-white rounded hover:bg-accent-primary/90 transition-colors disabled:opacity-50 flex items-center gap-1"
+          class="text-xs px-3 py-1 bg-accent-primary text-white rounded-sm hover:bg-accent-primary/90 transition-colors disabled:opacity-50 flex items-center gap-1"
         >
           {#if isSaving}
             <svg class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -126,21 +126,21 @@
         <button
           onclick={copyYaml}
           disabled={!yaml}
-          class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors disabled:opacity-50"
+          class="text-xs px-3 py-1 bg-bg-tertiary rounded-sm hover:bg-border-subtle transition-colors disabled:opacity-50"
         >
           Copy
         </button>
         <button
           onclick={startEditing}
           disabled={isDeleted || !yaml}
-          class="text-xs px-3 py-1 bg-accent-primary/10 text-accent-primary rounded hover:bg-accent-primary/20 transition-colors disabled:opacity-50"
+          class="text-xs px-3 py-1 bg-accent-primary/10 text-accent-primary rounded-sm hover:bg-accent-primary/20 transition-colors disabled:opacity-50"
         >
           Edit
         </button>
         <button
           onclick={handleRefresh}
           disabled={isDeleted}
-          class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors disabled:opacity-50"
+          class="text-xs px-3 py-1 bg-bg-tertiary rounded-sm hover:bg-border-subtle transition-colors disabled:opacity-50"
         >
           Refresh
         </button>

@@ -89,7 +89,7 @@
               <span class="text-text-secondary text-sm">{pvc.namespace}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-xs px-2 py-0.5 rounded {getStatusColor(pvc.status)}">{pvc.status}</span>
+              <span class="text-xs px-2 py-0.5 rounded-sm {getStatusColor(pvc.status)}">{pvc.status}</span>
             </td>
             <td class="py-3 pr-4">
               <span class="text-text-secondary text-sm">{pvc.volume || '-'}</span>

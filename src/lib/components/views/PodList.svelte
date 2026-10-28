@@ -284,7 +284,7 @@
               <div class="flex items-center gap-1">
                 <button
                   onclick={(e) => { e.stopPropagation(); openTerminalWindow(pod.namespace, pod.name); }}
-                  class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors"
+                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors"
                   title="Open Terminal"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -293,7 +293,7 @@
                 </button>
                 <button
                   onclick={(e) => { e.stopPropagation(); confirmDelete(pod); }}
-                  class="p-1.5 rounded hover:bg-accent-error/20 text-text-muted hover:text-accent-error transition-colors"
+                  class="p-1.5 rounded-sm hover:bg-accent-error/20 text-text-muted hover:text-accent-error transition-colors"
                   title="Delete Pod"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

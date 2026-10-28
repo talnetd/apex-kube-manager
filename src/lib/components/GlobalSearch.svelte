@@ -223,7 +223,7 @@
 {#if $globalSearchOpen}
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div
-    class="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] bg-black/60 backdrop-blur-sm"
+    class="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] bg-black/60 backdrop-blur-xs"
     onclick={handleBackdropClick}
   >
     <div
@@ -250,7 +250,7 @@
             bind:this={searchInput}
             type="text"
             placeholder="Search resources..."
-            class="w-full pl-9 pr-16 py-2 bg-transparent text-text-primary placeholder-text-muted focus:outline-none text-sm"
+            class="w-full pl-9 pr-16 py-2 bg-transparent text-text-primary placeholder-text-muted focus:outline-hidden text-sm"
             bind:value={$searchQuery}
           />
           <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
@@ -259,7 +259,7 @@
                 {countResults($globalSearchResults)}
               </span>
             {/if}
-            <kbd class="px-1.5 py-0.5 text-[10px] text-text-muted bg-bg-tertiary rounded border border-border-subtle">
+            <kbd class="px-1.5 py-0.5 text-[10px] text-text-muted bg-bg-tertiary rounded-sm border border-border-subtle">
               esc
             </kbd>
           </div>
@@ -296,7 +296,7 @@
                 onclick={() => openResource(category, item)}
               >
                 <!-- Status dot -->
-                <div class="w-1.5 h-1.5 rounded-full flex-shrink-0 {getStatusColor(item)}"></div>
+                <div class="w-1.5 h-1.5 rounded-full shrink-0 {getStatusColor(item)}"></div>
 
                 <!-- Name -->
                 <span class="flex-1 text-sm text-text-primary truncate">{item.name}</span>
@@ -307,7 +307,7 @@
                 {/if}
 
                 <!-- Resource type badge -->
-                <span class="px-1.5 py-0.5 text-[10px] font-medium rounded {getBadgeColor(category)}">
+                <span class="px-1.5 py-0.5 text-[10px] font-medium rounded-sm {getBadgeColor(category)}">
                   {getShortName(category)}
                 </span>
               </button>
@@ -321,16 +321,16 @@
         <div class="flex items-center justify-between text-[10px] text-text-muted">
           <div class="flex items-center gap-3">
             <span class="flex items-center gap-1">
-              <kbd class="px-1 py-0.5 bg-bg-tertiary rounded border border-border-subtle">↑↓</kbd>
+              <kbd class="px-1 py-0.5 bg-bg-tertiary rounded-sm border border-border-subtle">↑↓</kbd>
               <span>navigate</span>
             </span>
             <span class="flex items-center gap-1">
-              <kbd class="px-1 py-0.5 bg-bg-tertiary rounded border border-border-subtle">↵</kbd>
+              <kbd class="px-1 py-0.5 bg-bg-tertiary rounded-sm border border-border-subtle">↵</kbd>
               <span>open</span>
             </span>
           </div>
           <span class="flex items-center gap-1">
-            <kbd class="px-1 py-0.5 bg-bg-tertiary rounded border border-border-subtle">⌘K</kbd>
+            <kbd class="px-1 py-0.5 bg-bg-tertiary rounded-sm border border-border-subtle">⌘K</kbd>
             <span>search</span>
           </span>
         </div>

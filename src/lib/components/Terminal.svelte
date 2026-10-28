@@ -49,6 +49,11 @@
       cursor: '#00d4aa',
       cursorAccent: isDark ? '#0a0a0a' : '#ffffff',
       selectionBackground: 'rgba(0, 212, 170, 0.3)',
+      // xterm 6 draws its own scrollbar (no native ::-webkit-scrollbar), so
+      // it is themed here instead of in CSS.
+      scrollbarSliderBackground: isDark ? '#333333' : '#d0d0d0',
+      scrollbarSliderHoverBackground: isDark ? '#444444' : '#b0b0b0',
+      scrollbarSliderActiveBackground: isDark ? '#555555' : '#9ca3af',
       black: isDark ? '#000000' : '#1f2937',
       red: '#ef4444',
       green: '#22c55e',
@@ -278,7 +283,7 @@
       {#if !isConnected}
         <button
           onclick={reconnect}
-          class="px-3 py-1 text-xs bg-accent-primary text-white rounded hover:bg-accent-primary/90 transition-colors"
+          class="px-3 py-1 text-xs bg-accent-primary text-white rounded-sm hover:bg-accent-primary/90 transition-colors"
         >
           Reconnect
         </button>
@@ -286,7 +291,7 @@
       {#if onClose}
         <button
           onclick={onClose}
-          class="p-1 rounded hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
+          class="p-1 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
           title="Close"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -304,19 +309,6 @@
 <style>
   :global(.xterm) {
     height: 100%;
-  }
-  :global(.xterm-viewport) {
-    overflow-y: auto !important;
-  }
-  :global(.xterm-viewport::-webkit-scrollbar) {
-    width: 8px;
-  }
-  :global(.xterm-viewport::-webkit-scrollbar-track) {
-    background: #111111;
-  }
-  :global(.xterm-viewport::-webkit-scrollbar-thumb) {
-    background: #333333;
-    border-radius: 4px;
   }
 </style>
 

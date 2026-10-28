@@ -263,7 +263,7 @@
               <div class="flex items-center gap-1">
                 <button
                   onclick={(e) => openScaleModal(deployment, e)}
-                  class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors"
+                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors"
                   title="Scale"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -273,7 +273,7 @@
                 <button
                   onclick={(e) => handleRestart(deployment, e)}
                   disabled={restartingDeployment === deployment.name}
-                  class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-warning transition-colors disabled:opacity-50"
+                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-warning transition-colors disabled:opacity-50"
                   title="Restart"
                 >
                   <svg class="w-4 h-4 {restartingDeployment === deployment.name ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -321,7 +321,7 @@
           type="number"
           bind:value={scaleReplicas}
           min="0"
-          class="w-24 text-center text-3xl font-bold bg-bg-primary border border-border-subtle rounded-lg py-3 text-text-primary focus:outline-none focus:border-accent-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          class="w-24 text-center text-3xl font-bold bg-bg-primary border border-border-subtle rounded-lg py-3 text-text-primary focus:outline-hidden focus:border-accent-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         />
         <button
           onclick={() => scaleReplicas++}
@@ -342,7 +342,7 @@
         <button
           onclick={handleScale}
           disabled={isScaling}
-          class="px-4 py-2 text-sm bg-accent-primary text-white rounded hover:bg-accent-primary/90 transition-colors disabled:opacity-50"
+          class="px-4 py-2 text-sm bg-accent-primary text-white rounded-sm hover:bg-accent-primary/90 transition-colors disabled:opacity-50"
         >
           {isScaling ? 'Scaling...' : 'Scale'}
         </button>

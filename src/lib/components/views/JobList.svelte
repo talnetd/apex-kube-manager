@@ -120,7 +120,7 @@
               <span class="text-text-secondary text-sm">{job.duration || '-'}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="px-2 py-0.5 rounded text-xs font-medium {getStatusClass(job.status)}">{job.status}</span>
+              <span class="px-2 py-0.5 rounded-sm text-xs font-medium {getStatusClass(job.status)}">{job.status}</span>
             </td>
             <td class="py-3 pr-4">
               <span class="text-text-secondary text-sm">{job.age}</span>
@@ -128,7 +128,7 @@
             <td class="py-3">
               <div class="flex items-center gap-1">
                 <button
-                  class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors"
+                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors"
                   title="View Logs"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -136,7 +136,7 @@
                   </svg>
                 </button>
                 <button
-                  class="p-1.5 rounded hover:bg-accent-error/20 text-text-muted hover:text-accent-error transition-colors"
+                  class="p-1.5 rounded-sm hover:bg-accent-error/20 text-text-muted hover:text-accent-error transition-colors"
                   title="Delete"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

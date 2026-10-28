@@ -15,6 +15,25 @@ use std::path::PathBuf;
 
 use crate::error::{AppError, Result};
 
+/// k8s-openapi 0.25+ models `meta/v1.Time` as a `jiff::Timestamp` instead of a
+/// chrono `DateTime`. Everything here (and the string format the frontend
+/// receives) was built on chrono, so convert at the edge. `to_rfc3339` keeps
+/// chrono's exact output (`+00:00` offset, not jiff's `Z`).
+trait TimestampExt {
+    fn to_chrono(&self) -> chrono::DateTime<chrono::Utc>;
+
+    fn to_rfc3339(&self) -> String {
+        self.to_chrono().to_rfc3339()
+    }
+}
+
+impl TimestampExt for k8s_openapi::jiff::Timestamp {
+    fn to_chrono(&self) -> chrono::DateTime<chrono::Utc> {
+        // i64 nanoseconds covers 1677..2262, far beyond any real k8s timestamp.
+        chrono::DateTime::from_timestamp_nanos(self.as_nanosecond() as i64)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KubeContext {
     pub name: String,
@@ -1391,7 +1410,7 @@ pub async fn list_statefulsets(client: &Client, namespace: Option<&str>) -> Resu
 
             let replicas = spec.map(|s| s.replicas.unwrap_or(0)).unwrap_or(0);
             let ready = status.map(|s| s.ready_replicas.unwrap_or(0)).unwrap_or(0);
-            let service_name = spec.map(|s| s.service_name.clone());
+            let service_name = spec.and_then(|s| s.service_name.clone());
 
             StatefulSetInfo {
                 name: metadata.name.clone().unwrap_or_default(),
@@ -1512,7 +1531,7 @@ pub async fn get_statefulset_detail(client: &Client, namespace: &str, name: &str
         ready_replicas: status.and_then(|s| s.ready_replicas).unwrap_or(0),
         current_replicas: status.and_then(|s| s.current_replicas).unwrap_or(0),
         updated_replicas: status.and_then(|s| s.updated_replicas).unwrap_or(0),
-        service_name: spec.map(|s| s.service_name.clone()).unwrap_or_default(),
+        service_name: spec.and_then(|s| s.service_name.clone()).unwrap_or_default(),
         pod_management_policy,
         update_strategy,
         revision_history_limit: spec.and_then(|s| s.revision_history_limit),
@@ -1807,7 +1826,7 @@ pub async fn list_cronjobs(client: &Client, namespace: Option<&str>) -> Result<V
         .iter()
         .map(|cj| {
             let metadata = &cj.metadata;
-            let spec = cj.spec.as_ref();
+            let spec = &cj.spec;
             let status = cj.status.as_ref();
 
             let last_schedule = status
@@ -1817,8 +1836,8 @@ pub async fn list_cronjobs(client: &Client, namespace: Option<&str>) -> Result<V
             CronJobInfo {
                 name: metadata.name.clone().unwrap_or_default(),
                 namespace: metadata.namespace.clone().unwrap_or_default(),
-                schedule: spec.map(|s| s.schedule.clone()).unwrap_or_default(),
-                suspend: spec.and_then(|s| s.suspend).unwrap_or(false),
+                schedule: spec.schedule.clone(),
+                suspend: spec.suspend.unwrap_or(false),
                 active: status.and_then(|s| s.active.as_ref()).map(|a| a.len() as i32).unwrap_or(0),
                 last_schedule,
                 age: get_age(metadata.creation_timestamp.as_ref()),
@@ -2191,7 +2210,7 @@ pub async fn get_ingress_detail(client: &Client, namespace: &str, name: &str) ->
         uid: metadata.uid.clone().unwrap_or_default(),
         creation_timestamp: metadata.creation_timestamp
             .as_ref()
-            .map(|t| t.0.format("%Y-%m-%d %H:%M:%S UTC").to_string())
+            .map(|t| t.0.to_chrono().format("%Y-%m-%d %H:%M:%S UTC").to_string())
             .unwrap_or_default(),
         labels,
         annotations,
@@ -2223,8 +2242,8 @@ pub async fn get_ingress_events(client: &Client, namespace: &str, name: &str) ->
             reason: e.reason.clone().unwrap_or_default(),
             message: e.message.clone().unwrap_or_default(),
             count: e.count.unwrap_or(1),
-            first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.format("%Y-%m-%d %H:%M:%S").to_string()),
-            last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.format("%Y-%m-%d %H:%M:%S").to_string()),
+            first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_chrono().format("%Y-%m-%d %H:%M:%S").to_string()),
+            last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_chrono().format("%Y-%m-%d %H:%M:%S").to_string()),
             source: e.source.as_ref()
                 .map(|s| format!("{}/{}", s.component.as_deref().unwrap_or(""), s.host.as_deref().unwrap_or("")))
                 .unwrap_or_default(),
@@ -2251,7 +2270,7 @@ pub async fn list_network_policies(client: &Client, namespace: Option<&str>) -> 
 
             let pod_selector = spec
                 .map(|s| {
-                    s.pod_selector.match_labels.as_ref()
+                    s.pod_selector.as_ref().and_then(|ps| ps.match_labels.as_ref())
                         .map(|labels| {
                             labels.iter()
                                 .map(|(k, v)| format!("{}={}", k, v))
@@ -2349,12 +2368,10 @@ pub async fn list_hpas(client: &Client, namespace: Option<&str>) -> Result<Vec<H
         .iter()
         .map(|hpa| {
             let metadata = &hpa.metadata;
-            let spec = hpa.spec.as_ref();
+            let spec = &hpa.spec;
             let status = hpa.status.as_ref();
 
-            let reference = spec
-                .map(|s| format!("{}/{}", s.scale_target_ref.kind, s.scale_target_ref.name))
-                .unwrap_or_default();
+            let reference = format!("{}/{}", spec.scale_target_ref.kind, spec.scale_target_ref.name);
 
             let current_cpu = status
                 .and_then(|s| s.current_cpu_utilization_percentage)
@@ -2362,7 +2379,7 @@ pub async fn list_hpas(client: &Client, namespace: Option<&str>) -> Result<Vec<H
                 .unwrap_or_else(|| "<unknown>".to_string());
 
             let target_cpu = spec
-                .and_then(|s| s.target_cpu_utilization_percentage)
+                .target_cpu_utilization_percentage
                 .map(|p| format!("{}%", p))
                 .unwrap_or_else(|| "-".to_string());
 
@@ -2373,8 +2390,8 @@ pub async fn list_hpas(client: &Client, namespace: Option<&str>) -> Result<Vec<H
                 namespace: metadata.namespace.clone().unwrap_or_default(),
                 reference,
                 targets,
-                min_pods: spec.and_then(|s| s.min_replicas).unwrap_or(1),
-                max_pods: spec.map(|s| s.max_replicas).unwrap_or(0),
+                min_pods: spec.min_replicas.unwrap_or(1),
+                max_pods: spec.max_replicas,
                 replicas: status.map(|s| s.current_replicas).unwrap_or(0),
                 age: get_age(metadata.creation_timestamp.as_ref()),
             }
@@ -4222,7 +4239,7 @@ pub async fn get_cronjob_detail(client: &Client, namespace: &str, name: &str) ->
     let cj = cronjobs.get(name).await?;
 
     let metadata = cj.metadata;
-    let spec = cj.spec.unwrap_or_default();
+    let spec = cj.spec;
     let status = cj.status.unwrap_or_default();
 
     let container_images: Vec<String> = spec.job_template.spec
@@ -4704,7 +4721,7 @@ pub async fn create_network_policy(
             ..Default::default()
         },
         spec: Some(NetworkPolicySpec {
-            pod_selector: pod_label_selector,
+            pod_selector: Some(pod_label_selector),
             policy_types: Some(policy_types),
             ingress,
             egress,
@@ -4844,7 +4861,7 @@ pub async fn update_network_policy(
     let np = NetworkPolicy {
         metadata,
         spec: Some(NetworkPolicySpec {
-            pod_selector: pod_label_selector,
+            pod_selector: Some(pod_label_selector),
             policy_types: Some(policy_types),
             ingress,
             egress,
@@ -4864,7 +4881,7 @@ pub async fn get_networkpolicy_detail(client: &Client, namespace: &str, name: &s
     let metadata = np.metadata;
     let spec = np.spec.unwrap_or_default();
 
-    let pod_selector = spec.pod_selector.match_labels.unwrap_or_default();
+    let pod_selector = spec.pod_selector.and_then(|ps| ps.match_labels).unwrap_or_default();
     let policy_types = spec.policy_types.unwrap_or_default();
 
     let ingress_rules = spec.ingress.unwrap_or_default().iter().map(|r| {
@@ -5054,7 +5071,7 @@ pub async fn get_hpa_detail(client: &Client, namespace: &str, name: &str) -> Res
     let hpa = hpas.get(name).await?;
 
     let metadata = hpa.metadata;
-    let spec = hpa.spec.unwrap_or_default();
+    let spec = hpa.spec;
     let status = hpa.status.unwrap_or_default();
 
     let scale_target_ref = format!("{}/{}",
@@ -6076,6 +6093,16 @@ pub async fn delete_secret(client: &Client, namespace: &str, name: &str) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn k8s_timestamps_keep_the_chrono_wire_format() {
+        let ts: k8s_openapi::jiff::Timestamp = "2024-01-02T03:04:05Z".parse().unwrap();
+        assert_eq!(ts.to_rfc3339(), "2024-01-02T03:04:05+00:00");
+        assert_eq!(
+            ts.to_chrono().format("%Y-%m-%d %H:%M:%S").to_string(),
+            "2024-01-02 03:04:05"
+        );
+    }
 
     #[test]
     fn test_parse_cpu_quantity() {

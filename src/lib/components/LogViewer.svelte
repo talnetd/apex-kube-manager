@@ -131,7 +131,7 @@
           type="checkbox"
           bind:checked={showPrevious}
           onchange={fetchLogs}
-          class="w-3 h-3 rounded border-border-subtle bg-bg-tertiary text-accent-primary focus:ring-accent-primary focus:ring-offset-0"
+          class="w-3 h-3 rounded-sm border-border-subtle bg-bg-tertiary text-accent-primary focus:ring-accent-primary focus:ring-offset-0"
         />
         Previous
       </label>
@@ -141,7 +141,7 @@
         <input
           type="checkbox"
           bind:checked={autoRefresh}
-          class="w-3 h-3 rounded border-border-subtle bg-bg-tertiary text-accent-primary focus:ring-accent-primary focus:ring-offset-0"
+          class="w-3 h-3 rounded-sm border-border-subtle bg-bg-tertiary text-accent-primary focus:ring-accent-primary focus:ring-offset-0"
         />
         Tail
       </label>
@@ -150,7 +150,7 @@
       <button
         onclick={downloadLogs}
         disabled={!logs}
-        class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors disabled:opacity-50"
+        class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors disabled:opacity-50"
         title="Download logs"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -161,7 +161,7 @@
       <!-- Refresh Button -->
       <button
         onclick={fetchLogs}
-        class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
+        class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
         disabled={isLoading}
       >
         <svg class="w-4 h-4 {isLoading ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -172,7 +172,7 @@
       {#if onClose}
         <button
           onclick={onClose}
-          class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
+          class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -191,7 +191,7 @@
       type="text"
       bind:value={searchQuery}
       placeholder="Filter logs..."
-      class="flex-1 bg-transparent text-xs text-text-primary placeholder-text-muted focus:outline-none"
+      class="flex-1 bg-transparent text-xs text-text-primary placeholder-text-muted focus:outline-hidden"
     />
     {#if searchQuery}
       <span class="text-xs text-text-muted">

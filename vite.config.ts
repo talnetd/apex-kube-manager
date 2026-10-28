@@ -1,16 +1,17 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import tailwindcss from '@tailwindcss/vite';
 import { resolve } from 'path';
 
 export default defineConfig({
-  plugins: [svelte()],
+  plugins: [tailwindcss(), svelte()],
   clearScreen: false,
   build: {
-    rollupOptions: {
+    rolldownOptions: {
       input: {
-        main: resolve(__dirname, 'index.html'),
-        detail: resolve(__dirname, 'detail.html'),
-        terminal: resolve(__dirname, 'terminal.html'),
+        main: resolve(import.meta.dirname, 'index.html'),
+        detail: resolve(import.meta.dirname, 'detail.html'),
+        terminal: resolve(import.meta.dirname, 'terminal.html'),
       },
     },
   },

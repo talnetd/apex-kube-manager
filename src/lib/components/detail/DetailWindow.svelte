@@ -124,7 +124,7 @@
     <div class="flex-1 h-full cursor-grab active:cursor-grabbing" data-tauri-drag-region></div>
     <!-- Locked view badge and window controls -->
     <div class="flex items-center gap-2">
-      <span class="text-xs px-2 py-1 bg-accent-primary/10 text-accent-primary rounded">
+      <span class="text-xs px-2 py-1 bg-accent-primary/10 text-accent-primary rounded-sm">
         Locked View
       </span>
       <div class="ml-2 pl-2 border-l border-border-subtle">

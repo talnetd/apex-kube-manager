@@ -8,7 +8,7 @@
   let { resourceType, name, lastSeen }: Props = $props();
 </script>
 
-<div class="absolute inset-0 bg-bg-primary/90 backdrop-blur-sm flex items-center justify-center z-50 rounded-lg">
+<div class="absolute inset-0 bg-bg-primary/90 backdrop-blur-xs flex items-center justify-center z-50 rounded-lg">
   <div class="text-center p-8">
     <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-accent-error/20 flex items-center justify-center">
       <svg class="w-8 h-8 text-accent-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">

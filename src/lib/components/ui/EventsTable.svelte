@@ -48,7 +48,7 @@
       <button
         onclick={onRefresh}
         disabled={isDeleted}
-        class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        class="text-xs px-3 py-1 bg-bg-tertiary rounded-sm hover:bg-border-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         Refresh
       </button>
@@ -72,7 +72,7 @@
           <div class="bg-bg-secondary rounded-lg p-4">
             <div class="flex items-start justify-between mb-2">
               <div class="flex items-center gap-2">
-                <span class="text-xs px-2 py-0.5 rounded {getEventTypeColor(getEventType(event))}">{getEventType(event)}</span>
+                <span class="text-xs px-2 py-0.5 rounded-sm {getEventTypeColor(getEventType(event))}">{getEventType(event)}</span>
                 <span class="font-medium text-text-primary">{event.reason}</span>
                 {#if event.count > 1}
                   <span class="text-xs text-text-muted">x{event.count}</span>
