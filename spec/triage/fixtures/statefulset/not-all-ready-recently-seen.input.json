@@ -1,0 +1,42 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "StatefulSet",
+  "metadata": {
+    "name": "kafka4",
+    "namespace": "data",
+    "generation": 1,
+    "creationTimestamp": "2026-10-27T12:00:00Z"
+  },
+  "spec": {
+    "replicas": 3,
+    "serviceName": "kafka4",
+    "selector": {
+      "matchLabels": {
+        "app": "kafka4"
+      }
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "app": "kafka4"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "db",
+            "image": "x"
+          }
+        ]
+      }
+    }
+  },
+  "status": {
+    "replicas": 3,
+    "readyReplicas": 2,
+    "currentRevision": "r1",
+    "updateRevision": "r1",
+    "observedGeneration": 1,
+    "updatedReplicas": 3
+  }
+}

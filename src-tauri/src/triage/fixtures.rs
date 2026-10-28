@@ -33,7 +33,22 @@ fn read_json(path: &Path) -> Value {
     serde_json::from_str(&text).unwrap_or_else(|e| panic!("parse {}: {e}", path.display()))
 }
 
-fn evaluate(input: Value, now: Timestamp, path: &Path) -> Verdict {
+/// Optional `<case>.context.json`: what a caller observed besides the object
+/// itself (rules.md, "Fixtures"). Unknown keys fail, so typos can't pass.
+#[derive(Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct Context {
+    /// When the caller first saw the object unsettled (UnsettledTracker).
+    first_seen_unsettled: Option<String>,
+    /// The PVC's StorageClass `volumeBindingMode`.
+    storage_class_binding_mode: Option<String>,
+}
+
+fn evaluate(input: Value, ctx: &Context, now: Timestamp, path: &Path) -> Verdict {
+    let seen: Option<Timestamp> = ctx
+        .first_seen_unsettled
+        .as_deref()
+        .map(|t| t.parse().expect("firstSeenUnsettled is RFC 3339"));
     let kind = input
         .get("kind")
         .and_then(|k| k.as_str())
@@ -49,15 +64,20 @@ fn evaluate(input: Value, now: Timestamp, path: &Path) -> Verdict {
         "Pod" => pod_verdict(&decode!(k8s_openapi::api::core::v1::Pod), now),
         "Deployment" => deployment_verdict(&decode!(k8s_openapi::api::apps::v1::Deployment), now),
         "StatefulSet" => {
-            statefulset_verdict(&decode!(k8s_openapi::api::apps::v1::StatefulSet), now)
+            statefulset_verdict(&decode!(k8s_openapi::api::apps::v1::StatefulSet), now, seen)
         }
-        "DaemonSet" => daemonset_verdict(&decode!(k8s_openapi::api::apps::v1::DaemonSet), now),
-        "ReplicaSet" => replicaset_verdict(&decode!(k8s_openapi::api::apps::v1::ReplicaSet), now),
+        "DaemonSet" => {
+            daemonset_verdict(&decode!(k8s_openapi::api::apps::v1::DaemonSet), now, seen)
+        }
+        "ReplicaSet" => {
+            replicaset_verdict(&decode!(k8s_openapi::api::apps::v1::ReplicaSet), now, seen)
+        }
         "Job" => job_verdict(&decode!(k8s_openapi::api::batch::v1::Job), now),
         "Node" => node_verdict(&decode!(k8s_openapi::api::core::v1::Node), now),
         "PersistentVolumeClaim" => pvc_verdict(
             &decode!(k8s_openapi::api::core::v1::PersistentVolumeClaim),
             now,
+            ctx.storage_class_binding_mode.as_deref(),
         ),
         other => panic!("{}: no rules for kind {other}", path.display()),
     }
@@ -78,12 +98,14 @@ const IMPLEMENTED_RULES: &[&str] = &[
     "TRI-POD-010",
     "TRI-POD-011",
     "TRI-POD-012",
+    "TRI-POD-013",
     "TRI-WL-000",
     "TRI-WL-001",
     "TRI-WL-002",
     "TRI-WL-003",
     "TRI-WL-004",
     "TRI-WL-005",
+    "TRI-WL-006",
     "TRI-JOB-000",
     "TRI-JOB-001",
     "TRI-JOB-003",
@@ -95,6 +117,7 @@ const IMPLEMENTED_RULES: &[&str] = &[
     "TRI-PVC-000",
     "TRI-PVC-001",
     "TRI-PVC-002",
+    "TRI-PVC-003",
 ];
 
 #[test]
@@ -129,7 +152,18 @@ fn golden_fixtures_match() {
             input.display()
         );
         let expected = read_json(&expected_path);
-        let got = serde_json::to_value(evaluate(read_json(input), now, input)).unwrap();
+        let ctx_path = PathBuf::from(
+            input
+                .to_string_lossy()
+                .replace(".input.json", ".context.json"),
+        );
+        let ctx: Context = if ctx_path.exists() {
+            serde_json::from_value(read_json(&ctx_path))
+                .unwrap_or_else(|e| panic!("{}: {e}", ctx_path.display()))
+        } else {
+            Context::default()
+        };
+        let got = serde_json::to_value(evaluate(read_json(input), &ctx, now, input)).unwrap();
         if let Some(r) = got.get("ruleId").and_then(|r| r.as_str()) {
             seen_rules.insert(r.to_string());
         }
@@ -152,6 +186,13 @@ fn golden_fixtures_match() {
                 .replace(".expected.json", ".input.json"),
         );
         assert!(input.exists(), "{}: orphan expected file", exp.display());
+    }
+    for c in files
+        .iter()
+        .filter(|p| p.to_string_lossy().ends_with(".context.json"))
+    {
+        let input = PathBuf::from(c.to_string_lossy().replace(".context.json", ".input.json"));
+        assert!(input.exists(), "{}: orphan context file", c.display());
     }
 
     assert!(count >= 25, "expected at least 25 fixtures, found {count}");

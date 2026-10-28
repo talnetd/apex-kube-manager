@@ -1450,7 +1450,7 @@ pub async fn list_statefulsets(client: &Client, namespace: Option<&str>) -> Resu
             let service_name = spec.and_then(|s| s.service_name.clone());
 
             StatefulSetInfo {
-                verdict: triage::statefulset_verdict(sts, triage_now()),
+                verdict: triage::statefulset_tracked(sts, triage_now()),
                 name: metadata.name.clone().unwrap_or_default(),
                 namespace: metadata.namespace.clone().unwrap_or_default(),
                 ready: format!("{}/{}", ready, replicas),
@@ -1736,7 +1736,7 @@ pub async fn list_daemonsets(client: &Client, namespace: Option<&str>) -> Result
                 });
 
             DaemonSetInfo {
-                verdict: triage::daemonset_verdict(ds, triage_now()),
+                verdict: triage::daemonset_tracked(ds, triage_now()),
                 name: metadata.name.clone().unwrap_or_default(),
                 namespace: metadata.namespace.clone().unwrap_or_default(),
                 desired: status.map(|s| s.desired_number_scheduled).unwrap_or(0),
@@ -1775,7 +1775,7 @@ pub async fn list_replicasets(client: &Client, namespace: Option<&str>) -> Resul
                 .map(|owner| format!("{}/{}", owner.kind, owner.name));
 
             ReplicaSetInfo {
-                verdict: triage::replicaset_verdict(rs, triage_now()),
+                verdict: triage::replicaset_tracked(rs, triage_now()),
                 name: metadata.name.clone().unwrap_or_default(),
                 namespace: metadata.namespace.clone().unwrap_or_default(),
                 desired: status.map(|s| s.replicas).unwrap_or(0),
@@ -2486,6 +2486,24 @@ pub async fn list_pvs(client: &Client) -> Result<Vec<PersistentVolumeInfo>> {
     Ok(pv_infos)
 }
 
+/// StorageClass name -> volumeBindingMode, for the PVC "Waiting for
+/// consumer" rule (TRI-PVC-003). Empty when StorageClasses can't be listed
+/// (e.g. RBAC); the rule then falls back to the plain Pending window.
+async fn storage_class_binding_modes(client: &Client) -> std::collections::HashMap<String, String> {
+    let classes: Api<k8s_openapi::api::storage::v1::StorageClass> = Api::all(client.clone());
+    match classes.list(&ListParams::default()).await {
+        Ok(list) => list
+            .items
+            .into_iter()
+            .filter_map(|sc| Some((sc.metadata.name?, sc.volume_binding_mode?)))
+            .collect(),
+        Err(e) => {
+            tracing::debug!("StorageClass list unavailable for PVC triage: {}", e);
+            Default::default()
+        }
+    }
+}
+
 pub async fn list_pvcs(client: &Client, namespace: Option<&str>) -> Result<Vec<PersistentVolumeClaimInfo>> {
     let pvcs: Api<PersistentVolumeClaim> = match namespace {
         Some(ns) => Api::namespaced(client.clone(), ns),
@@ -2493,6 +2511,7 @@ pub async fn list_pvcs(client: &Client, namespace: Option<&str>) -> Result<Vec<P
     };
 
     let pvc_list = pvcs.list(&ListParams::default()).await?;
+    let binding_modes = storage_class_binding_modes(client).await;
 
     let pvc_infos: Vec<PersistentVolumeClaimInfo> = pvc_list
         .items
@@ -2512,7 +2531,13 @@ pub async fn list_pvcs(client: &Client, namespace: Option<&str>) -> Result<Vec<P
                 .map(|q| q.0.clone());
 
             PersistentVolumeClaimInfo {
-                verdict: triage::pvc_verdict(pvc, triage_now()),
+                verdict: triage::pvc_verdict(
+                    pvc,
+                    triage_now(),
+                    spec.and_then(|s| s.storage_class_name.as_deref())
+                        .and_then(|sc| binding_modes.get(sc))
+                        .map(String::as_str),
+                ),
                 name: metadata.name.clone().unwrap_or_default(),
                 namespace: metadata.namespace.clone().unwrap_or_default(),
                 status: status.and_then(|s| s.phase.clone()).unwrap_or_default(),
@@ -2929,9 +2954,9 @@ pub async fn get_pulse_metrics(client: &Client, namespace: Option<&str>) -> Resu
     }
     let (pods_ok, pods_fail) = ok_fail(&pods.items, |p| triage::pod_verdict(p, now));
     let (deployments_ok, deployments_fail) = ok_fail(&deployments.items, |d| triage::deployment_verdict(d, now));
-    let (statefulsets_ok, statefulsets_fail) = ok_fail(&statefulsets.items, |s| triage::statefulset_verdict(s, now));
-    let (daemonsets_ok, daemonsets_fail) = ok_fail(&daemonsets.items, |d| triage::daemonset_verdict(d, now));
-    let (replicasets_ok, replicasets_fail) = ok_fail(&replicasets.items, |r| triage::replicaset_verdict(r, now));
+    let (statefulsets_ok, statefulsets_fail) = ok_fail(&statefulsets.items, |s| triage::statefulset_tracked(s, now));
+    let (daemonsets_ok, daemonsets_fail) = ok_fail(&daemonsets.items, |d| triage::daemonset_tracked(d, now));
+    let (replicasets_ok, replicasets_fail) = ok_fail(&replicasets.items, |r| triage::replicaset_tracked(r, now));
     let (jobs_ok, jobs_fail) = ok_fail(&jobs.items, |j| triage::job_verdict(j, now));
 
     Ok(PulseMetrics {

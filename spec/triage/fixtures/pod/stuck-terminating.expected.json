@@ -1,0 +1,7 @@
+{
+  "status": "warn",
+  "reason": "Stuck terminating",
+  "ruleId": "TRI-POD-013",
+  "since": "2026-10-28T11:50:00Z",
+  "severity": "warning"
+}

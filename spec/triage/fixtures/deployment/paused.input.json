@@ -1,0 +1,56 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "Deployment",
+  "metadata": {
+    "name": "api3",
+    "namespace": "payments",
+    "generation": 3,
+    "creationTimestamp": "2026-10-27T12:00:00Z"
+  },
+  "spec": {
+    "replicas": 3,
+    "selector": {
+      "matchLabels": {
+        "app": "api3"
+      }
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "app": "api3"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "app",
+            "image": "x"
+          }
+        ]
+      }
+    },
+    "paused": true
+  },
+  "status": {
+    "replicas": 3,
+    "updatedReplicas": 1,
+    "observedGeneration": 3,
+    "availableReplicas": 3,
+    "readyReplicas": 3,
+    "conditions": [
+      {
+        "type": "Available",
+        "status": "True",
+        "lastTransitionTime": "2026-10-27T12:00:00Z",
+        "lastUpdateTime": "2026-10-27T12:00:00Z"
+      },
+      {
+        "type": "Progressing",
+        "status": "Unknown",
+        "lastTransitionTime": "2026-10-28T11:00:00Z",
+        "reason": "DeploymentPaused",
+        "lastUpdateTime": "2026-10-28T11:00:00Z"
+      }
+    ]
+  }
+}

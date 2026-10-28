@@ -555,9 +555,86 @@ export async function loadPods(namespace?: string | null) {
 }
 
 // Pod Watch Stream Functions
+//
+// Every start/stop bumps `podWatchGen`. Each await in the setup re-checks
+// it, and so does the listener: a superseded setup tears down whatever it
+// already created (watch id, listener) and never writes to `pods`. That
+// covers a namespace switch racing a context switch, and a slow first list
+// resolving after a newer watch started.
+let podWatchGen = 0;
+
+// Watch events are applied in batches (every 100ms) so a burst of updates
+// costs one copy/regroup/sort instead of one per event.
+const POD_BATCH_MS = 100;
+let podEventQueue: PodWatchEvent[] = [];
+let podFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+const podKey = (p: Pick<PodInfo, 'namespace' | 'name'>) => `${p.namespace}/${p.name}`;
+
+/** Apply queued watch events to a pod list in order (last event per pod wins). Pure. */
+export function applyPodEvents(current: PodInfo[], events: PodWatchEvent[]): PodInfo[] {
+  if (events.length === 0) return current;
+  const index = new Map(current.map((p, i) => [podKey(p), i]));
+  const next = [...current];
+  const removed = new Set<number>();
+  for (const { event_type, pod } of events) {
+    const k = podKey(pod);
+    const i = index.get(k);
+    if (event_type === 'applied') {
+      if (i !== undefined && !removed.has(i)) next[i] = pod;
+      else {
+        index.set(k, next.length);
+        next.push(pod);
+      }
+    } else if (event_type === 'deleted' && i !== undefined) {
+      removed.add(i);
+      index.delete(k);
+    }
+  }
+  return removed.size ? next.filter((_, i) => !removed.has(i)) : next;
+}
+
+function flushPodEvents(gen: number) {
+  podFlushTimer = null;
+  const events = podEventQueue;
+  podEventQueue = [];
+  if (gen !== podWatchGen || events.length === 0) return;
+  pods.update((current) => applyPodEvents(current, events));
+  markSynced('pods');
+}
+
+function queuePodEvent(gen: number, event: PodWatchEvent) {
+  if (gen !== podWatchGen) return; // superseded watch: drop
+  podEventQueue.push(event);
+  if (!podFlushTimer) podFlushTimer = setTimeout(() => flushPodEvents(gen), POD_BATCH_MS);
+}
+
+/** Tear down the current listener + backend watch and drop queued events. */
+async function teardownPodWatch() {
+  const unlisten = podWatchUnlisten;
+  const watchId = currentPodWatchId;
+  podWatchUnlisten = null;
+  currentPodWatchId = null;
+  podEventQueue = [];
+  if (podFlushTimer) {
+    clearTimeout(podFlushTimer);
+    podFlushTimer = null;
+  }
+  unlisten?.();
+  if (watchId) {
+    try {
+      await tauriInvoke('stop_watch', { watchId });
+      console.log(`Pod watch stopped: ${watchId}`);
+    } catch (e) {
+      console.error('Failed to stop pod watch:', e);
+    }
+  }
+}
+
 export async function startPodWatch(namespace?: string | null) {
-  // Stop any existing watch first
-  await stopPodWatch();
+  const gen = ++podWatchGen;
+  await teardownPodWatch();
+  if (gen !== podWatchGen) return;
 
   if (!isContextReady()) return;
 
@@ -570,45 +647,48 @@ export async function startPodWatch(namespace?: string | null) {
   }
   markLoading('pods');
 
+  // A setup step finished after a newer start/stop: undo what we made.
+  const superseded = () => gen !== podWatchGen || _currentContext !== ctx;
+
   try {
-    // Get initial snapshot
     const initialPods = await tauriInvoke<PodInfo[]>('get_pods', { namespace });
-    if (_currentContext !== ctx) return; // switched while listing
+    if (superseded()) return;
     pods.set(initialPods);
     markSynced('pods');
 
-    // Start watch stream
     const watchId = await tauriInvoke<string>('watch_pods', { namespace });
+    if (superseded()) {
+      tauriInvoke('stop_watch', { watchId }).catch(() => {});
+      return;
+    }
     currentPodWatchId = watchId;
 
-    // Import listen dynamically
     const { listen } = await import('@tauri-apps/api/event');
+    if (superseded()) {
+      // currentPodWatchId is ours only if nobody tore down in between.
+      if (currentPodWatchId === watchId) {
+        currentPodWatchId = null;
+        tauriInvoke('stop_watch', { watchId }).catch(() => {});
+      }
+      return;
+    }
 
-    // Listen for watch events
-    podWatchUnlisten = await listen<PodWatchEvent>(`pod-watch-${watchId}`, (event) => {
-      const { event_type, pod } = event.payload;
-
-      pods.update(current => {
-        if (event_type === 'applied') {
-          // Update or add pod
-          const idx = current.findIndex(p => p.name === pod.name && p.namespace === pod.namespace);
-          if (idx >= 0) {
-            current[idx] = pod;
-            return [...current];
-          } else {
-            return [...current, pod];
-          }
-        } else if (event_type === 'deleted') {
-          // Remove pod
-          return current.filter(p => !(p.name === pod.name && p.namespace === pod.namespace));
-        }
-        return current;
-      });
-      markSynced('pods');
-    });
+    const unlisten = await listen<PodWatchEvent>(`pod-watch-${watchId}`, (event) =>
+      queuePodEvent(gen, event.payload)
+    );
+    if (superseded()) {
+      unlisten();
+      if (currentPodWatchId === watchId) {
+        currentPodWatchId = null;
+        tauriInvoke('stop_watch', { watchId }).catch(() => {});
+      }
+      return;
+    }
+    podWatchUnlisten = unlisten;
 
     console.log(`Pod watch started: ${watchId}`);
   } catch (e) {
+    if (superseded()) return;
     error.set(String(e));
     markFailed('pods', e);
     console.error('Failed to start pod watch:', e);
@@ -616,20 +696,8 @@ export async function startPodWatch(namespace?: string | null) {
 }
 
 export async function stopPodWatch() {
-  if (podWatchUnlisten) {
-    podWatchUnlisten();
-    podWatchUnlisten = null;
-  }
-
-  if (currentPodWatchId) {
-    try {
-      await tauriInvoke('stop_watch', { watchId: currentPodWatchId });
-      console.log(`Pod watch stopped: ${currentPodWatchId}`);
-    } catch (e) {
-      console.error('Failed to stop pod watch:', e);
-    }
-    currentPodWatchId = null;
-  }
+  podWatchGen++;
+  await teardownPodWatch();
 }
 
 // Deployment Watch Stream Functions

@@ -18,7 +18,84 @@ pub use rules::{
     replicaset_verdict, statefulset_verdict,
 };
 
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+
+use k8s_openapi::jiff::Timestamp;
 use serde::{Deserialize, Serialize};
+
+/// Remembers when Apex first saw an object *unsettled* (not healthy or
+/// neutral), per uid. StatefulSets, ReplicaSets and DaemonSets carry no
+/// transition timestamps, so without this a scale-up of a year-old object
+/// would look degraded "since creation" and fail instantly.
+#[derive(Default)]
+pub struct UnsettledTracker {
+    first_seen: HashMap<String, Timestamp>,
+}
+
+impl UnsettledTracker {
+    /// Evaluate `rule(first_seen)`. The first unsettled observation starts
+    /// the clock at `now`; a settled verdict clears it.
+    pub fn eval(
+        &mut self,
+        uid: &str,
+        now: Timestamp,
+        rule: impl Fn(Option<Timestamp>) -> Verdict,
+    ) -> Verdict {
+        let seen = self.first_seen.get(uid).copied();
+        let v = rule(seen);
+        if v.badness() >= 5 {
+            self.first_seen.remove(uid);
+            return v;
+        }
+        if seen.is_some() {
+            return v;
+        }
+        self.first_seen.insert(uid.to_string(), now);
+        // Deleted objects never settle; bound the map.
+        if self.first_seen.len() > 10_000 {
+            let cutoff = now.as_second() - 24 * 3600;
+            self.first_seen.retain(|_, t| t.as_second() > cutoff);
+        }
+        rule(Some(now))
+    }
+}
+
+static UNSETTLED: OnceLock<Mutex<UnsettledTracker>> = OnceLock::new();
+
+/// Process-wide tracker so lists, watches and Pulse agree on one clock.
+/// Objects without a uid are evaluated untracked (creation fallback).
+pub fn tracked(
+    uid: Option<&str>,
+    now: Timestamp,
+    rule: impl Fn(Option<Timestamp>) -> Verdict,
+) -> Verdict {
+    let Some(uid) = uid else { return rule(None) };
+    let mut t = UNSETTLED
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    t.eval(uid, now, rule)
+}
+
+/// The tracked entry points desktop uses for kinds without transition times.
+pub fn statefulset_tracked(s: &k8s_openapi::api::apps::v1::StatefulSet, now: Timestamp) -> Verdict {
+    tracked(s.metadata.uid.as_deref(), now, |seen| {
+        statefulset_verdict(s, now, seen)
+    })
+}
+
+pub fn replicaset_tracked(r: &k8s_openapi::api::apps::v1::ReplicaSet, now: Timestamp) -> Verdict {
+    tracked(r.metadata.uid.as_deref(), now, |seen| {
+        replicaset_verdict(r, now, seen)
+    })
+}
+
+pub fn daemonset_tracked(d: &k8s_openapi::api::apps::v1::DaemonSet, now: Timestamp) -> Verdict {
+    tracked(d.metadata.uid.as_deref(), now, |seen| {
+        daemonset_verdict(d, now, seen)
+    })
+}
 
 /// Verdict status. Names are part of the shared contract (verdict.schema.json).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

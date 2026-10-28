@@ -14,6 +14,70 @@ use uuid::Uuid;
 
 use crate::error::Result;
 use crate::kubernetes::{self, ClusterEventInfo, DeploymentInfo, JobInfo, NodeInfo, PodInfo};
+use crate::triage::{self, Verdict};
+
+/// How often a watch re-evaluates time-window verdicts (Pending > 5 min,
+/// OOMKilled within 1h, ...) for objects whose spec/status didn't change.
+const VERDICT_RECHECK: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Objects whose verdict can change with time alone, so a watch re-evaluates
+/// them on a tick and emits only those whose verdict changed. Healthy and
+/// neutral verdicts never worsen without an API change (which arrives as a
+/// watch event), so they aren't kept: the set stays small on big clusters.
+struct Recheck<T> {
+    items: HashMap<String, (T, Verdict)>,
+}
+
+impl<T: Clone> Recheck<T> {
+    fn new() -> Self {
+        Self { items: HashMap::new() }
+    }
+
+    fn observe(&mut self, key: String, obj: &T, verdict: &Verdict) {
+        if verdict.badness() < 5 {
+            self.items.insert(key, (obj.clone(), verdict.clone()));
+        } else {
+            self.items.remove(&key);
+        }
+    }
+
+    fn forget(&mut self, key: &str) {
+        self.items.remove(key);
+    }
+
+    /// Relist: the watcher re-sends every live object, so start over (this
+    /// also drops objects deleted while the stream was down).
+    fn clear(&mut self) {
+        self.items.clear();
+    }
+
+    /// Re-evaluate everything kept; return the objects whose verdict changed.
+    fn due(
+        &mut self,
+        now: k8s_openapi::jiff::Timestamp,
+        rule: impl Fn(&T, k8s_openapi::jiff::Timestamp) -> Verdict,
+    ) -> Vec<(T, Verdict)> {
+        let mut changed = Vec::new();
+        self.items.retain(|_, (obj, old)| {
+            let new = rule(obj, now);
+            if new == *old {
+                return true;
+            }
+            changed.push((obj.clone(), new.clone()));
+            *old = new;
+            old.badness() < 5
+        });
+        changed
+    }
+}
+
+fn object_key(meta: &k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta) -> String {
+    format!(
+        "{}/{}",
+        meta.namespace.as_deref().unwrap_or(""),
+        meta.name.as_deref().unwrap_or("")
+    )
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PodWatchEvent {
@@ -86,6 +150,22 @@ impl WatchManager {
         let task = tokio::spawn(async move {
             let watcher_stream = watcher::watcher(pods, watcher::Config::default());
             futures::pin_mut!(watcher_stream);
+            let event_name = format!("pod-watch-{}", watch_id_clone);
+            let emit = |event_type: &str, pod: PodInfo| {
+                let watch_event = PodWatchEvent {
+                    event_type: event_type.to_string(),
+                    pod,
+                    timestamp: chrono::Utc::now().to_rfc3339(),
+                };
+                if let Err(e) = app.emit(&event_name, &watch_event) {
+                    tracing::error!("Failed to emit pod watch event: {}", e);
+                }
+            };
+            // Time-window verdicts age without any API change; re-check them
+            // here so the list and Pulse agree (one source of truth: Rust).
+            let mut recheck: Recheck<Pod> = Recheck::new();
+            let mut tick = tokio::time::interval(VERDICT_RECHECK);
+            tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
             loop {
                 tokio::select! {
@@ -93,50 +173,32 @@ impl WatchManager {
                         tracing::info!("Pod watch {} received shutdown signal", watch_id_clone);
                         break;
                     }
+                    _ = tick.tick() => {
+                        let now = k8s_openapi::jiff::Timestamp::now();
+                        for (pod, verdict) in recheck.due(now, triage::pod_verdict) {
+                            if let Some(mut info) = kubernetes::pod_to_info(&pod) {
+                                info.verdict = verdict;
+                                emit("applied", info);
+                            }
+                        }
+                    }
                     event = watcher_stream.try_next() => {
                         match event {
-                            Ok(Some(Event::Apply(pod))) => {
-                                if let Some(pod_info) = kubernetes::pod_to_info(&pod) {
-                                    let watch_event = PodWatchEvent {
-                                        event_type: "applied".to_string(),
-                                        pod: pod_info,
-                                        timestamp: chrono::Utc::now().to_rfc3339(),
-                                    };
-                                    let event_name = format!("pod-watch-{}", watch_id_clone);
-                                    if let Err(e) = app.emit(&event_name, &watch_event) {
-                                        tracing::error!("Failed to emit pod watch event: {}", e);
-                                    }
+                            Ok(Some(Event::Apply(pod))) | Ok(Some(Event::InitApply(pod))) => {
+                                if let Some(info) = kubernetes::pod_to_info(&pod) {
+                                    recheck.observe(object_key(&pod.metadata), &pod, &info.verdict);
+                                    emit("applied", info);
                                 }
                             }
                             Ok(Some(Event::Delete(pod))) => {
-                                if let Some(pod_info) = kubernetes::pod_to_info(&pod) {
-                                    let watch_event = PodWatchEvent {
-                                        event_type: "deleted".to_string(),
-                                        pod: pod_info,
-                                        timestamp: chrono::Utc::now().to_rfc3339(),
-                                    };
-                                    let event_name = format!("pod-watch-{}", watch_id_clone);
-                                    if let Err(e) = app.emit(&event_name, &watch_event) {
-                                        tracing::error!("Failed to emit pod watch event: {}", e);
-                                    }
+                                recheck.forget(&object_key(&pod.metadata));
+                                if let Some(info) = kubernetes::pod_to_info(&pod) {
+                                    emit("deleted", info);
                                 }
                             }
                             Ok(Some(Event::Init)) => {
+                                recheck.clear();
                                 tracing::debug!("Pod watch {} initialized", watch_id_clone);
-                            }
-                            Ok(Some(Event::InitApply(pod))) => {
-                                // Initial sync - emit as applied
-                                if let Some(pod_info) = kubernetes::pod_to_info(&pod) {
-                                    let watch_event = PodWatchEvent {
-                                        event_type: "applied".to_string(),
-                                        pod: pod_info,
-                                        timestamp: chrono::Utc::now().to_rfc3339(),
-                                    };
-                                    let event_name = format!("pod-watch-{}", watch_id_clone);
-                                    if let Err(e) = app.emit(&event_name, &watch_event) {
-                                        tracing::error!("Failed to emit pod watch event: {}", e);
-                                    }
-                                }
                             }
                             Ok(Some(Event::InitDone)) => {
                                 tracing::debug!("Pod watch {} initial sync done", watch_id_clone);
@@ -183,6 +245,19 @@ impl WatchManager {
         let task = tokio::spawn(async move {
             let watcher_stream = watcher::watcher(deployments, watcher::Config::default());
             futures::pin_mut!(watcher_stream);
+            let event_name = format!("deployment-watch-{}", watch_id_clone);
+            let emit = |event_type: &str, deployment: DeploymentInfo| {
+                let watch_event = DeploymentWatchEvent {
+                    event_type: event_type.to_string(),
+                    deployment,
+                    timestamp: chrono::Utc::now().to_rfc3339(),
+                };
+                let _ = app.emit(&event_name, &watch_event);
+            };
+            // Same 30s verdict re-check as the pod watch (grace windows).
+            let mut recheck: Recheck<Deployment> = Recheck::new();
+            let mut tick = tokio::time::interval(VERDICT_RECHECK);
+            tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
             loop {
                 tokio::select! {
@@ -190,31 +265,31 @@ impl WatchManager {
                         tracing::info!("Deployment watch {} received shutdown signal", watch_id_clone);
                         break;
                     }
+                    _ = tick.tick() => {
+                        let now = k8s_openapi::jiff::Timestamp::now();
+                        for (deploy, verdict) in recheck.due(now, triage::deployment_verdict) {
+                            if let Some(mut info) = kubernetes::deployment_to_info(&deploy) {
+                                info.verdict = verdict;
+                                emit("applied", info);
+                            }
+                        }
+                    }
                     event = watcher_stream.try_next() => {
                         match event {
                             Ok(Some(Event::Apply(deploy))) | Ok(Some(Event::InitApply(deploy))) => {
                                 if let Some(info) = kubernetes::deployment_to_info(&deploy) {
-                                    let watch_event = DeploymentWatchEvent {
-                                        event_type: "applied".to_string(),
-                                        deployment: info,
-                                        timestamp: chrono::Utc::now().to_rfc3339(),
-                                    };
-                                    let event_name = format!("deployment-watch-{}", watch_id_clone);
-                                    let _ = app.emit(&event_name, &watch_event);
+                                    recheck.observe(object_key(&deploy.metadata), &deploy, &info.verdict);
+                                    emit("applied", info);
                                 }
                             }
                             Ok(Some(Event::Delete(deploy))) => {
+                                recheck.forget(&object_key(&deploy.metadata));
                                 if let Some(info) = kubernetes::deployment_to_info(&deploy) {
-                                    let watch_event = DeploymentWatchEvent {
-                                        event_type: "deleted".to_string(),
-                                        deployment: info,
-                                        timestamp: chrono::Utc::now().to_rfc3339(),
-                                    };
-                                    let event_name = format!("deployment-watch-{}", watch_id_clone);
-                                    let _ = app.emit(&event_name, &watch_event);
+                                    emit("deleted", info);
                                 }
                             }
-                            Ok(Some(Event::Init)) | Ok(Some(Event::InitDone)) => {}
+                            Ok(Some(Event::Init)) => recheck.clear(),
+                            Ok(Some(Event::InitDone)) => {}
                             Ok(None) => break,
                             Err(e) => {
                                 tracing::warn!("Deployment watch {} error (will retry): {}", watch_id_clone, e);
@@ -438,5 +513,88 @@ impl WatchManager {
             let _ = handle.shutdown_tx.send(());
             tracing::info!("Stopped watch {}", id);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use k8s_openapi::jiff::Timestamp;
+    use std::time::Duration;
+
+    fn pending_pod(created: &str) -> Pod {
+        serde_json::from_value(serde_json::json!({
+            "apiVersion": "v1", "kind": "Pod",
+            "metadata": { "name": "stuck", "namespace": "payments", "creationTimestamp": created },
+            "spec": { "containers": [{ "name": "app", "image": "x" }] },
+            "status": { "phase": "Pending" }
+        }))
+        .unwrap()
+    }
+
+    /// Review finding 1: a Pending pod gets no further watch events, but its
+    /// verdict must still move from progressing to warn after 5 minutes.
+    #[test]
+    fn recheck_emits_only_verdicts_that_aged() {
+        let created: Timestamp = "2026-10-28T12:00:00Z".parse().unwrap();
+        let pod = pending_pod("2026-10-28T12:00:00Z");
+        let mut r: Recheck<Pod> = Recheck::new();
+        let v0 = triage::pod_verdict(&pod, created);
+        assert_eq!(v0.reason, "Pending");
+        assert_eq!(v0.tone, Some(triage::Tone::Progressing));
+        r.observe(object_key(&pod.metadata), &pod, &v0);
+
+        // 2 minutes in: nothing changed, nothing emitted.
+        assert!(r.due(created + Duration::from_secs(120), triage::pod_verdict).is_empty());
+
+        // 6 minutes in: one emit, now a warning.
+        let t6 = created + Duration::from_secs(360);
+        let changed = r.due(t6, triage::pod_verdict);
+        assert_eq!(changed.len(), 1);
+        assert_eq!(changed[0].1.status, triage::Status::Warn);
+        assert_eq!(changed[0].1.rule_id, "TRI-POD-008");
+
+        // Same verdict on the next tick: no repeat emit.
+        assert!(r.due(t6 + Duration::from_secs(30), triage::pod_verdict).is_empty());
+    }
+
+    #[test]
+    fn healthy_objects_are_not_kept_and_deletes_are_forgotten() {
+        let pod = pending_pod("2026-10-28T12:00:00Z");
+        let mut r: Recheck<Pod> = Recheck::new();
+        let key = object_key(&pod.metadata);
+        r.observe(key.clone(), &pod, &Verdict::ok("TRI-POD-000", "Running"));
+        assert!(r.items.is_empty());
+        r.observe(key.clone(), &pod, &Verdict::progressing("TRI-POD-011", "Pending"));
+        assert_eq!(r.items.len(), 1);
+        r.forget(&key);
+        assert!(r.items.is_empty());
+    }
+
+    /// Review finding 2: a year-old StatefulSet scaled up is "Scaling" on
+    /// first sight, not FAIL since creation; the clock survives re-evaluation.
+    #[test]
+    fn tracker_starts_the_clock_at_first_unsettled_sight() {
+        let sts: k8s_openapi::api::apps::v1::StatefulSet = serde_json::from_value(serde_json::json!({
+            "apiVersion": "apps/v1", "kind": "StatefulSet",
+            "metadata": { "name": "kafka", "namespace": "data", "uid": "u1",
+                          "creationTimestamp": "2025-10-28T12:00:00Z" },
+            "spec": { "replicas": 5, "serviceName": "kafka",
+                      "selector": { "matchLabels": { "app": "kafka" } },
+                      "template": { "spec": { "containers": [{ "name": "k", "image": "x" }] } } },
+            "status": { "replicas": 3, "readyReplicas": 3, "updatedReplicas": 3 }
+        }))
+        .unwrap();
+        let t0: Timestamp = "2026-10-28T12:00:00Z".parse().unwrap();
+        let mut tr = triage::UnsettledTracker::default();
+        let s = &sts;
+        let rule = |now: Timestamp| move |seen| triage::statefulset_verdict(s, now, seen);
+
+        let v = tr.eval("u1", t0, rule(t0));
+        assert_eq!((v.reason.as_str(), v.tone), ("Scaling", Some(triage::Tone::Progressing)));
+        let t11 = t0 + Duration::from_secs(11 * 60);
+        let v = tr.eval("u1", t11, rule(t11));
+        assert_eq!((v.reason.as_str(), v.status), ("3/5 ready", triage::Status::Warn));
+        assert_eq!(v.since.as_deref(), Some("2026-10-28T12:00:00Z"));
     }
 }

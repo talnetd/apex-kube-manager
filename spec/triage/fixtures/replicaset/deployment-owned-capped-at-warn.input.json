@@ -1,0 +1,29 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "ReplicaSet",
+  "metadata": {
+    "name": "web-0e3f",
+    "namespace": "payments",
+    "creationTimestamp": "2026-10-27T12:00:00Z",
+    "ownerReferences": [
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "name": "web",
+        "uid": "d-uid",
+        "controller": true
+      }
+    ]
+  },
+  "spec": {
+    "replicas": 3,
+    "selector": {
+      "matchLabels": {
+        "app": "web"
+      }
+    }
+  },
+  "status": {
+    "replicas": 3
+  }
+}

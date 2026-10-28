@@ -19,6 +19,12 @@ const RESTART_MIN: i32 = 3;
 const WL_UNAVAILABLE_GRACE_S: i64 = 60;
 const WL_DEGRADED_GRACE_S: i64 = 3 * 60;
 const PVC_PENDING_GRACE_S: i64 = 2 * 60;
+const POD_TERMINATING_GRACE_S: i64 = 5 * 60;
+const WL_ROLLOUT_DEADLINE_S: i64 = 10 * 60;
+const WL_SCALING_DEADLINE_S: i64 = 10 * 60;
+
+/// Failed pods killed from outside; their controller replaces them.
+const DISRUPTION_REASONS: &[&str] = &["Evicted", "Terminated", "NodeShutdown", "Preempting"];
 
 const IMAGE_REASONS: &[&str] = &["ImagePullBackOff", "ErrImagePull", "InvalidImageName"];
 const CONFIG_REASONS: &[&str] = &[
@@ -81,8 +87,15 @@ pub fn pod_verdict(pod: &Pod, now: Timestamp) -> Verdict {
             let reason = status
                 .and_then(|s| s.reason.clone())
                 .filter(|r| !r.is_empty());
-            if reason.as_deref() == Some("Evicted") {
-                return Verdict::warn("TRI-POD-010", "Evicted").since(start_since);
+            // Killed from outside (eviction, node shutdown, preemption): the
+            // workload's controller replaces it, so it isn't broken itself.
+            if let Some(r) = reason.as_deref().filter(|r| DISRUPTION_REASONS.contains(r)) {
+                return Verdict::warn("TRI-POD-010", r).since(start_since);
+            }
+            if let Some(c) = condition("DisruptionTarget").filter(|c| c.status == "True") {
+                let label = c.reason.clone().filter(|r| !r.is_empty());
+                return Verdict::warn("TRI-POD-010", label.unwrap_or_else(|| "Disrupted".into()))
+                    .since(c.last_transition_time.as_ref().map(fmt).or(start_since));
             }
             let job_owned = pod
                 .metadata
@@ -187,11 +200,16 @@ pub fn pod_verdict(pod: &Pod, now: Timestamp) -> Verdict {
             found.push(Verdict::warn("TRI-POD-006", "OOMKilled").since(since));
         }
     }
-    // Fill in CrashLoopBackOff's since: earliest finish in the backoff, else Ready.
+    // CrashLoopBackOff's since: when the pod stopped being Ready (the loop's
+    // start), not the latest crash; fall back to the earliest last finish.
+    let not_ready_since = condition("Ready")
+        .filter(|c| c.status != "True")
+        .and_then(|c| c.last_transition_time.as_ref())
+        .map(fmt);
     for v in found.iter_mut().filter(|v| v.rule_id == "TRI-POD-003") {
-        v.since = crash_since
-            .map(|t| t.to_string())
-            .or_else(|| ready_since.clone());
+        v.since = not_ready_since
+            .clone()
+            .or_else(|| crash_since.map(|t| t.to_string()));
     }
 
     let restarts: i32 = main
@@ -208,8 +226,14 @@ pub fn pod_verdict(pod: &Pod, now: Timestamp) -> Verdict {
         }
     }
 
-    if pod.metadata.deletion_timestamp.is_some() {
-        found.push(Verdict::progressing("TRI-POD-011", "Terminating"));
+    // deletionTimestamp is the deadline (request time + grace period), so this
+    // measures time past the point the pod should have been gone.
+    if let Some(t) = pod.metadata.deletion_timestamp.as_ref() {
+        if age_s(t, now) > POD_TERMINATING_GRACE_S {
+            found.push(Verdict::warn("TRI-POD-013", "Stuck terminating").since(Some(fmt(t))));
+        } else {
+            found.push(Verdict::progressing("TRI-POD-011", "Terminating"));
+        }
     }
 
     match phase {
@@ -258,20 +282,24 @@ pub fn pod_verdict(pod: &Pod, now: Timestamp) -> Verdict {
 
 // ---------------------------------------------------------------- Workloads
 
-/// Shared replica logic for Deployment, StatefulSet and ReplicaSet (TRI-WL-001,
-/// -002, -005). `grace_from` is the newest relevant transition (or creation):
-/// windows are measured from it.
+/// Shared replica logic for Deployment, StatefulSet and ReplicaSet (TRI-WL-000,
+/// -001, -002, -005, -006). Ages are seconds since the clock the caller picked
+/// (a condition transition, or first-seen-unsettled; see `unsettled_age`).
 struct Replicas<'a> {
     desired: i32,
     available: i32,
-    updated: i32,
     rolling: bool,
+    /// `status.replicas < desired`: pods not created yet (scale-up).
+    scaling: bool,
+    paused: bool,
     /// Healthy state word: "Available" or "Ready".
     ok_word: &'a str,
     /// "available" or "ready" in `n/m ...` labels.
     count_word: &'a str,
     unavailable_age: i64,
     degraded_age: i64,
+    /// None = the kind has its own deadline (Deployment: TRI-WL-003).
+    rollout_age: Option<i64>,
     unavailable_since: Option<String>,
     degraded_since: Option<String>,
 }
@@ -286,13 +314,29 @@ fn replica_verdict(r: Replicas) -> Verdict {
             return Verdict::fail("TRI-WL-001", Severity::Critical, "Unavailable")
                 .since(r.unavailable_since);
         }
-        return Verdict::progressing(
-            "TRI-WL-005",
-            if r.rolling { "Rolling out" } else { "Starting" },
-        );
+        let word = if r.rolling {
+            "Rolling out"
+        } else if r.scaling {
+            "Scaling"
+        } else {
+            "Starting"
+        };
+        return Verdict::progressing("TRI-WL-005", word);
     }
-    if r.rolling || r.updated < r.desired {
+    if r.paused {
+        return Verdict::neutral("TRI-WL-000", "Paused");
+    }
+    if r.rolling {
+        if r.rollout_age.is_some_and(|a| a > WL_ROLLOUT_DEADLINE_S) {
+            return Verdict::warn("TRI-WL-006", "Rollout stuck").since(r.degraded_since);
+        }
         return Verdict::progressing("TRI-WL-005", "Rolling out");
+    }
+    if r.scaling {
+        if r.degraded_age > WL_SCALING_DEADLINE_S {
+            return Verdict::warn("TRI-WL-002", label).since(r.degraded_since);
+        }
+        return Verdict::progressing("TRI-WL-005", "Scaling");
     }
     if r.available < r.desired {
         if r.degraded_age <= WL_DEGRADED_GRACE_S {
@@ -306,8 +350,22 @@ fn replica_verdict(r: Replicas) -> Verdict {
     Verdict::ok("TRI-WL-000", r.ok_word)
 }
 
+/// For kinds with no transition timestamps: seconds since Apex first saw the
+/// object unsettled (tracked per uid by the caller), else since creation.
+fn unsettled_age(
+    first_seen: Option<Timestamp>,
+    created: Option<&Time>,
+    now: Timestamp,
+) -> (i64, Option<String>) {
+    match first_seen {
+        Some(t) => (now.as_second() - t.as_second(), Some(t.to_string())),
+        None => (age_or_max(created, now), None),
+    }
+}
+
 pub fn deployment_verdict(d: &Deployment, now: Timestamp) -> Verdict {
-    let desired = d.spec.as_ref().and_then(|s| s.replicas).unwrap_or(1);
+    let spec = d.spec.as_ref();
+    let desired = spec.and_then(|s| s.replicas).unwrap_or(1);
     let st = d.status.as_ref();
     let conds = st.and_then(|s| s.conditions.as_ref());
     let cond = |t: &str| conds.and_then(|c| c.iter().find(|c| c.type_ == t));
@@ -341,64 +399,103 @@ pub fn deployment_verdict(d: &Deployment, now: Timestamp) -> Verdict {
     replica_verdict(Replicas {
         desired,
         available,
-        updated,
         rolling,
+        scaling: false,
+        paused: spec.and_then(|s| s.paused).unwrap_or(false),
         ok_word: "Available",
         count_word: "available",
         unavailable_age: age_or_max(unavail_from, now),
         degraded_age: age_or_max(degraded_from, now),
+        rollout_age: None,
         unavailable_since: unavail_from.map(fmt),
         degraded_since: degraded_from.map(fmt),
     })
 }
 
-pub fn statefulset_verdict(s: &StatefulSet, now: Timestamp) -> Verdict {
+/// `first_seen_unsettled`: when Apex first saw this object not healthy
+/// (tracked per uid, `triage::tracked`). StatefulSets carry no transition
+/// times, so without it the clock falls back to creation.
+pub fn statefulset_verdict(
+    s: &StatefulSet,
+    now: Timestamp,
+    first_seen_unsettled: Option<Timestamp>,
+) -> Verdict {
     let desired = s.spec.as_ref().and_then(|s| s.replicas).unwrap_or(1);
     let st = s.status.as_ref();
     let ready = st.and_then(|s| s.ready_replicas).unwrap_or(0);
-    let updated = st.and_then(|s| s.updated_replicas).unwrap_or(0);
+    let created_replicas = st.map(|s| s.replicas).unwrap_or(0);
     let rev_differs = st.is_some_and(
         |s| matches!((&s.current_revision, &s.update_revision), (Some(c), Some(u)) if c != u),
     );
     let generation = s.metadata.generation.unwrap_or(0);
     let observed = st.and_then(|s| s.observed_generation).unwrap_or(0);
-    // StatefulSets carry no transition times; creation is the only anchor.
-    let created = s.metadata.creation_timestamp.as_ref();
+    let (age, since) = unsettled_age(
+        first_seen_unsettled,
+        s.metadata.creation_timestamp.as_ref(),
+        now,
+    );
     replica_verdict(Replicas {
         desired,
         available: ready,
-        // Without a pending revision every pod is on the current template.
-        updated: if rev_differs { updated } else { desired },
         rolling: rev_differs || observed < generation,
+        scaling: created_replicas < desired,
+        paused: false,
         ok_word: "Ready",
         count_word: "ready",
-        unavailable_age: age_or_max(created, now),
-        degraded_age: age_or_max(created, now),
-        unavailable_since: None,
-        degraded_since: None,
+        unavailable_age: age,
+        degraded_age: age,
+        rollout_age: Some(age),
+        unavailable_since: since.clone(),
+        degraded_since: since,
     })
 }
 
-pub fn replicaset_verdict(r: &ReplicaSet, now: Timestamp) -> Verdict {
+pub fn replicaset_verdict(
+    r: &ReplicaSet,
+    now: Timestamp,
+    first_seen_unsettled: Option<Timestamp>,
+) -> Verdict {
     let desired = r.spec.as_ref().and_then(|s| s.replicas).unwrap_or(1);
     let st = r.status.as_ref();
     let ready = st.and_then(|s| s.ready_replicas).unwrap_or(0);
-    let created = r.metadata.creation_timestamp.as_ref();
-    replica_verdict(Replicas {
+    let created_replicas = st.map(|s| s.replicas).unwrap_or(0);
+    let (age, since) = unsettled_age(
+        first_seen_unsettled,
+        r.metadata.creation_timestamp.as_ref(),
+        now,
+    );
+    let v = replica_verdict(Replicas {
         desired,
         available: ready,
-        updated: desired,
         rolling: false,
+        scaling: created_replicas < desired,
+        paused: false,
         ok_word: "Ready",
         count_word: "ready",
-        unavailable_age: age_or_max(created, now),
-        degraded_age: age_or_max(created, now),
-        unavailable_since: None,
-        degraded_since: None,
-    })
+        unavailable_age: age,
+        degraded_age: age,
+        rollout_age: Some(age),
+        unavailable_since: since.clone(),
+        degraded_since: since,
+    });
+    // A Deployment's ReplicaSet: the Deployment verdict owns the failure
+    // (and Pulse counts it once, there), so cap the ReplicaSet at warn.
+    let deployment_owned = r
+        .metadata
+        .owner_references
+        .as_ref()
+        .is_some_and(|o| o.iter().any(|o| o.kind == "Deployment"));
+    if deployment_owned && v.is_fail() {
+        return Verdict::warn(&v.rule_id, v.reason).since(v.since);
+    }
+    v
 }
 
-pub fn daemonset_verdict(ds: &DaemonSet, now: Timestamp) -> Verdict {
+pub fn daemonset_verdict(
+    ds: &DaemonSet,
+    now: Timestamp,
+    first_seen_unsettled: Option<Timestamp>,
+) -> Verdict {
     let Some(st) = ds.status.as_ref() else {
         return Verdict::progressing("TRI-WL-005", "Starting");
     };
@@ -411,23 +508,30 @@ pub fn daemonset_verdict(ds: &DaemonSet, now: Timestamp) -> Verdict {
     let updated = st.updated_number_scheduled.unwrap_or(0);
     let generation = ds.metadata.generation.unwrap_or(0);
     let observed = st.observed_generation.unwrap_or(0);
-    let age = age_or_max(ds.metadata.creation_timestamp.as_ref(), now);
+    let (age, since) = unsettled_age(
+        first_seen_unsettled,
+        ds.metadata.creation_timestamp.as_ref(),
+        now,
+    );
     let label = format!("{available}/{desired} available");
 
     if available == 0 && age > WL_UNAVAILABLE_GRACE_S {
-        return Verdict::fail("TRI-WL-004", Severity::Critical, label);
+        return Verdict::fail("TRI-WL-004", Severity::Critical, label).since(since);
     }
     if st.number_misscheduled > 0 {
-        return Verdict::warn("TRI-WL-004", "Misscheduled");
+        return Verdict::warn("TRI-WL-004", "Misscheduled").since(since);
     }
     if observed < generation || updated < desired {
+        if age > WL_ROLLOUT_DEADLINE_S {
+            return Verdict::warn("TRI-WL-006", "Rollout stuck").since(since);
+        }
         return Verdict::progressing("TRI-WL-005", "Rolling out");
     }
     if unavailable > 0 || available < desired {
         if age <= WL_DEGRADED_GRACE_S {
             return Verdict::progressing("TRI-WL-005", label);
         }
-        return Verdict::warn("TRI-WL-004", label);
+        return Verdict::warn("TRI-WL-004", label).since(since);
     }
     Verdict::ok("TRI-WL-000", "Available")
 }
@@ -514,7 +618,17 @@ pub fn node_verdict(node: &Node, _now: Timestamp) -> Verdict {
 
 // ---------------------------------------------------------------- PVCs
 
-pub fn pvc_verdict(pvc: &PersistentVolumeClaim, now: Timestamp) -> Verdict {
+/// The scheduler sets this on a WaitForFirstConsumer claim once a pod using
+/// it has been placed: from then on a pod is waiting on the volume.
+pub const SELECTED_NODE_ANNOTATION: &str = "volume.kubernetes.io/selected-node";
+
+/// `binding_mode`: the claim's StorageClass `volumeBindingMode`, when the
+/// caller could look it up (None = unknown, e.g. no RBAC on StorageClasses).
+pub fn pvc_verdict(
+    pvc: &PersistentVolumeClaim,
+    now: Timestamp,
+    binding_mode: Option<&str>,
+) -> Verdict {
     let phase = pvc
         .status
         .as_ref()
@@ -525,7 +639,15 @@ pub fn pvc_verdict(pvc: &PersistentVolumeClaim, now: Timestamp) -> Verdict {
         "Bound" => Verdict::ok("TRI-PVC-000", "Bound"),
         "Lost" => Verdict::fail("TRI-PVC-002", Severity::Error, "Lost"),
         "Pending" => {
-            if age_or_max(created, now) > PVC_PENDING_GRACE_S {
+            let has_consumer = pvc
+                .metadata
+                .annotations
+                .as_ref()
+                .is_some_and(|a| a.contains_key(SELECTED_NODE_ANNOTATION));
+            if binding_mode == Some("WaitForFirstConsumer") && !has_consumer {
+                // Pending by design until a pod uses it: nothing is waiting.
+                Verdict::neutral("TRI-PVC-003", "Waiting for consumer")
+            } else if age_or_max(created, now) > PVC_PENDING_GRACE_S {
                 Verdict::warn("TRI-PVC-001", "Pending").since(created.map(fmt))
             } else {
                 Verdict::progressing("TRI-PVC-001", "Pending")
