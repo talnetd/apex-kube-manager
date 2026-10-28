@@ -284,7 +284,7 @@
             <div class="space-y-2 mb-4">
               <div class="flex justify-between text-base">
                 <span class="text-text-muted">Current</span>
-                <span class="text-text-primary font-mono">v{$updateInfo.current_version}</span>
+                <span class="text-text-primary font-mono">v{$updateInfo.current_version}{$updateInfo.build_label ? ` (${$updateInfo.build_label})` : ''}</span>
               </div>
               <div class="flex justify-between text-base">
                 <span class="text-text-muted">Latest</span>

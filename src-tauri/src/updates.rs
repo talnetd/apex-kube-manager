@@ -2,10 +2,14 @@ use serde::{Deserialize, Serialize};
 
 const GITHUB_REPO: &str = "talnetd/apex-kube-manager";
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
+/// Set only by the dev-build workflow (e.g. "dev.12+0e1775b"). Display only:
+/// never used in the version comparison.
+const BUILD_LABEL: Option<&str> = option_env!("APEX_BUILD_LABEL");
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateInfo {
     pub current_version: String,
+    pub build_label: Option<String>,
     pub latest_version: String,
     pub update_available: bool,
     pub release_url: String,
@@ -72,6 +76,7 @@ pub async fn check_for_updates() -> Result<UpdateInfo, String> {
 
     Ok(UpdateInfo {
         current_version: CURRENT_VERSION.to_string(),
+        build_label: BUILD_LABEL.filter(|l| !l.is_empty()).map(str::to_string),
         latest_version,
         update_available,
         release_url: release.html_url,

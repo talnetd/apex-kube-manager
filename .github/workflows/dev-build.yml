@@ -43,10 +43,68 @@ jobs:
         target: ${{ fromJSON(inputs.x86_64 && '["aarch64-apple-darwin","x86_64-apple-darwin"]' || '["aarch64-apple-darwin"]') }}
 
     steps:
+      # Runs before any repo code. A dispatch `ref` must be a branch of THIS
+      # repo (no SHAs, tags or refs/pull/*, which can be fork code) and is
+      # pinned to the SHA it resolves to. Signing secrets are used for master only.
+      - name: Resolve ref and signing
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          INPUT_REF: ${{ inputs.ref }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          branch=""
+          if [ "$EVENT" = "pull_request" ]; then
+            sha="$PR_HEAD_SHA"
+          elif [ -n "$INPUT_REF" ]; then
+            if [[ "$INPUT_REF" == refs/* ]] || [[ "$INPUT_REF" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
+              echo "::error::ref must be a branch name of $GITHUB_REPOSITORY, not a SHA, tag or refs/* path: $INPUT_REF"
+              exit 1
+            fi
+            # Singular git/ref is an exact match on refs/heads/<name> (no prefix match).
+            if ! sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$INPUT_REF" --jq .object.sha 2>/dev/null) \
+                || [ -z "$sha" ]; then
+              echo "::error::No branch '$INPUT_REF' in $GITHUB_REPOSITORY"
+              exit 1
+            fi
+            branch="$INPUT_REF"
+          else
+            sha="$GITHUB_SHA"
+            if [[ "$GITHUB_REF" == refs/heads/* ]]; then branch="${GITHUB_REF#refs/heads/}"; fi
+          fi
+
+          # Never fail for missing secrets: fall back to an ad-hoc signed build.
+          signed=false
+          reason="signing is only enabled for master builds"
+          if [ "$EVENT" != "pull_request" ] && [ "$branch" = "master" ]; then
+            signed=true
+            missing=""
+            for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
+                        APPLE_API_ISSUER APPLE_API_KEY APPLE_API_PRIVATE_KEY; do
+              if [ -z "${!name}" ]; then missing="$missing $name"; signed=false; fi
+            done
+            reason="APPLE_* secrets not set:$missing"
+          fi
+          if [ "$signed" != "true" ]; then echo "::notice::Building unsigned ($reason)"; fi
+
+          {
+            echo "sha=$sha"
+            echo "signed=$signed"
+            echo "reason=$reason"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ steps.resolve.outputs.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -68,45 +126,28 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Dev builds never fail for missing secrets: with all six present they
-      # are signed and notarized like release.yml, otherwise ad-hoc signed.
-      - name: Detect signing secrets and dev version
+      - name: Dev version
         id: meta
         env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
           TARGET: ${{ matrix.target }}
           RUN_NUMBER: ${{ github.run_number }}
         run: |
           set -euo pipefail
-          signed=true
-          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
-                      APPLE_API_ISSUER APPLE_API_KEY APPLE_API_PRIVATE_KEY; do
-            if [ -z "${!name}" ]; then
-              echo "::notice::$name is not set, building unsigned"
-              signed=false
-            fi
-          done
-
           short_sha=$(git rev-parse --short=7 HEAD)
           base=$(node -p "require('./src-tauri/tauri.conf.json').version")
           version="${base}-dev.${RUN_NUMBER}"
           arch="${TARGET%%-*}"
 
           {
-            echo "signed=$signed"
             echo "short_sha=$short_sha"
             echo "version=$version"
             echo "artifact=apex-dev-${short_sha}-${arch}"
+            echo "label=dev.${RUN_NUMBER}+${short_sha}"
           } >> "$GITHUB_OUTPUT"
 
       # notarytool needs the App Store Connect key as a file on disk.
       - name: Write App Store Connect API key
-        if: steps.meta.outputs.signed == 'true'
+        if: steps.resolve.outputs.signed == 'true'
         env:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
@@ -121,7 +162,7 @@ jobs:
       # committed changes. The update checker reads CARGO_PKG_VERSION (still
       # the base version), so a dev build prompts only for a real newer release.
       - name: Build (signed + notarized)
-        if: steps.meta.outputs.signed == 'true'
+        if: steps.resolve.outputs.signed == 'true'
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -130,6 +171,8 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           TARGET: ${{ matrix.target }}
           VERSION: ${{ steps.meta.outputs.version }}
+          # Shown next to the version in the app (updates.rs, display only).
+          APEX_BUILD_LABEL: ${{ steps.meta.outputs.label }}
         run: |
           npm run tauri build -- --target "$TARGET" --bundles app,dmg \
             --config "{\"version\":\"$VERSION\"}"
@@ -137,16 +180,18 @@ jobs:
       # Ad-hoc signature ("-") so the bundle is consistently signed; macOS
       # still quarantines it, hence the xattr step in the job summary.
       - name: Build (unsigned)
-        if: steps.meta.outputs.signed != 'true'
+        if: steps.resolve.outputs.signed != 'true'
         env:
           TARGET: ${{ matrix.target }}
           VERSION: ${{ steps.meta.outputs.version }}
+          # Shown next to the version in the app (updates.rs, display only).
+          APEX_BUILD_LABEL: ${{ steps.meta.outputs.label }}
         run: |
           npm run tauri build -- --target "$TARGET" --bundles app,dmg \
             --config "{\"version\":\"$VERSION\",\"bundle\":{\"macOS\":{\"signingIdentity\":\"-\"}}}"
 
       - name: Verify signature and notarization
-        if: steps.meta.outputs.signed == 'true'
+        if: steps.resolve.outputs.signed == 'true'
         env:
           TARGET: ${{ matrix.target }}
         run: |
@@ -166,7 +211,7 @@ jobs:
         run: rm -rf "$RUNNER_TEMP/asc"
 
       - name: Upload .dmg
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.meta.outputs.artifact }}
           path: src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
@@ -175,10 +220,11 @@ jobs:
 
       - name: Job summary
         env:
-          SIGNED: ${{ steps.meta.outputs.signed }}
+          SIGNED: ${{ steps.resolve.outputs.signed }}
           ARTIFACT: ${{ steps.meta.outputs.artifact }}
           VERSION: ${{ steps.meta.outputs.version }}
           SHORT_SHA: ${{ steps.meta.outputs.short_sha }}
+          REASON: ${{ steps.resolve.outputs.reason }}
         run: |
           {
             echo "## Dev build \`$VERSION\` (\`$SHORT_SHA\`)"
@@ -186,7 +232,7 @@ jobs:
             if [ "$SIGNED" = "true" ]; then
               echo "Signed with Developer ID and notarized. Opens normally."
             else
-              echo "**Unsigned** (APPLE_* secrets not set). macOS will say the app is damaged until you clear quarantine."
+              echo "**Unsigned** ($REASON). macOS will say the app is damaged until you clear quarantine."
             fi
             echo
             echo "### Download"

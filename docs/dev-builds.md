@@ -6,7 +6,7 @@ workflow artifact. No release or tag is created. Artifacts are kept for 14 days.
 
 - **Artifact name**: `apex-dev-<short-sha>-aarch64` (`-x86_64` for Intel)
 - **App version**: `<tauri.conf.json version>-dev.<run number>`, set in the runner only
-- **Signing**: signed and notarized when the `APPLE_*` secrets from [release-signing.md](release-signing.md) are set, otherwise ad-hoc signed (unsigned). The job summary says which
+- **Signing**: master builds are signed and notarized when the `APPLE_*` secrets from [release-signing.md](release-signing.md) are set, otherwise ad-hoc signed (unsigned). The job summary says which
 
 ## Download the latest one
 
@@ -25,11 +25,21 @@ xattr -dr com.apple.quarantine "/Applications/Apex Kube Manager.app"
 
 ```bash
 gh workflow run dev-build.yml -R talnetd/apex-kube-manager --ref <branch>
-gh workflow run dev-build.yml -R talnetd/apex-kube-manager -f ref=<branch-or-sha> -f x86_64=true
+gh workflow run dev-build.yml -R talnetd/apex-kube-manager -f ref=<branch> -f x86_64=true
 gh run watch -R talnetd/apex-kube-manager
 ```
 
 A PR that edits `dev-build.yml` also builds once, so workflow changes are tested before merge.
+
+## What gets signed
+
+Only **master** builds (merges, or a dispatch that resolves to `master`) see the `APPLE_*` secrets.
+Every other build (other branches, PRs) is unsigned and gets no signing env, because the build runs
+the branch's own `build.rs`, vite config and npm packages.
+
+- **`ref` must be a branch of this repo.** SHAs, tags and `refs/*` paths (like `refs/pull/N/head`,
+  which can be fork code) are rejected. The branch is pinned to the SHA it resolves to.
+- **In-app label**: the update popup shows `v0.1.12 (dev.<run>+<sha>)`, from `APEX_BUILD_LABEL`.
 
 ## Update checker
 
