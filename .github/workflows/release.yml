@@ -20,8 +20,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PRERELEASE: ${{ contains(github.ref_name, '-') }}
         run: |
-          if gh release view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release $GITHUB_REF_NAME already exists (re-run), reusing it."
+          if is_draft=$(gh release view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --json isDraft -q .isDraft 2>/dev/null); then
+            if [ "$is_draft" != "true" ]; then
+              # Re-running would swap live assets before the macOS verify runs.
+              echo "::error::Release $GITHUB_REF_NAME is already published; refusing to rebuild into it. Cut a new tag instead."
+              exit 1
+            fi
+            echo "Draft release $GITHUB_REF_NAME already exists (re-run), reusing it."
             exit 0
           fi
           cat > notes.md <<'NOTES'
@@ -137,7 +142,7 @@ jobs:
           # The bundler only warns ("skipping app notarization") when it has no
           # notarization credentials, so require an Apple-notarized verdict and
           # a stapled ticket explicitly.
-          assessment=$(spctl -a -vv -t exec "$app" 2>&1)
+          assessment=$(spctl -a -vv -t exec "$app" 2>&1 || true)
           echo "$assessment"
           if ! grep -q "source=Notarized Developer ID" <<<"$assessment"; then
             echo "::error::App is not notarized (spctl: $assessment)"
