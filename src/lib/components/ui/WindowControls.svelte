@@ -20,7 +20,7 @@
   <!-- Minimize -->
   <button
     onclick={minimizeWindow}
-    class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors"
+    class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors"
     title="Minimize"
   >
     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -30,7 +30,7 @@
   <!-- Maximize -->
   <button
     onclick={toggleMaximize}
-    class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors"
+    class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors"
     title="Maximize"
   >
     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -40,7 +40,7 @@
   <!-- Close -->
   <button
     onclick={closeWindow}
-    class="p-1.5 rounded hover:bg-accent-error/20 text-text-muted hover:text-accent-error transition-colors"
+    class="p-1.5 rounded-sm hover:bg-accent-error/20 text-text-muted hover:text-accent-error transition-colors"
     title="Close"
   >
     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

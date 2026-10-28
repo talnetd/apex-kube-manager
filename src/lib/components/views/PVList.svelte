@@ -96,7 +96,7 @@
               <span class="text-text-secondary text-sm">{pv.reclaim_policy}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-xs px-2 py-0.5 rounded {getStatusColor(pv.status)}">{pv.status}</span>
+              <span class="text-xs px-2 py-0.5 rounded-sm {getStatusColor(pv.status)}">{pv.status}</span>
             </td>
             <td class="py-3 pr-4">
               <span class="text-text-secondary text-sm">{pv.claim || '-'}</span>

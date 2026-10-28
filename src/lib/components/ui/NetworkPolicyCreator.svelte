@@ -347,7 +347,7 @@
         <h2 class="text-lg font-semibold text-text-primary">{isEditMode ? 'Edit' : 'Create'} Network Policy</h2>
         <button
           onclick={handleClose}
-          class="p-1 hover:bg-bg-tertiary rounded transition-colors"
+          class="p-1 hover:bg-bg-tertiary rounded-sm transition-colors"
         >
           <svg class="w-5 h-5 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -386,7 +386,7 @@
             <div>
               <label class="block text-sm font-medium text-text-secondary mb-1">Name *</label>
               {#if isEditMode}
-                <div class="text-sm text-text-primary bg-bg-tertiary border border-border-subtle rounded px-3 py-2 opacity-60">
+                <div class="text-sm text-text-primary bg-bg-tertiary border border-border-subtle rounded-sm px-3 py-2 opacity-60">
                   {name}
                 </div>
                 <p class="text-xs text-text-muted mt-1">Name cannot be changed when editing</p>
@@ -395,7 +395,7 @@
                   type="text"
                   bind:value={name}
                   placeholder="my-network-policy"
-                  class="w-full bg-bg-tertiary border border-border-subtle rounded px-3 py-2 text-text-primary text-sm focus:outline-none focus:border-accent-primary"
+                  class="w-full bg-bg-tertiary border border-border-subtle rounded-sm px-3 py-2 text-text-primary text-sm focus:outline-hidden focus:border-accent-primary"
                 />
               {/if}
             </div>
@@ -404,7 +404,7 @@
             <div>
               <label class="block text-sm font-medium text-text-secondary mb-1">Namespace *</label>
               {#if isEditMode}
-                <div class="text-sm text-text-primary bg-bg-tertiary border border-border-subtle rounded px-3 py-2 opacity-60">
+                <div class="text-sm text-text-primary bg-bg-tertiary border border-border-subtle rounded-sm px-3 py-2 opacity-60">
                   {editNamespace || 'default'}
                 </div>
                 <p class="text-xs text-text-muted mt-1">Namespace cannot be changed when editing</p>
@@ -427,7 +427,7 @@
                     type="checkbox"
                     checked={policyTypes.includes('Ingress')}
                     onchange={() => togglePolicyType('Ingress')}
-                    class="w-4 h-4 rounded bg-bg-tertiary border-border-subtle text-accent-primary focus:ring-accent-primary"
+                    class="w-4 h-4 rounded-sm bg-bg-tertiary border-border-subtle text-accent-primary focus:ring-accent-primary"
                   />
                   <span class="text-sm text-text-primary">Ingress</span>
                 </label>
@@ -436,7 +436,7 @@
                     type="checkbox"
                     checked={policyTypes.includes('Egress')}
                     onchange={() => togglePolicyType('Egress')}
-                    class="w-4 h-4 rounded bg-bg-tertiary border-border-subtle text-accent-primary focus:ring-accent-primary"
+                    class="w-4 h-4 rounded-sm bg-bg-tertiary border-border-subtle text-accent-primary focus:ring-accent-primary"
                   />
                   <span class="text-sm text-text-primary">Egress</span>
                 </label>
@@ -450,7 +450,7 @@
                 <label class="block text-sm font-medium text-text-secondary">Pod Selector</label>
                 <button
                   onclick={addPodSelectorLabel}
-                  class="text-xs px-2 py-1 bg-accent-primary/10 text-accent-primary rounded hover:bg-accent-primary/20 transition-colors"
+                  class="text-xs px-2 py-1 bg-accent-primary/10 text-accent-primary rounded-sm hover:bg-accent-primary/20 transition-colors"
                 >
                   + Add Label
                 </button>
@@ -465,18 +465,18 @@
                         type="text"
                         bind:value={label.key}
                         placeholder="key"
-                        class="flex-1 bg-bg-tertiary border border-border-subtle rounded px-3 py-1.5 text-text-primary text-sm focus:outline-none focus:border-accent-primary"
+                        class="flex-1 bg-bg-tertiary border border-border-subtle rounded-sm px-3 py-1.5 text-text-primary text-sm focus:outline-hidden focus:border-accent-primary"
                       />
                       <span class="text-text-muted">=</span>
                       <input
                         type="text"
                         bind:value={label.value}
                         placeholder="value"
-                        class="flex-1 bg-bg-tertiary border border-border-subtle rounded px-3 py-1.5 text-text-primary text-sm focus:outline-none focus:border-accent-primary"
+                        class="flex-1 bg-bg-tertiary border border-border-subtle rounded-sm px-3 py-1.5 text-text-primary text-sm focus:outline-hidden focus:border-accent-primary"
                       />
                       <button
                         onclick={() => removePodSelectorLabel(i)}
-                        class="p-1 text-accent-error hover:bg-accent-error/10 rounded"
+                        class="p-1 text-accent-error hover:bg-accent-error/10 rounded-sm"
                       >
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -504,7 +504,7 @@
               </p>
               <button
                 onclick={addIngressRule}
-                class="text-sm px-3 py-1.5 bg-accent-primary text-bg-primary rounded hover:bg-accent-primary/80 transition-colors"
+                class="text-sm px-3 py-1.5 bg-accent-primary text-bg-primary rounded-sm hover:bg-accent-primary/80 transition-colors"
               >
                 + Add Ingress Rule
               </button>
@@ -516,7 +516,7 @@
                   <span class="text-sm font-medium text-accent-success">Ingress Rule {ruleIndex + 1}</span>
                   <button
                     onclick={() => removeIngressRule(ruleIndex)}
-                    class="text-xs px-2 py-1 text-accent-error hover:bg-accent-error/10 rounded"
+                    class="text-xs px-2 py-1 text-accent-error hover:bg-accent-error/10 rounded-sm"
                   >
                     Remove Rule
                   </button>
@@ -528,7 +528,7 @@
                     <span class="text-xs text-text-muted uppercase">From (Sources)</span>
                     <button
                       onclick={() => addPeer(ingressRules, ruleIndex, true)}
-                      class="text-xs px-2 py-1 bg-bg-secondary text-text-secondary rounded hover:text-text-primary"
+                      class="text-xs px-2 py-1 bg-bg-secondary text-text-secondary rounded-sm hover:text-text-primary"
                     >
                       + Add Source
                     </button>
@@ -538,7 +538,7 @@
                   {:else}
                     <div class="space-y-3">
                       {#each rule.peers as peer, peerIndex}
-                        <div class="bg-bg-secondary rounded p-3">
+                        <div class="bg-bg-secondary rounded-sm p-3">
                           <div class="flex items-center justify-between mb-2">
                             <CustomSelect
                               value={peer.peerType}
@@ -551,7 +551,7 @@
                             />
                             <button
                               onclick={() => removePeer(ingressRules, ruleIndex, peerIndex, true)}
-                              class="p-1 text-accent-error hover:bg-accent-error/10 rounded"
+                              class="p-1 text-accent-error hover:bg-accent-error/10 rounded-sm"
                             >
                               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -564,7 +564,7 @@
                               type="text"
                               bind:value={peer.ipBlock}
                               placeholder="10.0.0.0/8"
-                              class="w-full bg-bg-tertiary border border-border-subtle rounded px-3 py-1.5 text-text-primary text-sm"
+                              class="w-full bg-bg-tertiary border border-border-subtle rounded-sm px-3 py-1.5 text-text-primary text-sm"
                             />
                           {:else}
                             <div class="space-y-2">
@@ -587,14 +587,14 @@
                                         type="text"
                                         bind:value={label.key}
                                         placeholder="key"
-                                        class="flex-1 bg-bg-tertiary border border-border-subtle rounded px-2 py-1 text-text-primary text-xs"
+                                        class="flex-1 bg-bg-tertiary border border-border-subtle rounded-sm px-2 py-1 text-text-primary text-xs"
                                       />
                                       <span class="text-text-muted text-xs">=</span>
                                       <input
                                         type="text"
                                         bind:value={label.value}
                                         placeholder="value"
-                                        class="flex-1 bg-bg-tertiary border border-border-subtle rounded px-2 py-1 text-text-primary text-xs"
+                                        class="flex-1 bg-bg-tertiary border border-border-subtle rounded-sm px-2 py-1 text-text-primary text-xs"
                                       />
                                       <button
                                         onclick={() => removePeerLabel(peer, peer.peerType === 'pod' ? 'pod' : 'namespace', li)}
@@ -625,7 +625,7 @@
                     <span class="text-xs text-text-muted uppercase">Ports</span>
                     <button
                       onclick={() => addPort(ingressRules, ruleIndex, true)}
-                      class="text-xs px-2 py-1 bg-bg-secondary text-text-secondary rounded hover:text-text-primary"
+                      class="text-xs px-2 py-1 bg-bg-secondary text-text-secondary rounded-sm hover:text-text-primary"
                     >
                       + Add Port
                     </button>
@@ -635,10 +635,10 @@
                   {:else}
                     <div class="flex flex-wrap gap-2">
                       {#each rule.ports as port, portIndex}
-                        <div class="flex items-center gap-2 bg-bg-secondary rounded px-2 py-1">
+                        <div class="flex items-center gap-2 bg-bg-secondary rounded-sm px-2 py-1">
                           <select
                             bind:value={port.protocol}
-                            class="bg-transparent text-xs text-text-primary focus:outline-none"
+                            class="bg-transparent text-xs text-text-primary focus:outline-hidden"
                           >
                             <option value="TCP">TCP</option>
                             <option value="UDP">UDP</option>
@@ -648,7 +648,7 @@
                             type="number"
                             bind:value={port.port}
                             placeholder="port"
-                            class="w-16 bg-bg-tertiary border border-border-subtle rounded px-2 py-0.5 text-text-primary text-xs"
+                            class="w-16 bg-bg-tertiary border border-border-subtle rounded-sm px-2 py-0.5 text-text-primary text-xs"
                           />
                           <button
                             onclick={() => removePort(ingressRules, ruleIndex, portIndex, true)}
@@ -682,7 +682,7 @@
               </p>
               <button
                 onclick={addEgressRule}
-                class="text-sm px-3 py-1.5 bg-accent-primary text-bg-primary rounded hover:bg-accent-primary/80 transition-colors"
+                class="text-sm px-3 py-1.5 bg-accent-primary text-bg-primary rounded-sm hover:bg-accent-primary/80 transition-colors"
               >
                 + Add Egress Rule
               </button>
@@ -694,7 +694,7 @@
                   <span class="text-sm font-medium text-accent-warning">Egress Rule {ruleIndex + 1}</span>
                   <button
                     onclick={() => removeEgressRule(ruleIndex)}
-                    class="text-xs px-2 py-1 text-accent-error hover:bg-accent-error/10 rounded"
+                    class="text-xs px-2 py-1 text-accent-error hover:bg-accent-error/10 rounded-sm"
                   >
                     Remove Rule
                   </button>
@@ -706,7 +706,7 @@
                     <span class="text-xs text-text-muted uppercase">To (Destinations)</span>
                     <button
                       onclick={() => addPeer(egressRules, ruleIndex, false)}
-                      class="text-xs px-2 py-1 bg-bg-secondary text-text-secondary rounded hover:text-text-primary"
+                      class="text-xs px-2 py-1 bg-bg-secondary text-text-secondary rounded-sm hover:text-text-primary"
                     >
                       + Add Destination
                     </button>
@@ -716,7 +716,7 @@
                   {:else}
                     <div class="space-y-3">
                       {#each rule.peers as peer, peerIndex}
-                        <div class="bg-bg-secondary rounded p-3">
+                        <div class="bg-bg-secondary rounded-sm p-3">
                           <div class="flex items-center justify-between mb-2">
                             <CustomSelect
                               value={peer.peerType}
@@ -729,7 +729,7 @@
                             />
                             <button
                               onclick={() => removePeer(egressRules, ruleIndex, peerIndex, false)}
-                              class="p-1 text-accent-error hover:bg-accent-error/10 rounded"
+                              class="p-1 text-accent-error hover:bg-accent-error/10 rounded-sm"
                             >
                               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -742,7 +742,7 @@
                               type="text"
                               bind:value={peer.ipBlock}
                               placeholder="10.0.0.0/8"
-                              class="w-full bg-bg-tertiary border border-border-subtle rounded px-3 py-1.5 text-text-primary text-sm"
+                              class="w-full bg-bg-tertiary border border-border-subtle rounded-sm px-3 py-1.5 text-text-primary text-sm"
                             />
                           {:else}
                             <div class="space-y-2">
@@ -765,14 +765,14 @@
                                         type="text"
                                         bind:value={label.key}
                                         placeholder="key"
-                                        class="flex-1 bg-bg-tertiary border border-border-subtle rounded px-2 py-1 text-text-primary text-xs"
+                                        class="flex-1 bg-bg-tertiary border border-border-subtle rounded-sm px-2 py-1 text-text-primary text-xs"
                                       />
                                       <span class="text-text-muted text-xs">=</span>
                                       <input
                                         type="text"
                                         bind:value={label.value}
                                         placeholder="value"
-                                        class="flex-1 bg-bg-tertiary border border-border-subtle rounded px-2 py-1 text-text-primary text-xs"
+                                        class="flex-1 bg-bg-tertiary border border-border-subtle rounded-sm px-2 py-1 text-text-primary text-xs"
                                       />
                                       <button
                                         onclick={() => removePeerLabel(peer, peer.peerType === 'pod' ? 'pod' : 'namespace', li)}
@@ -803,7 +803,7 @@
                     <span class="text-xs text-text-muted uppercase">Ports</span>
                     <button
                       onclick={() => addPort(egressRules, ruleIndex, false)}
-                      class="text-xs px-2 py-1 bg-bg-secondary text-text-secondary rounded hover:text-text-primary"
+                      class="text-xs px-2 py-1 bg-bg-secondary text-text-secondary rounded-sm hover:text-text-primary"
                     >
                       + Add Port
                     </button>
@@ -813,10 +813,10 @@
                   {:else}
                     <div class="flex flex-wrap gap-2">
                       {#each rule.ports as port, portIndex}
-                        <div class="flex items-center gap-2 bg-bg-secondary rounded px-2 py-1">
+                        <div class="flex items-center gap-2 bg-bg-secondary rounded-sm px-2 py-1">
                           <select
                             bind:value={port.protocol}
-                            class="bg-transparent text-xs text-text-primary focus:outline-none"
+                            class="bg-transparent text-xs text-text-primary focus:outline-hidden"
                           >
                             <option value="TCP">TCP</option>
                             <option value="UDP">UDP</option>
@@ -826,7 +826,7 @@
                             type="number"
                             bind:value={port.port}
                             placeholder="port"
-                            class="w-16 bg-bg-tertiary border border-border-subtle rounded px-2 py-0.5 text-text-primary text-xs"
+                            class="w-16 bg-bg-tertiary border border-border-subtle rounded-sm px-2 py-0.5 text-text-primary text-xs"
                           />
                           <button
                             onclick={() => removePort(egressRules, ruleIndex, portIndex, false)}
@@ -864,7 +864,7 @@
           <button
             onclick={handleSave}
             disabled={isCreating}
-            class="px-4 py-2 text-sm bg-accent-primary text-bg-primary rounded hover:bg-accent-primary/80 transition-colors disabled:opacity-50"
+            class="px-4 py-2 text-sm bg-accent-primary text-bg-primary rounded-sm hover:bg-accent-primary/80 transition-colors disabled:opacity-50"
           >
             {isCreating ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Policy' : 'Create Policy')}
           </button>

@@ -171,7 +171,7 @@
         <h2 class="text-lg font-semibold text-text-primary">{isEditMode ? 'Edit' : 'Create'} Secret</h2>
         <button
           onclick={handleClose}
-          class="p-1 hover:bg-bg-tertiary rounded transition-colors"
+          class="p-1 hover:bg-bg-tertiary rounded-sm transition-colors"
         >
           <svg class="w-5 h-5 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -186,7 +186,7 @@
           <div>
             <label class="block text-sm font-medium text-text-secondary mb-1">Name *</label>
             {#if isEditMode}
-              <div class="text-sm text-text-primary bg-bg-tertiary border border-border-subtle rounded px-3 py-2 opacity-60">
+              <div class="text-sm text-text-primary bg-bg-tertiary border border-border-subtle rounded-sm px-3 py-2 opacity-60">
                 {name}
               </div>
               <p class="text-xs text-text-muted mt-1">Name cannot be changed when editing</p>
@@ -195,7 +195,7 @@
                 type="text"
                 bind:value={name}
                 placeholder="my-secret"
-                class="w-full bg-bg-tertiary border border-border-subtle rounded px-3 py-2 text-text-primary text-sm focus:outline-none focus:border-accent-primary"
+                class="w-full bg-bg-tertiary border border-border-subtle rounded-sm px-3 py-2 text-text-primary text-sm focus:outline-hidden focus:border-accent-primary"
               />
             {/if}
           </div>
@@ -204,7 +204,7 @@
           <div>
             <label class="block text-sm font-medium text-text-secondary mb-1">Namespace *</label>
             {#if isEditMode}
-              <div class="text-sm text-text-primary bg-bg-tertiary border border-border-subtle rounded px-3 py-2 opacity-60">
+              <div class="text-sm text-text-primary bg-bg-tertiary border border-border-subtle rounded-sm px-3 py-2 opacity-60">
                 {editNamespace || 'default'}
               </div>
               <p class="text-xs text-text-muted mt-1">Namespace cannot be changed when editing</p>
@@ -234,7 +234,7 @@
               <label class="block text-sm font-medium text-text-secondary">Data</label>
               <button
                 onclick={addEntry}
-                class="text-xs px-2 py-1 bg-accent-primary/10 text-accent-primary rounded hover:bg-accent-primary/20 transition-colors"
+                class="text-xs px-2 py-1 bg-accent-primary/10 text-accent-primary rounded-sm hover:bg-accent-primary/20 transition-colors"
               >
                 + Add Entry
               </button>
@@ -257,7 +257,7 @@
                         type="text"
                         bind:value={entry.key}
                         placeholder="Key (e.g., password)"
-                        class="w-full bg-bg-secondary border border-border-subtle rounded px-3 py-1.5 text-text-primary text-sm focus:outline-none focus:border-accent-primary"
+                        class="w-full bg-bg-secondary border border-border-subtle rounded-sm px-3 py-1.5 text-text-primary text-sm focus:outline-hidden focus:border-accent-primary"
                       />
                       <div class="relative">
                         {#if entry.revealed}
@@ -265,14 +265,14 @@
                             bind:value={entry.value}
                             placeholder="Value"
                             rows="2"
-                            class="w-full bg-bg-secondary border border-border-subtle rounded px-3 py-1.5 text-text-primary text-sm focus:outline-none focus:border-accent-primary font-mono resize-none"
+                            class="w-full bg-bg-secondary border border-border-subtle rounded-sm px-3 py-1.5 text-text-primary text-sm focus:outline-hidden focus:border-accent-primary font-mono resize-none"
                           ></textarea>
                         {:else}
                           <input
                             type="password"
                             bind:value={entry.value}
                             placeholder="Value (hidden)"
-                            class="w-full bg-bg-secondary border border-border-subtle rounded px-3 py-1.5 text-text-primary text-sm focus:outline-none focus:border-accent-primary font-mono"
+                            class="w-full bg-bg-secondary border border-border-subtle rounded-sm px-3 py-1.5 text-text-primary text-sm focus:outline-hidden focus:border-accent-primary font-mono"
                           />
                         {/if}
                       </div>
@@ -280,7 +280,7 @@
                     <div class="flex flex-col gap-1">
                       <button
                         onclick={() => toggleReveal(i)}
-                        class="p-1.5 rounded hover:bg-bg-secondary transition-colors text-text-muted hover:text-text-primary"
+                        class="p-1.5 rounded-sm hover:bg-bg-secondary transition-colors text-text-muted hover:text-text-primary"
                         title={entry.revealed ? 'Hide value' : 'Show value'}
                       >
                         {#if entry.revealed}
@@ -296,7 +296,7 @@
                       </button>
                       <button
                         onclick={() => removeEntry(i)}
-                        class="p-1.5 rounded hover:bg-accent-error/10 transition-colors text-text-muted hover:text-accent-error"
+                        class="p-1.5 rounded-sm hover:bg-accent-error/10 transition-colors text-text-muted hover:text-accent-error"
                         title="Remove entry"
                       >
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -333,7 +333,7 @@
           <button
             onclick={handleSave}
             disabled={isSaving}
-            class="px-4 py-2 text-sm bg-accent-primary text-bg-primary rounded hover:bg-accent-primary/80 transition-colors disabled:opacity-50"
+            class="px-4 py-2 text-sm bg-accent-primary text-bg-primary rounded-sm hover:bg-accent-primary/80 transition-colors disabled:opacity-50"
           >
             {isSaving ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Secret' : 'Create Secret')}
           </button>

@@ -16,8 +16,8 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-shell = "2"
 tauri-plugin-notification = "2"
-kube = { version = "0.98", features = ["runtime", "client", "ws"] }
-k8s-openapi = { version = "0.24", features = ["v1_32"] }
+kube = { version = "4.2", features = ["runtime", "client", "ws"] }
+k8s-openapi = { version = "0.28", features = ["v1_36"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -28,13 +28,15 @@ thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 chrono = "0.4"
-dirs = "5"
+dirs = "7"
 serde_yaml = "0.9"
 urlencoding = "2"
-portable-pty = "0.8"
+portable-pty = "0.9"
 uuid = { version = "1", features = ["v4"] }
 regex = "1"
-reqwest = { version = "0.12", features = ["json"] }
+# native-tls keeps the 0.12 TLS stack; 0.13 defaults to rustls+aws-lc-rs, which
+# would put a second crypto provider next to kube's rustls+ring.
+reqwest = { version = "0.13", default-features = false, features = ["json", "native-tls", "charset", "http2", "system-proxy"] }
 
 [features]
 default = ["custom-protocol"]

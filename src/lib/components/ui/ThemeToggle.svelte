@@ -80,7 +80,7 @@
 	class="h-9 w-9 inline-flex items-center justify-center rounded-lg
 			bg-transparent hover:bg-bg-tertiary transition-colors
 			text-text-secondary hover:text-text-primary
-			focus:outline-none"
+			focus:outline-hidden"
 	>
 	<span aria-hidden="true">{@html currentIcon()}</span>
   </button>

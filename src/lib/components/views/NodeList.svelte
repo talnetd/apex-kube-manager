@@ -237,12 +237,12 @@
               <span class="text-accent-primary font-medium hover:underline">{node.name}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-xs px-2 py-0.5 rounded {getStatusColor(node.status)}">{node.status}</span>
+              <span class="text-xs px-2 py-0.5 rounded-sm {getStatusColor(node.status)}">{node.status}</span>
             </td>
             <td class="py-3 pr-4">
               <div class="flex flex-wrap gap-1">
                 {#each node.roles as role}
-                  <span class="text-xs bg-accent-primary/10 text-accent-primary px-2 py-0.5 rounded">{role}</span>
+                  <span class="text-xs bg-accent-primary/10 text-accent-primary px-2 py-0.5 rounded-sm">{role}</span>
                 {/each}
               </div>
             </td>
@@ -259,7 +259,7 @@
               <span class="text-text-secondary text-sm">{node.version}</span>
             </td>
             <td class="py-3 pr-4">
-              <code class="text-xs bg-bg-tertiary px-2 py-0.5 rounded text-text-secondary">{node.internal_ip || '-'}</code>
+              <code class="text-xs bg-bg-tertiary px-2 py-0.5 rounded-sm text-text-secondary">{node.internal_ip || '-'}</code>
             </td>
             <td class="py-3 pr-4">
               <div class="text-text-secondary text-xs">
@@ -271,7 +271,7 @@
               {#if node.taints && node.taints.length > 0}
                 <div class="flex flex-wrap gap-1">
                   {#each node.taints as taint}
-                    <span class="text-xs px-1.5 py-0.5 rounded {taint.effect === 'NoSchedule' ? 'bg-accent-error/10 text-accent-error' : taint.effect === 'PreferNoSchedule' ? 'bg-accent-warning/10 text-accent-warning' : 'bg-accent-primary/10 text-accent-primary'}" title="{taint.key}={taint.value || ''}:{taint.effect}">
+                    <span class="text-xs px-1.5 py-0.5 rounded-sm {taint.effect === 'NoSchedule' ? 'bg-accent-error/10 text-accent-error' : taint.effect === 'PreferNoSchedule' ? 'bg-accent-warning/10 text-accent-warning' : 'bg-accent-primary/10 text-accent-primary'}" title="{taint.key}={taint.value || ''}:{taint.effect}">
                       {taint.key}
                     </span>
                   {/each}

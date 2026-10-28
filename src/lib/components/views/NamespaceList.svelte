@@ -80,7 +80,7 @@
               <span class="text-accent-primary font-medium hover:underline">{ns.name}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-xs px-2 py-0.5 rounded {getStatusColor(ns.status)}">{ns.status}</span>
+              <span class="text-xs px-2 py-0.5 rounded-sm {getStatusColor(ns.status)}">{ns.status}</span>
             </td>
             <td class="py-3 pr-4">
               <span class="text-text-secondary text-sm">{ns.age}</span>

@@ -87,7 +87,7 @@
             <td class="py-3 pr-4">
               <div class="flex flex-wrap gap-1">
                 {#each ing.hosts as host}
-                  <span class="text-xs bg-bg-tertiary px-2 py-0.5 rounded text-accent-primary">{host}</span>
+                  <span class="text-xs bg-bg-tertiary px-2 py-0.5 rounded-sm text-accent-primary">{host}</span>
                 {/each}
                 {#if ing.hosts.length === 0}
                   <span class="text-text-muted text-sm">*</span>

@@ -38,14 +38,14 @@
 <div class="relative flex items-center">
   {#if isExpanded}
     <div class="flex items-center gap-2 bg-bg-tertiary rounded-lg border border-border-subtle px-2 py-1">
-      <svg class="w-3.5 h-3.5 text-text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg class="w-3.5 h-3.5 text-text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
       <input
         bind:this={inputRef}
         type="text"
         {placeholder}
-        class="w-40 bg-transparent text-sm text-text-primary placeholder-text-muted focus:outline-none"
+        class="w-40 bg-transparent text-sm text-text-primary placeholder-text-muted focus:outline-hidden"
         {value}
         oninput={(e) => onchange(e.currentTarget.value)}
         onkeydown={handleKeydown}

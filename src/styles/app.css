@@ -1,6 +1,67 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  Theme colors live as raw "R G B" triplets (--rgb-*) that each theme class
+  (.dark / .light / .neon on <html>) redefines. `@theme inline` makes every
+  utility inline `rgb(var(--rgb-*))` at the use site, so it picks up the theme
+  class at runtime, and opacity modifiers like `bg-accent-primary/20` compile
+  to color-mix(), which works on any color, including var()-based ones.
+*/
+@theme inline {
+  --font-sans:
+    Inter, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto,
+    sans-serif;
+  --font-mono: Hack, Menlo, Monaco, Courier New, monospace;
+
+  --color-bg-primary: rgb(var(--rgb-bg-primary));
+  --color-bg-secondary: rgb(var(--rgb-bg-secondary));
+  --color-bg-tertiary: rgb(var(--rgb-bg-tertiary));
+  --color-bg-card: rgb(var(--rgb-bg-card));
+
+  --color-border-subtle: rgb(var(--rgb-border-subtle));
+
+  --color-accent-primary: rgb(var(--rgb-accent-primary));
+  --color-accent-secondary: rgb(var(--rgb-accent-secondary));
+  --color-accent-warning: rgb(var(--rgb-accent-warning));
+  --color-accent-error: rgb(var(--rgb-accent-error));
+  --color-accent-success: rgb(var(--rgb-accent-success));
+
+  --color-text-primary: rgb(var(--rgb-text-primary));
+  --color-text-secondary: rgb(var(--rgb-text-secondary));
+  --color-text-muted: rgb(var(--rgb-text-muted));
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+
+  /* v4 dropped the pointer cursor on buttons and lightened placeholders;
+     keep the v3 look until the redesign decides otherwise. */
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-gray-400);
+  }
+}
 
 /* Font imports */
 @font-face {
@@ -39,53 +100,53 @@
 /* Accent palette shared by light + dark (teal family) */
 .dark,
 .light {
-  --color-accent-primary: 0 212 170;
-  --color-accent-secondary: 0 212 170;
-  --color-accent-warning: 245 158 11;
-  --color-accent-error: 239 68 68;
-  --color-accent-success: 34 197 94;
+  --rgb-accent-primary: 0 212 170;
+  --rgb-accent-secondary: 0 212 170;
+  --rgb-accent-warning: 245 158 11;
+  --rgb-accent-error: 239 68 68;
+  --rgb-accent-success: 34 197 94;
 }
 
 /* Dark theme colors (default) */
 .dark {
-  --color-bg-primary: 10 10 10;
-  --color-bg-secondary: 17 17 17;
-  --color-bg-tertiary: 26 26 26;
-  --color-bg-card: 20 20 20;
-  --color-border-subtle: 34 34 34;
-  --color-text-primary: 255 255 255;
-  --color-text-secondary: 136 136 136;
-  --color-text-muted: 85 85 85;
+  --rgb-bg-primary: 10 10 10;
+  --rgb-bg-secondary: 17 17 17;
+  --rgb-bg-tertiary: 26 26 26;
+  --rgb-bg-card: 20 20 20;
+  --rgb-border-subtle: 34 34 34;
+  --rgb-text-primary: 255 255 255;
+  --rgb-text-secondary: 136 136 136;
+  --rgb-text-muted: 85 85 85;
 }
 
 /* Light theme colors */
 .light {
-  --color-bg-primary: 255 255 255;
-  --color-bg-secondary: 249 250 251;
-  --color-bg-tertiary: 243 244 246;
-  --color-bg-card: 255 255 255;
-  --color-border-subtle: 229 231 235;
-  --color-text-primary: 17 24 39;
-  --color-text-secondary: 107 114 128;
-  --color-text-muted: 156 163 175;
+  --rgb-bg-primary: 255 255 255;
+  --rgb-bg-secondary: 249 250 251;
+  --rgb-bg-tertiary: 243 244 246;
+  --rgb-bg-card: 255 255 255;
+  --rgb-border-subtle: 229 231 235;
+  --rgb-text-primary: 17 24 39;
+  --rgb-text-secondary: 107 114 128;
+  --rgb-text-muted: 156 163 175;
 }
 
 /* ===== Neon / Cyberpunk TUI theme ===== */
 .neon {
-  --color-bg-primary: 5 7 11;      /* near-black, blue bias */
-  --color-bg-secondary: 8 12 18;
-  --color-bg-tertiary: 13 20 28;
-  --color-bg-card: 8 13 20;
-  --color-border-subtle: 20 33 44;
-  --color-text-primary: 200 214 224;
-  --color-text-secondary: 105 126 141;
-  --color-text-muted: 57 80 95;
+  --rgb-bg-primary: 5 7 11;      /* near-black, blue bias */
+  --rgb-bg-secondary: 8 12 18;
+  --rgb-bg-tertiary: 13 20 28;
+  --rgb-bg-card: 8 13 20;
+  --rgb-border-subtle: 20 33 44;
+  --rgb-text-primary: 200 214 224;
+  --rgb-text-secondary: 105 126 141;
+  --rgb-text-muted: 57 80 95;
   /* neon accents */
-  --color-accent-primary: 0 230 255;   /* cyan */
-  --color-accent-secondary: 255 46 151; /* magenta */
-  --color-accent-warning: 255 176 46;  /* amber */
-  --color-accent-error: 255 59 92;     /* red */
-  --color-accent-success: 18 255 160;  /* green */
+  --rgb-accent-primary: 0 230 255;   /* cyan */
+  --rgb-accent-secondary: 255 46 151; /* magenta */
+  --rgb-accent-warning: 255 176 46;  /* amber */
+  --rgb-accent-error: 255 59 92;     /* red */
+  --rgb-accent-success: 18 255 160;  /* green */
 }
 
 /* Mono-first typography for the neon theme */

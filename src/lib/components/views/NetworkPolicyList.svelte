@@ -107,7 +107,7 @@
       <div class="flex items-center gap-3">
         <button
           onclick={() => showCreator = true}
-          class="flex items-center gap-2 px-3 py-1.5 bg-accent-primary text-bg-primary text-sm font-medium rounded hover:bg-accent-primary/80 transition-colors"
+          class="flex items-center gap-2 px-3 py-1.5 bg-accent-primary text-bg-primary text-sm font-medium rounded-sm hover:bg-accent-primary/80 transition-colors"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -142,12 +142,12 @@
               <span class="text-text-secondary text-sm">{np.namespace}</span>
             </td>
             <td class="py-3 pr-4">
-              <code class="text-xs bg-bg-tertiary px-2 py-0.5 rounded text-text-secondary">{np.pod_selector || '<all>'}</code>
+              <code class="text-xs bg-bg-tertiary px-2 py-0.5 rounded-sm text-text-secondary">{np.pod_selector || '<all>'}</code>
             </td>
             <td class="py-3 pr-4">
               <div class="flex gap-1">
                 {#each np.policy_types as ptype}
-                  <span class="text-xs px-2 py-0.5 rounded {ptype === 'Ingress' ? 'bg-accent-success/10 text-accent-success' : 'bg-accent-warning/10 text-accent-warning'}">{ptype}</span>
+                  <span class="text-xs px-2 py-0.5 rounded-sm {ptype === 'Ingress' ? 'bg-accent-success/10 text-accent-success' : 'bg-accent-warning/10 text-accent-warning'}">{ptype}</span>
                 {/each}
               </div>
             </td>
@@ -159,7 +159,7 @@
                 <button
                   onclick={(e) => handleEdit(e, np)}
                   disabled={loadingEdit === np.name}
-                  class="p-1.5 rounded hover:bg-bg-tertiary transition-colors text-text-muted hover:text-accent-primary disabled:opacity-50"
+                  class="p-1.5 rounded-sm hover:bg-bg-tertiary transition-colors text-text-muted hover:text-accent-primary disabled:opacity-50"
                   title="Edit policy"
                 >
                   {#if loadingEdit === np.name}
@@ -176,7 +176,7 @@
                 <button
                   onclick={(e) => confirmDelete(e, np)}
                   disabled={deletingPolicy === np.name}
-                  class="p-1.5 rounded hover:bg-accent-error/10 transition-colors text-text-muted hover:text-accent-error disabled:opacity-50"
+                  class="p-1.5 rounded-sm hover:bg-accent-error/10 transition-colors text-text-muted hover:text-accent-error disabled:opacity-50"
                   title="Delete policy"
                 >
                   {#if deletingPolicy === np.name}
@@ -246,7 +246,7 @@
         <button
           onclick={handleDelete}
           disabled={deletingPolicy !== null}
-          class="px-4 py-2 text-sm bg-accent-error text-white rounded hover:bg-accent-error/80 transition-colors disabled:opacity-50"
+          class="px-4 py-2 text-sm bg-accent-error text-white rounded-sm hover:bg-accent-error/80 transition-colors disabled:opacity-50"
         >
           {deletingPolicy ? 'Deleting...' : 'Delete'}
         </button>

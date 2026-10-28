@@ -79,7 +79,7 @@
               <span class="text-text-secondary text-sm">{hpa.namespace}</span>
             </td>
             <td class="py-3 pr-4">
-              <code class="text-xs bg-bg-tertiary px-2 py-0.5 rounded text-accent-primary">{hpa.reference}</code>
+              <code class="text-xs bg-bg-tertiary px-2 py-0.5 rounded-sm text-accent-primary">{hpa.reference}</code>
             </td>
             <td class="py-3 pr-4">
               <span class="text-text-secondary text-sm">{hpa.targets}</span>

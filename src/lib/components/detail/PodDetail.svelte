@@ -405,7 +405,7 @@
           {/if}
         </div>
       </div>
-      <span class="text-xs text-text-muted bg-bg-tertiary px-2 py-1 rounded">Read-only - Actions disabled</span>
+      <span class="text-xs text-text-muted bg-bg-tertiary px-2 py-1 rounded-sm">Read-only - Actions disabled</span>
     </div>
   {/if}
 
@@ -440,7 +440,7 @@
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="bg-bg-secondary rounded-lg p-4">
               <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Phase</div>
-              <span class="text-sm px-2 py-0.5 rounded {getStatusColor(podDetail.phase)}">{podDetail.phase}</span>
+              <span class="text-sm px-2 py-0.5 rounded-sm {getStatusColor(podDetail.phase)}">{podDetail.phase}</span>
             </div>
             <div class="bg-bg-secondary rounded-lg p-4">
               <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Pod IP</div>
@@ -492,7 +492,7 @@
               {#if Object.keys(podDetail.labels).length > 0}
                 <div class="flex flex-wrap gap-2">
                   {#each Object.entries(podDetail.labels) as [key, value]}
-                    <span class="text-xs bg-bg-tertiary px-2 py-1 rounded text-text-secondary">
+                    <span class="text-xs bg-bg-tertiary px-2 py-1 rounded-sm text-text-secondary">
                       {key}={value}
                     </span>
                   {/each}
@@ -535,15 +535,15 @@
                     <div class="flex items-center gap-2">
                       <div class="w-2 h-2 rounded-full {container.ready ? 'bg-accent-success' : 'bg-accent-error'}"></div>
                       <span class="font-medium text-text-primary">{container.name}</span>
-                      <span class="text-xs px-2 py-0.5 rounded bg-bg-tertiary text-text-muted">init</span>
-                      <span class="text-xs px-2 py-0.5 rounded {getStatusColor(container.state)}">{container.state}</span>
+                      <span class="text-xs px-2 py-0.5 rounded-sm bg-bg-tertiary text-text-muted">init</span>
+                      <span class="text-xs px-2 py-0.5 rounded-sm {getStatusColor(container.state)}">{container.state}</span>
                     </div>
                     <div class="flex items-center gap-3">
                       <span class="text-xs text-text-muted">Restarts: {container.restart_count}</span>
                       <button
                         onclick={() => openTerminal(container.name)}
                         disabled={isDeleted}
-                        class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-text-muted"
+                        class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-text-muted"
                         title={isDeleted ? "Pod no longer exists" : `Open Terminal in ${container.name}`}
                       >
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -572,14 +572,14 @@
                   <div class="flex items-center gap-2">
                     <div class="w-2 h-2 rounded-full {container.ready ? 'bg-accent-success' : 'bg-accent-error'}"></div>
                     <span class="font-medium text-text-primary">{container.name}</span>
-                    <span class="text-xs px-2 py-0.5 rounded {getStatusColor(container.state)}">{container.state}</span>
+                    <span class="text-xs px-2 py-0.5 rounded-sm {getStatusColor(container.state)}">{container.state}</span>
                   </div>
                   <div class="flex items-center gap-3">
                     <span class="text-xs text-text-muted">Restarts: {container.restart_count}</span>
                     <button
                       onclick={() => openTerminal(container.name)}
                       disabled={isDeleted}
-                      class="p-1.5 rounded hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-text-muted"
+                      class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-text-muted"
                       title={isDeleted ? "Pod no longer exists" : `Open Terminal in ${container.name}`}
                     >
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -633,7 +633,7 @@
             <section>
               <h2 class="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
                 <span>{container.name}</span>
-                <span class="text-xs px-2 py-0.5 rounded bg-bg-tertiary text-text-muted">{container.env_vars.length} vars</span>
+                <span class="text-xs px-2 py-0.5 rounded-sm bg-bg-tertiary text-text-muted">{container.env_vars.length} vars</span>
               </h2>
               {#if container.env_vars.length > 0}
                 <div class="bg-bg-secondary rounded-lg overflow-hidden">
@@ -667,7 +667,7 @@
                             {/if}
                           </td>
                           <td class="px-4 py-2">
-                            <span class="text-xs px-2 py-0.5 rounded {
+                            <span class="text-xs px-2 py-0.5 rounded-sm {
                               env.source === 'secretKeyRef' ? 'bg-accent-warning/10 text-accent-warning' :
                               env.source === 'configMapKeyRef' ? 'bg-accent-primary/10 text-accent-primary' :
                               env.source === 'fieldRef' ? 'bg-bg-tertiary text-text-muted' :
@@ -709,7 +709,7 @@
                     <tr class="border-t border-border-subtle">
                       <td class="px-4 py-2 text-text-primary font-medium">{volume.name}</td>
                       <td class="px-4 py-2">
-                        <span class="text-xs px-2 py-0.5 rounded {
+                        <span class="text-xs px-2 py-0.5 rounded-sm {
                           volume.volume_type === 'Secret' ? 'bg-accent-warning/10 text-accent-warning' :
                           volume.volume_type === 'ConfigMap' ? 'bg-accent-primary/10 text-accent-primary' :
                           volume.volume_type === 'PersistentVolumeClaim' ? 'bg-accent-success/10 text-accent-success' :
@@ -744,7 +744,7 @@
                         <span class="text-text-muted">→</span>
                         <code class="text-text-secondary">{mount.mount_path}</code>
                         {#if mount.read_only}
-                          <span class="text-xs px-2 py-0.5 rounded bg-accent-warning/10 text-accent-warning">read-only</span>
+                          <span class="text-xs px-2 py-0.5 rounded-sm bg-accent-warning/10 text-accent-warning">read-only</span>
                         {/if}
                         {#if mount.sub_path}
                           <span class="text-xs text-text-muted">subPath: {mount.sub_path}</span>
@@ -810,14 +810,14 @@
                 bind:checked={showPreviousLogs}
                 onchange={loadPodLogs}
                 disabled={isDeleted}
-                class="rounded"
+                class="rounded-sm"
               />
               Previous
             </label>
 
             {#if !isDeleted}
               <label class="flex items-center gap-2 text-sm text-text-muted cursor-pointer">
-                <input type="checkbox" bind:checked={autoRefreshLogs} onchange={toggleAutoRefresh} class="rounded" />
+                <input type="checkbox" bind:checked={autoRefreshLogs} onchange={toggleAutoRefresh} class="rounded-sm" />
                 Tail
               </label>
             {:else}
@@ -829,7 +829,7 @@
             <button
               onclick={downloadLogs}
               disabled={!podLogs}
-              class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+              class="text-xs px-3 py-1 bg-bg-tertiary rounded-sm hover:bg-border-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
               title="Download logs"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -840,7 +840,7 @@
             <button
               onclick={loadPodLogs}
               disabled={logsLoading || isDeleted}
-              class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              class="text-xs px-3 py-1 bg-bg-tertiary rounded-sm hover:bg-border-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {logsLoading ? 'Loading...' : 'Refresh'}
             </button>
@@ -856,7 +856,7 @@
             type="text"
             bind:value={logSearch}
             placeholder="Filter logs..."
-            class="flex-1 bg-transparent text-sm text-text-primary placeholder-text-muted focus:outline-none"
+            class="flex-1 bg-transparent text-sm text-text-primary placeholder-text-muted focus:outline-hidden"
           />
           {#if logSearch}
             <span class="text-xs text-text-muted">
@@ -903,7 +903,7 @@
           <button
             onclick={loadPodEvents}
             disabled={isDeleted}
-            class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            class="text-xs px-3 py-1 bg-bg-tertiary rounded-sm hover:bg-border-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Refresh
           </button>
@@ -915,7 +915,7 @@
                 <div class="bg-bg-secondary rounded-lg p-4">
                   <div class="flex items-start justify-between mb-2">
                     <div class="flex items-center gap-2">
-                      <span class="text-xs px-2 py-0.5 rounded {getEventTypeColor(event.type)}">{event.type}</span>
+                      <span class="text-xs px-2 py-0.5 rounded-sm {getEventTypeColor(event.type)}">{event.type}</span>
                       <span class="font-medium text-text-primary">{event.reason}</span>
                       {#if event.count > 1}
                         <span class="text-xs text-text-muted">x{event.count}</span>

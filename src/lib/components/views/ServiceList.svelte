@@ -196,7 +196,7 @@
             <td class="py-3 pr-4">
               <div class="flex flex-wrap gap-1">
                 {#each service.ports as port}
-                  <span class="text-xs text-text-muted bg-bg-tertiary px-2 py-0.5 rounded font-mono">{port}</span>
+                  <span class="text-xs text-text-muted bg-bg-tertiary px-2 py-0.5 rounded-sm font-mono">{port}</span>
                 {/each}
               </div>
             </td>

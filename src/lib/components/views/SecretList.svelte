@@ -121,7 +121,7 @@
       <div class="flex items-center gap-3">
         <button
           onclick={() => showCreator = true}
-          class="flex items-center gap-2 px-3 py-1.5 bg-accent-primary text-bg-primary text-sm font-medium rounded hover:bg-accent-primary/80 transition-colors"
+          class="flex items-center gap-2 px-3 py-1.5 bg-accent-primary text-bg-primary text-sm font-medium rounded-sm hover:bg-accent-primary/80 transition-colors"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -156,7 +156,7 @@
               <span class="text-text-secondary text-sm">{sec.namespace}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-xs px-2 py-0.5 rounded {getTypeColor(sec.secret_type)}">{sec.secret_type}</span>
+              <span class="text-xs px-2 py-0.5 rounded-sm {getTypeColor(sec.secret_type)}">{sec.secret_type}</span>
             </td>
             <td class="py-3 pr-4">
               <span class="text-text-secondary text-sm">{sec.data_count} {sec.data_count === 1 ? 'key' : 'keys'}</span>
@@ -169,7 +169,7 @@
                 <button
                   onclick={(e) => handleEdit(e, sec)}
                   disabled={loadingEdit === sec.name}
-                  class="p-1.5 rounded hover:bg-bg-tertiary transition-colors text-text-muted hover:text-accent-primary disabled:opacity-50"
+                  class="p-1.5 rounded-sm hover:bg-bg-tertiary transition-colors text-text-muted hover:text-accent-primary disabled:opacity-50"
                   title="Edit secret"
                 >
                   {#if loadingEdit === sec.name}
@@ -186,7 +186,7 @@
                 <button
                   onclick={(e) => confirmDelete(e, sec)}
                   disabled={deletingSecret === sec.name}
-                  class="p-1.5 rounded hover:bg-accent-error/10 transition-colors text-text-muted hover:text-accent-error disabled:opacity-50"
+                  class="p-1.5 rounded-sm hover:bg-accent-error/10 transition-colors text-text-muted hover:text-accent-error disabled:opacity-50"
                   title="Delete secret"
                 >
                   {#if deletingSecret === sec.name}
@@ -256,7 +256,7 @@
         <button
           onclick={handleDelete}
           disabled={deletingSecret !== null}
-          class="px-4 py-2 text-sm bg-accent-error text-white rounded hover:bg-accent-error/80 transition-colors disabled:opacity-50"
+          class="px-4 py-2 text-sm bg-accent-error text-white rounded-sm hover:bg-accent-error/80 transition-colors disabled:opacity-50"
         >
           {deletingSecret ? 'Deleting...' : 'Delete'}
         </button>

@@ -280,7 +280,7 @@
       <button
         onclick={() => { scaleReplicas = statefulSetDetail?.replicas || 0; showScaleModal = true; }}
         disabled={isDeleted}
-        class="px-3 py-1.5 text-sm bg-accent-primary/10 text-accent-primary rounded hover:bg-accent-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+        class="px-3 py-1.5 text-sm bg-accent-primary/10 text-accent-primary rounded-sm hover:bg-accent-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
@@ -290,7 +290,7 @@
       <button
         onclick={handleRestart}
         disabled={isDeleted || isRestarting}
-        class="px-3 py-1.5 text-sm bg-accent-warning/10 text-accent-warning rounded hover:bg-accent-warning/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+        class="px-3 py-1.5 text-sm bg-accent-warning/10 text-accent-warning rounded-sm hover:bg-accent-warning/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
       >
         <svg class="w-4 h-4 {isRestarting ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -344,7 +344,7 @@
           {/if}
         </div>
       </div>
-      <span class="text-xs text-text-muted bg-bg-tertiary px-2 py-1 rounded">Read-only</span>
+      <span class="text-xs text-text-muted bg-bg-tertiary px-2 py-1 rounded-sm">Read-only</span>
     </div>
   {/if}
 
@@ -391,7 +391,7 @@
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="bg-bg-secondary rounded-lg p-4">
               <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Health</div>
-              <span class="text-sm px-2 py-0.5 rounded {isHealthy() ? 'text-accent-success bg-accent-success/10' : 'text-accent-warning bg-accent-warning/10'}">
+              <span class="text-sm px-2 py-0.5 rounded-sm {isHealthy() ? 'text-accent-success bg-accent-success/10' : 'text-accent-warning bg-accent-warning/10'}">
                 {isHealthy() ? 'Healthy' : 'Degraded'}
               </span>
             </div>
@@ -486,7 +486,7 @@
               {#if Object.keys(statefulSetDetail.labels).length > 0}
                 <div class="flex flex-wrap gap-2">
                   {#each Object.entries(statefulSetDetail.labels) as [key, value]}
-                    <span class="text-xs bg-bg-tertiary px-2 py-1 rounded text-text-secondary">
+                    <span class="text-xs bg-bg-tertiary px-2 py-1 rounded-sm text-text-secondary">
                       {key}={value}
                     </span>
                   {/each}
@@ -502,7 +502,7 @@
               {#if Object.keys(statefulSetDetail.selector).length > 0}
                 <div class="flex flex-wrap gap-2">
                   {#each Object.entries(statefulSetDetail.selector) as [key, value]}
-                    <span class="text-xs bg-accent-primary/10 text-accent-primary px-2 py-1 rounded">
+                    <span class="text-xs bg-accent-primary/10 text-accent-primary px-2 py-1 rounded-sm">
                       {key}={value}
                     </span>
                   {/each}
@@ -522,7 +522,7 @@
           <button
             onclick={loadStatefulSetPods}
             disabled={isDeleted}
-            class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors disabled:opacity-50"
+            class="text-xs px-3 py-1 bg-bg-tertiary rounded-sm hover:bg-border-subtle transition-colors disabled:opacity-50"
           >
             Refresh
           </button>
@@ -547,7 +547,7 @@
                   >
                     <td class="px-4 py-2 text-accent-primary hover:underline">{pod.name}</td>
                     <td class="px-4 py-2">
-                      <span class="text-xs px-2 py-0.5 rounded {getStatusColor(pod.status)}">{pod.status}</span>
+                      <span class="text-xs px-2 py-0.5 rounded-sm {getStatusColor(pod.status)}">{pod.status}</span>
                     </td>
                     <td class="px-4 py-2 text-text-secondary">{pod.ready}</td>
                     <td class="px-4 py-2 text-text-secondary">{pod.restarts}</td>
@@ -571,7 +571,7 @@
           <button
             onclick={loadStatefulSetEvents}
             disabled={isDeleted}
-            class="text-xs px-3 py-1 bg-bg-tertiary rounded hover:bg-border-subtle transition-colors disabled:opacity-50"
+            class="text-xs px-3 py-1 bg-bg-tertiary rounded-sm hover:bg-border-subtle transition-colors disabled:opacity-50"
           >
             Refresh
           </button>
@@ -583,7 +583,7 @@
                 <div class="bg-bg-secondary rounded-lg p-4">
                   <div class="flex items-start justify-between mb-2">
                     <div class="flex items-center gap-2">
-                      <span class="text-xs px-2 py-0.5 rounded {getEventTypeColor(event.event_type)}">{event.event_type}</span>
+                      <span class="text-xs px-2 py-0.5 rounded-sm {getEventTypeColor(event.event_type)}">{event.event_type}</span>
                       <span class="font-medium text-text-primary">{event.reason}</span>
                       {#if event.count > 1}
                         <span class="text-xs text-text-muted">x{event.count}</span>
@@ -638,7 +638,7 @@
           type="number"
           bind:value={scaleReplicas}
           min="0"
-          class="w-24 text-center text-3xl font-bold bg-bg-primary border border-border-subtle rounded-lg py-3 text-text-primary focus:outline-none focus:border-accent-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          class="w-24 text-center text-3xl font-bold bg-bg-primary border border-border-subtle rounded-lg py-3 text-text-primary focus:outline-hidden focus:border-accent-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         />
         <button
           onclick={() => scaleReplicas++}
@@ -659,7 +659,7 @@
         <button
           onclick={handleScale}
           disabled={isScaling}
-          class="px-4 py-2 text-sm bg-accent-primary text-white rounded hover:bg-accent-primary/90 transition-colors disabled:opacity-50"
+          class="px-4 py-2 text-sm bg-accent-primary text-white rounded-sm hover:bg-accent-primary/90 transition-colors disabled:opacity-50"
         >
           {isScaling ? 'Scaling...' : 'Scale'}
         </button>
