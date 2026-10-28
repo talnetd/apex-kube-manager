@@ -201,7 +201,7 @@
   >
     <div
       bind:this={dialogEl}
-      class="w-[440px] max-w-full bg-surface text-primary shadow-dialog rounded-xl p-5"
+      class="w-[440px] max-w-full bg-surface text-primary shadow-dialog rounded-lg p-5"
       role={behavior.role}
       aria-modal="true"
       aria-labelledby={titleId}
@@ -213,13 +213,13 @@
     >
       {#if behavior.prod}
         <div
-          class="mb-4 flex items-center gap-2 bg-warning-tint border border-warning-solid/30 rounded-lg px-3 py-2 text-sm text-warning"
+          class="mb-4 flex items-center gap-2 border border-warning/55 rounded-md px-3 py-2 text-sm text-warning"
           data-testid="prod-banner"
         >
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" class="shrink-0" aria-hidden="true">
             <path d="M8 1.75l5.25 2v4.1c0 3.1-2.2 5.4-5.25 6.4-3.05-1-5.25-3.3-5.25-6.4v-4.1z" />
           </svg>
-          <span class="inline-flex items-center h-4 px-1 rounded-sm border border-warning-solid/30 bg-warning-tint text-2xs font-semibold uppercase tracking-[0.04em]">Prod</span>
+          <span class="prodtag">PROD</span>
           <span class="truncate">Production context: {resource.context}</span>
         </div>
       {/if}
@@ -266,7 +266,7 @@
             autocapitalize="off"
             spellcheck="false"
             disabled={busy}
-            class="mt-1.5 w-full h-8 px-2.5 rounded-md bg-app border border-line hover:border-line-strong text-sm font-mono text-primary focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-0"
+            class="mt-1.5 w-full h-8 px-2.5 rounded-md bg-app border border-line-strong hover:border-faint text-sm font-mono text-primary focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-0"
             data-testid="confirm-input"
           />
         </label>

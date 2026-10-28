@@ -1,6 +1,6 @@
 # Apex Kube Manager: UI Redesign Spec
 
-Status: proposal, v3 (2026-10-28). Owner decisions folded in (section 10). Pulse is the flagship (section 6).
+Status: proposal, v4 (2026-10-28). Owner decisions folded in (section 10). Pulse is the flagship (section 6).
 Scope: Pulse (issues, timeline, capacity, fleet) and its backend, shell, all list views (~32 resource types incl. RBAC, policy and a generic CRD browser), detail windows
 Direction: Linear / Raycast. Calm neutral greys, one accent, crisp type, 1px borders, no decoration for its own sake.
 North star: **triage**. A broken thing should be visible within one glance of opening the app, from any screen.
@@ -25,6 +25,8 @@ This document is the contract for the redesign PRs. It does not change app code.
 | Fonts | Inter Variable (bundled) for UI, Hack (bundled) for mono. No new fonts. |
 | Styling stack | Tailwind CSS 4, CSS-first: tokens in `@theme` / `@theme inline` in `src/styles/app.css`, no JS config. Runtime `--ui-*` variables switch per theme class. Lands after the Tailwind 4 + Vite deps PR. |
 | Shell | 44px header, 220px sidebar with **health badges**, collapsible sections, pins and `:kind` ⌘K jump, 24px **status bar** (new). |
+| Windows & sizes | Several windows open all day; every view works at three **window** widths (sm < 640, md 640–1199, lg ≥ 1200); one **shared context** across all windows; macOS **menu bar** item with per-cluster status (section 13). |
+| Calm by default | Color only when something is wrong (healthy renders neutral), no motion except state changes, low glare (13.1). |
 | Tables | One `DataTable` component replaces 20 hand-rolled tables. Problems-first default sort on workload lists. |
 | Pulse (flagship) | Rust engine with a ranked, root-cause-grouped Needs Attention feed, change timeline, capacity trends and multi-cluster fleet; 1h in-memory history with optional local persistence and a Prometheus seam (section 6). Built right after the foundation (PR2-PR5). |
 | Pod health | Computed in Rust by the shared triage rules (`spec/triage/`, same as mobile), so `CrashLoopBackOff` stops showing as green "Running". |
@@ -223,7 +225,7 @@ Focus ring (all interactive elements, `:focus-visible` only), set once in `@laye
 Tailwind 4 accepts any `duration-N`, so no theme variable is needed. Svelte transitions use the same numbers (`fly`/`fade` with `duration: 150`, easing `cubicOut`).
 
 Rules:
-- Animate opacity and transform only. No `scale` on hover. No pulse animations except the connection dot while `connecting`.
+- Animate opacity and transform only. No `scale` on hover. **No motion except state changes** (13.1): no pulsing dots (the connecting dot is static and labeled), no skeleton shimmer, no blinking cursors, no spinning icons for background polls.
 - Rows don't animate in or out when data changes. Watch streams update often, and motion there would be noise. Usage bars may transition width at 150ms.
 - `@media (prefers-reduced-motion: reduce)`: all transitions and animations go to `0ms` (one rule in `@layer base`), and the context-switch progress bar (`Header.svelte:330-338`) becomes a static 2px accent bar.
 
@@ -712,7 +714,7 @@ interface Props<T> {
 
 | State | Render |
 |---|---|
-| `loading`, no rows yet | Header + 8 skeleton rows: `--row-h`, bars `bg-hover` `rounded-sm`, widths 40% / 15% / 12% / 8%…, shimmer off (static) when reduced motion, else opacity 0.5 ↔ 1 at 1.2s. |
+| `loading`, no rows yet | Header + 8 skeleton rows: `--row-h`, bars `bg-hover` `rounded-sm`, widths 40% / 15% / 12% / 8%…, static (no shimmer; 13.1). |
 | `loading`, rows present (refresh) | Keep rows; 2px indeterminate accent bar under PageHeader. Never blank the table on refresh. |
 | `ready`, 0 rows, not filtered | `EmptyState` "No pods in payments" + hint "Switch namespace or check the context." + button "All namespaces" when a namespace is selected. |
 | `ready`, 0 rows, filtered | `EmptyState` "No pods match "xyz"" + button "Clear filter" (calls `onClearFilter`). |
@@ -787,47 +789,40 @@ Principles:
 - **When nothing is wrong, say so plainly** ("All clear"), not a wall of green.
 - **Every source degrades on its own.** A forbidden or slow source makes the feed say "partial", never blank or wrong.
 
-### 6.2 Layout
+### 6.2 Layout (owner-approved v4)
 
-≥ 1280px wide (comfortable density):
+The owner approved a standard dashboard layout (preview v4). It supersedes the earlier wireframe; the feed rules in 6.3 now apply to the **Issues** table, the health strip in 6.4 is replaced by the **KPI tiles**, and the timeline in 6.5 is shown as the **Activity** list (the full lane timeline stays available as an expansion later, not in v1). Breakpoints are by window width (13.2).
+
+`lg` (≥ 1200 px):
 
 ```
-┌ Pulse  [This cluster | All clusters 14]                         synced 2s ago · live  ⟳ ┐  page header
-│ [⛨ prod-eu-1 PROD ✕3 ▲5] [⛨ prod-us-1 PROD ✓] [staging ▲2] [⊘ dev-kind unreachable] [+10 ›]│  fleet strip   (6.7)
-│ ┌───────────┬────────────┬────────────┬────────────┬────────────┬─────────────┐           │
-│ │ ✕ 3       │ ✕ 14       │ ✕ 1        │ ▲ 1        │ ✕ 1        │ ▲ 37        │           │  health strip  (6.4)
-│ │ Workloads │ Pods       │ Nodes      │ Storage    │ Jobs       │ Warnings 1h │           │
-│ └───────────┴────────────┴────────────┴────────────┴────────────┴─────────────┘           │
-│ ┌ Needs attention  9 · 2 new          [All|Critical|Errors|Warnings] ┐ ┌ Capacity · 1h ─────┐│
-│ │ ✕ CRIT  deploy/checkout   CrashLoopBackOff   payments   for 14m  ↗ │ │ CPU    62% ▁▂▃▄▅▆  ││  feed (6.3)
-│ │         0/12 available · 12 pods · started 2m after rollout #42    │ │ Memory 81%▲▃▄▅▆▇▇  ││  capacity (6.6)
-│ │ ✕ CRIT  node/ip-10-0-3-17 NotReady                      for 6m     │ │ Disk   71% ▅▅▆▆▆▆  ││
-│ │         8 pods affected                                            │ │ Pods   412/1,320   ││
-│ │ ✕ ERR   cronjob/nightly-report  BackoffLimitExceeded  batch  1h    │ │ ─────────────────  ││
-│ │ ▲ WARN  pvc/data-pg-0  Pending · blocks 1 pod     db      for 12m  │ │ Under pressure     ││
-│ │ ▲ WARN  BackOff ×42  pod/api-7f9c-x2 (no workload issue)   1m      │ │ ✕ ip-10-0-1-4 CPU94││
-│ │ …                                                                  │ │ ▲ ip-10-0-2-9 Mem88││
-│ │ ▸ Recently resolved 2 · Muted 1                                    │ └────────────────────┘│
-│ └────────────────────────────────────────────────────────────────────┘                     │
-│ ┌ Changes · last 1h ─────────────────────────────── [15m|1h] [lanes ▾] ┐                   │
-│ │ issues ▁▁▁▁▁▁▁▁▁▁▁▂▂▅█████▇▇   (spike ┊ at 10:31)                       │                   │  timeline (6.5)
-│ │ rollouts        ◆            ┊◆                                         │                   │
-│ │ scaling      ▲      ▼        ┊                                          │                   │
-│ │ restarts                 ↻   ┊ ↻↻↻↻                                     │                   │
-│ │ nodes                        ┊   ●                                      │                   │
-│ │ warnings ▁▁▂▁▁▁▁▁▁▁▁▁▃▅▇██▇▆                                            │                   │
-│ │ 10:00      10:10      10:20      10:30      10:40      10:50   now      │                   │
-│ └────────────────────────────────────────────────────────────────────────┘                   │
-│ Inventory  Services 84 · Ingresses 12 · ConfigMaps 210 · Secrets 160 · PVCs 33 · …          │
-└────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ Pulse  eks-prod-eu [PROD] · all namespaces · synced 2s ago            [Refresh] ┐
+│ ┌Health──┐┌Active──┐┌Healthy─┐┌Warning─┐┌Critical┐┌Uptime──┐                     │  6 KPI tiles
+│ │ 95.2%  ││ 186    ││ 177    ││ ▲ 3    ││ ✕ 6    ││ 99.98% │                     │
+│ │ ↓3.8 1h││ +2 1h  ││ 95%    ││        ││ 2 new  ││ API 30d│                     │
+│ └────────┘└────────┘└────────┘└────────┘└────────┘└────────┘                     │
+│ ┌ Health grid  186 workloads   [Workloads|Nodes] ┐ ┌ Activity · last hour ─────┐ │
+│ │ ▪▪▪▪✕▪▪▪▪▪▪▪▪▪✕▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪   │ │ ↻ ledger-worker-1 OOM 4m  │ │
+│ │ ▪▪▪▪✕▪▪!▪▪▪□▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪   │ │ ✕ ip-10-42-3-17 NotRdy 6m │ │
+│ │ Healthy 177 · Warning 1 · Critical 5 · Unknown 3│ │ ◆ rollout checkout #42 16m│ │
+│ └────────────────────────────────────────────────┘ │ ⊘ cordon ip-10-42-2-9 25m │ │
+│ ┌ CPU 62% ──────┐┌ Memory 81% ▲ ──┐┌ Disk 71% ─────┐│ …  (scrolls inside)        │ │
+│ │ ~~~~~~~~~~~~  ││ ~~~~~~~~~~~~   ││ ~~~~~~~~~~~~  ││                            │ │
+│ └───────────────┘└────────────────┘└───────────────┘└────────────────────────────┘ │
+│ ┌ Issues  9 ────────────────────────────────────────────────────────────────────┐ │
+│ │ SEV       OBJECT                    REASON             IMPACT          AGE    │ │
+│ │ ✕ Critical node/ip-10-42-3-17       ✕ NotReady         8 pods affected  6m [Open]⋯│
+│ │ ✕ Critical deploy/checkout-api      ✕ CrashLoopBackOff 0/12 · 2m after #42 14m [Logs]⋯│
+│ └────────────────────────────────────────────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- Grid: 12 columns, gap 16px comfortable / 12px compact. Feed 8 columns, capacity 4, timeline 12.
-- < 1100px: one column, in order: fleet strip, health strip, feed, timeline, capacity, inventory.
-- Above the fold at 1280×800 (comfortable): header 44 + page header 48 + fleet strip 40 + health strip 64 → feed starts at ~200px and shows ~7 items (comfortable) / ~12 (compact).
-- Panels: `bg-app`, `border-line`, `rounded-lg`, panel header 36px (title `text-sm` 600, count `text-muted`, controls on the right).
-- Page header shows the namespace scope when a namespace is selected ("payments · 3 of 9 issues"). The engine always watches the whole cluster; the namespace filter is applied in the UI, so switching namespaces is instant.
-- Focus order: page header → fleet strip → health strip → feed → capacity → timeline. When Pulse opens, the feed owns `j/k` (it's the active DataTable).
+- **KPI tiles**: Health % (healthy workloads / active), Active workloads, Healthy, Warning, Critical (critical + error issues), Uptime (API server, 30d). Big number, small label, one delta or sparkline line. Warning and Critical numbers take their status color only when > 0; Healthy and Health stay neutral (13.1).
+- **Health grid**: one 16 px square per workload (toggle: nodes, 40 px squares). Healthy = neutral filled square; warning = amber with "!"; critical = red with "✕"; unknown = hollow grey outline. Legend with counts underneath. Hover shows name + status; click opens the issue's side sheet, else the pod detail. Squares aren't tab stops; the Issues table is the keyboard path.
+- **CPU / Memory / Disk**: value, 1 h line sparkline (fixed 0–100 % scale, dashed 90 % guide), one sub-line (`24.8 / 40 cores · req 78%`). Values ≥ 75 % add ▲ and amber, ≥ 90 % add ✕ and red.
+- **Activity**: rollouts, scaling, restarts, node NotReady/Ready, cordons, job failures, Apex-initiated actions; icon per type, relative time, actor. Same height as the left column, scrolls inside.
+- **Issues**: columns sev, object, reason, impact (+ "started 2m after rollout #42" hint), age, action (one primary: Logs or Open; ⋯ for Restart / Scale / Mute; restart goes through ConfirmDialog with prod escalation). Click a row or Enter opens the side sheet (members, evidence, trigger, all actions). `j/k` moves over this table.
+- `md` and `sm` behavior: 13.2.
 
 ### 6.3 Needs Attention feed
 
@@ -1322,7 +1317,7 @@ Frontend store (`src/lib/stores/pulse.ts`, new): `pulseSnapshot`, `pulseTimeline
 └──────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- Titlebar replaces the current header (`DetailWindow.svelte:~95-134`): kind tag (`text-2xs` mono, `bg-active`, rounded-sm), name `text-md` 600 truncating, **StatusPill with resource health** (new; computed from detail data with the same `health.ts` rules), then context / namespace `text-xs text-muted`, `PROD` tag and window edge line when the locked context is production (4.6), lock icon with tooltip "Pinned to prod-eu-1. Doesn't follow context switches." (replaces the "Locked View" pill at `DetailWindow.svelte:127-129`).
+- Titlebar replaces the current header (`DetailWindow.svelte:~95-134`): kind tag (`text-2xs` mono, `bg-active`, rounded-sm), name `text-md` 600 truncating, **StatusPill with resource health** (new; computed from detail data with the same `health.ts` rules), then context / namespace `text-xs text-muted`, `PROD` tag and window edge line when the locked context is production (4.6), and, when the shared context has moved away from this object, the read-only banner from 13.3 (replaces the "Locked View" pill at `DetailWindow.svelte:127-129`).
 - Below 900px window width, the meta rail moves under the main column.
 - Overview sections: `text-md` 600 heading, `--section-gap` between sections. No card-in-card. Number groups (replicas etc., `ResourceDetail.svelte:497-513`) become one inline stat row: `Desired 3 · Ready 1 ✕ · Available 1 · Up-to-date 3` in `text-sm`, problem numbers in state color with icon.
 - Problem banner: `bg-{state}-tint`, 1px `border-{state}-solid/30`, `rounded-lg`, `text-sm`, icon + one-sentence cause + one action. Derived from health `reason` + container `last_state` / conditions. Hidden when healthy.
@@ -1428,7 +1423,7 @@ PR1a Foundation UI ─┐
 PR1b Triage rules  ─┴─► PR2 Pulse·Issues ─┬─► PR3 Pulse·Timeline ─┐
                                           ├─► PR4 Pulse·Capacity ─┼─► PR10 Detail windows ─► PR11 Cleanup
                                           ├─► PR5 Pulse·Fleet ────┤
-                                          └─► PR6 Shell ─► PR7a/7b Lists ─► PR8 New types, PR9 CRDs
+                                          └─► PR6 Shell ─► PR6b Windows+tray ─► PR7a/7b Lists ─► PR8 New types, PR9 CRDs
 ```
 
 - PR1a and PR1b can be built in parallel. PR3, PR4, PR5 and PR6 can all run in parallel after PR2 (they touch different files; PR3 and PR4 share `history.rs`, so PR3 owns its creation and PR4 rebases).
@@ -1551,6 +1546,23 @@ Acceptance:
 - A context named `eks-prod-eu` shows the edge line, shield and `PROD` tag with no setup; marking `staging` and unmarking `products-dev` persist across restarts; detail windows of a prod context show the edge line.
 - `:po` + Enter in ⌘K jumps to Pods. Clicking empty sidebar space no longer collapses it.
 - No component other than `pulse.ts` calls `get_pulse_metrics`.
+
+### PR6b: Multi-window, window-width breakpoints, shared context, menu bar
+
+Files:
+- `src-tauri/src/state.rs` (new): `AppState { current_context, namespace, seq }`, commands `set_context`, `get_context`, event `context://changed`; `switch_context` becomes a wrapper. `selectedNamespace` moves from per-window store to this state.
+- `src-tauri/src/lib.rs`: tray icon (`TrayIconBuilder`, `tray-icon` feature), `tauri-plugin-positioner`, ⌘N window creation, window-count event, keep running when the last window closes.
+- `src/lib/stores/kubernetes.ts`: subscribe to `context://changed`; drop per-window context state.
+- `src/styles/app.css`: custom media `--sm/--md/--lg` and variants (13.6).
+- `Sidebar.svelte` (icon mode, drawer), `Header.svelte` (linked-windows marker, namespace inside the context menu at sm), `StatusBar.svelte` (reduced items), `DataTable.svelte` (compact rows at sm), `PulseView.svelte` (13.2 layout table), `DetailWindow.svelte` + `Terminal.svelte` (context-moved banner, disabled actions).
+- `src/routes/Tray.svelte` (new): popover per 13.5.
+
+Acceptance:
+- Every view renders without horizontal page scroll at 400, 600, 800, 1000, 1200 and 1440 px window widths; screenshots of Pulse and Pods at each in the PR.
+- With 3 windows open, switching context in one switches all 3 within 500 ms; only the originating window shows a toast; each window keeps its own view.
+- A detail window for a pod on eks-prod-eu shows the banner and disables restart/delete/exec after switching to staging-sg; "Switch back" restores it.
+- Closing all windows leaves the menu bar icon; the popover lists clusters with correct dots and shapes, shows the top 5 issues, and "Open Pulse" opens a window. All-healthy state shows no dot on the icon.
+- No animation runs while idle (Performance panel: no recurring style recalculation from CSS animations on any view).
 
 ### PR7: Migrate list views (7a + 7b)
 
@@ -1678,7 +1690,7 @@ Rank drives every "problems first" sort and every "worst of" aggregation.
 | failed | `#F87171` / `#C4252B` | `#E5484D` / `#DC2626` | solid at 12% dark, 10% light |
 | warning | `#F5B74A` / `#985700` | `#F59E0B` / `#D97706` | same |
 | progressing | `#7CB4FF` / `#1D63C9` | `#3B82F6` / `#2563EB` | same |
-| healthy | `#4CCF7F` / `#18794E` | `#30A46C` / `#16A34A` | same |
+| healthy | text-secondary (calm default, 13.1); `#4CCF7F` / `#18794E` only for "recovered" toasts and the menu bar dot | text-muted; `#30A46C` / `#16A34A` in those two places | none |
 | unknown, neutral | text-secondary / text-secondary | text-muted / text-muted | none |
 
 Desktop utilities: `text-{state}`, `bg-{state}-solid`, `bg-{state}-tint`, where `{state}` maps failed→`danger`, warning→`warning`, progressing→`info`, healthy→`success`.
@@ -1689,7 +1701,7 @@ Measured contrast: every fg is ≥ 5.4:1 on the app background and ≥ 4.5:1 on 
 
 1. **Never color alone.** Every status shows icon shape + text label. Color is the third, redundant signal. This also applies to counts (badges show the number; warning badges add ▲), usage bars (thresholds add ▲ / ✕ after the number) and row rails (decorative, the pill carries meaning).
 2. **Reason over phase.** Show the most specific cause available. A pod in phase `Running` with a container in `CrashLoopBackOff` is labeled `CrashLoopBackOff`, state `failed`.
-3. **Zero problems isn't green.** "0 failing" renders neutral (`text-secondary`), not success.
+3. **Color only when something is wrong.** Healthy objects and "0 failing" render neutral (`text-secondary`, ✓ icon in `text-muted`). Green is reserved for the two cases in 11.2. The ✓ shape still distinguishes healthy from unknown (?) and neutral (○).
 4. **Normal events are neutral**, not healthy. Only Warning events carry a state (warning).
 5. **Labels**: source casing for Kubernetes reasons (`ImagePullBackOff`), sentence case for our own words (`1/3 ready`, `At limit`). Truncate after 24 chars with the full text in a tooltip / long-press; never truncate below 12 chars.
 6. **Aggregation** (sidebar section headers, Pulse tiles, a deployment's pod list): worst rank wins; counts are per state, never blended into a score.
@@ -1820,3 +1832,123 @@ Generic (12.2-12.4), cluster discovery cached per context for 5 minutes:
 | `get_custom_resource_yaml` / `_events` | same | `String` / `Vec<Event>` |
 
 Implementation: kube-rs `DynamicObject` / `ApiResource` from discovery for detail and YAML; the Table list is a raw `client.request` with the Table `Accept` header. Errors map 403 → forbidden and 404 (CRD removed) → an EmptyState "This resource type no longer exists".
+
+---
+
+## 13. Multi-window, window sizes, shared context, menu bar
+
+People keep several Apex windows open all day next to other apps. This section is the contract for that: calm enough for an 8-hour day, usable at any window width, one shared context across windows, and a menu bar item for a glance without opening a window.
+
+### 13.1 Calm by default (8-hour use)
+
+- **Color only when something is wrong.** Healthy renders neutral: `text-secondary` label with the ✓ circle icon in `text-muted`. Green appears in exactly two places: the transient "recovered" toast, and the menu bar popover's per-cluster dot (13.5) where green-vs-red is the whole point. Health-grid squares for healthy objects are neutral (`--ui-line-strong`), not green. Amber and red stay as specified in section 11.
+- **No motion except state changes.** Allowed: a popover/sheet/dialog opening or closing (150 ms), a row's status changing (no animation, just the new state), the context-switch progress bar. Not allowed: pulsing dots (the "connecting" dot is static, with the word "connecting"), skeleton shimmer (skeletons are static), blinking cursors, animated counters, auto-scrolling feeds, spinning refresh icons for background polls (only for a refresh the user started).
+- **Low glare.** Dark is the default. Large areas never use pure white text or pure black backgrounds; the brightest text is `--ui-primary` (`#e6e9ed` dark). Light theme keeps the same rule with `#111418` text on `#f6f7f9`.
+- **Quiet updates.** Background polls never move focus, never reorder the row under the cursor (DataTable anchoring, 5.4) and never show toasts. Toasts are only for results of something the user did.
+- **Notifications** stay as in 6.3: new critical/error issues only, deduplicated, and each window doesn't notify on its own (13.4).
+
+### 13.2 Window-width breakpoints
+
+Breakpoints are by **window** width (`window.innerWidth`, i.e. the Tauri webview), never by screen size. One CSS custom media set, used everywhere:
+
+| Name | Width | Typical use |
+|---|---|---|
+| `sm` | < 640 px | Side panel next to an editor or terminal (400–600 px) |
+| `md` | 640–1199 px | Half screen |
+| `lg` | ≥ 1200 px | Full screen |
+
+Shell per breakpoint:
+
+| | sm | md | lg |
+|---|---|---|---|
+| Sidebar | Hidden; ☰ opens it as an overlay drawer (260 px) | Icons only, 52 px; label in tooltip; badges become a 6 px dot on the icon (count in the tooltip and accessible name) | Full, 220 px |
+| Header | Context switcher (with namespace inside it, 13.3) + search icon. Everything else moves into the context menu or ⌘K | Context switcher, namespace switcher, search field (icon + ⌘K), settings | Full (4.3) |
+| Status bar | Connection + freshness only | + context, version | Full (4.4) |
+| Tables | Compact rows: two-line card rows (name + status on line 1, key facts on line 2), no horizontal scroll | Table; low-priority columns hidden (`hideBelow`, 5.4) | Full table |
+| Detail windows | Tabs scroll horizontally; meta rail moves under the main column | Meta rail under the main column below 900 px | Two columns |
+
+Pulse per breakpoint (approved v4 layout, 6.2):
+
+| | sm | md | lg |
+|---|---|---|---|
+| KPI tiles | 2 × 3 | 3 × 2 | 1 × 6 |
+| Health grid + CPU/Mem/Disk | Full width, metrics stacked 1 × 3 | Full width; metrics 3 across | Left 2/3 |
+| Activity | Collapsed to one row "Activity · 12 in the last hour · latest: …" that expands inline | Full width below the grid, max 6 rows + "Show all" | Right 1/3, same height as the left column, scrolls inside |
+| Issues | Compact rows: severity icon + object on line 1, reason + age + primary action on line 2 | Table without the Impact column | Full table |
+
+Each breakpoint is tested at 400, 600, 800, 1000, 1200 and 1440 px for every view (PR6b acceptance).
+
+### 13.3 One shared context
+
+- **Model.** Context and namespace are app state, not window state. They live in the Rust side (`AppState.current_context`, `AppState.namespace`) and every window subscribes to `context://changed { context, namespace, seq }`. Switching from any window, the ⌘K palette or the menu bar switches all windows. A `seq` number drops out-of-order events. (Today `selectedNamespace` is per-window in `kubernetes.ts:327`; it moves to the backend.)
+- **Views stay per window.** Each window keeps its own view, filters, selection, scroll and density.
+- **What the switcher shows.** The header context control always reads `context / namespace` and carries a linked-windows marker: a small chain-link icon and the number of open windows ("3"), with the tooltip "Shared by all 3 Apex windows". The menu's first line says "Applies to all windows (3)". With a single window open, the marker is hidden.
+- **Switching feedback.** After a switch, every window shows the 2 px progress bar on its header during the reload, and the window where the switch happened shows one toast: "Switched all 3 windows to staging-sg". Other windows show no toast (no surprise popups); their header simply changes.
+- **Prod guard** (4.6) applies to the shared context, so the warning edge line appears in every window at once.
+- **Detail windows are about one object**, so they can't follow a switch. When the shared context changes away from a detail window's object, that window keeps showing the object read-only and shows a slim neutral banner: "This window shows checkout-api on eks-prod-eu. The app is now on staging-sg. [Switch back] [Close]". Restart, scale, delete and exec are disabled in that state, so nobody acts on a cluster they no longer think they're looking at. (This replaces the "Locked View" lock in 7.1.) Terminal windows behave the same way: the shell keeps running, the banner appears, input stays enabled (it's a running process), and the window edge line keeps the original context's prod state.
+- **Switching is still navigation**, so it needs no confirmation; the kubeconfig `current-context` write (existing behavior) happens once in the backend, not per window.
+
+### 13.4 Windows
+
+- **New window**: ⌘N opens another main window with the same shared context, starting on Pulse. ⌘⇧N on a list or Pulse row opens that object in a detail window (existing).
+- **Engine once, not per window.** The Pulse engine, fleet poller and watches (6.9, 6.14) run once in the backend and broadcast; opening five windows doesn't open five watch streams. List views in each window read the shared stores.
+- **Notifications** are sent by the backend once, not by each window.
+- **Window state** (size, position, view, sidebar mode) is restored per window on relaunch.
+- **Closing the last window** keeps Apex running in the menu bar (13.5); quitting is ⌘Q or "Quit Apex" in the popover.
+
+### 13.5 Menu bar (macOS tray) item
+
+**Icon** (`tauri::tray::TrayIconBuilder`, built into Tauri 2 with the `tray-icon` feature; no new dependency):
+- An 18 × 18 template image (monochrome, follows the menu bar's light/dark appearance) showing the Apex mark.
+- A status dot is drawn at the bottom-right only when something is wrong: amber for "worst cluster has warnings", red for "worst cluster has critical/error issues". Nothing when everything is healthy (calm rule, 13.1). Optional setting "Show issue count" adds the number of critical issues as text next to the icon.
+- Accessible title (VoiceOver): "Apex, 2 clusters need attention" / "Apex, all clusters healthy".
+
+**Popover** (320 × 420 px, a borderless always-on-top window anchored under the icon; positioned with the official `tauri-plugin-positioner`, which is small; closes on blur or Esc):
+
+```
+┌────────────────────────────────────┐
+│ Apex                    synced 4s ⚙│  header: name, freshness, settings menu
+│ 2 clusters need attention          │  one-line summary (neutral when all good)
+├────────────────────────────────────┤
+│ CLUSTERS                           │
+│ ● eks-prod-eu  PROD   ✕6 ▲3   now ✓│  dot + shape + counts; "current" check
+│ ● staging-sg          ▲2           │
+│ ● eks-prod-us  PROD   ✓            │
+│ ○ dev-kind            offline      │
+│ +3 more                            │
+├────────────────────────────────────┤
+│ TOP ISSUES                         │
+│ ✕ node/ip-10-42-3-17  NotReady  6m │  max 5, across clusters, ranked (6.10)
+│   eks-prod-eu                      │
+│ ✕ deploy/checkout-api CrashLoop 14m│
+│ ▲ deploy/web-frontend 2/3 ready 1h │
+│   staging-sg                       │
+├────────────────────────────────────┤
+│ [ Open Pulse ]   Pause alerts 1h   │  primary + secondary
+└────────────────────────────────────┘
+```
+
+- **Cluster rows**: status dot with shape (✕ / ▲ / ✓ / ○), name, PROD tag, counts, and "current" on the shared context. Click a row: switch the shared context to it (13.3) and open or focus a main window on Pulse. Because that switches every window, the row's tooltip says "Switch all windows to staging-sg".
+- **Top issues**: up to 5, ranked across all clusters (the fleet summaries for other clusters are workload-level, 6.14), each with severity icon, object, reason, age and its cluster on a second line. Click: switch context if needed (same tooltip wording), open Pulse, and open the issue's side sheet. No restart/scale/delete from the popover.
+- **Footer**: "Open Pulse" (focuses the most recent main window, or opens one); "Pause alerts 1h" (mutes notifications, the icon dot stays). Settings menu (⚙): Show issue count, Launch at login, Open settings, Quit Apex.
+
+**States:**
+
+| State | Icon | Popover |
+|---|---|---|
+| Something wrong | red or amber dot | As above |
+| All healthy | no dot | Summary "All 7 clusters healthy" (neutral), cluster list with neutral ✓, "No issues" in place of the list |
+| Loading (first poll) | no dot | Clusters listed with "checking…" text, no spinner |
+| Offline (no network) | grey hollow dot | "Offline. Showing last known state from 10:42", list in faint text |
+| Needs auth | amber dot only if no other issue | Affected cluster rows say "auth needed" with "Re-authenticate" link opening the main window's guidance |
+| No kubeconfig | no dot | "No clusters found" + "Open Apex" |
+| Paused alerts | dot unchanged | Footer shows "Alerts paused until 11:42 · Resume" |
+
+**Data**: the fleet poller (6.14) and the current-context engine keep running while Apex lives only in the menu bar; the popover reads the same `pulse://fleet` and `pulse://snapshot` data, so it adds no extra polling.
+
+### 13.6 Implementation notes
+
+- CSS: `@custom-media --sm (width < 640px); --md (640px <= width < 1200px); --lg (width >= 1200px);` used through Tailwind 4 variants `@custom-variant sm-w (@media (width < 640px));` etc. Component code never reads `window.innerWidth`, except DataTable, which switches to compact rows through the same media query in CSS.
+- Backend: `AppState { current_context, namespace, seq }` behind a `RwLock`; commands `set_context(context, namespace?)`, `get_context()`; event `context://changed`. `switch_context` (existing) becomes a thin wrapper.
+- Windows: `WebviewWindowBuilder` for ⌘N; a `windows://count` event drives the linked-windows marker.
+- Tray: `TrayIconBuilder` + `tauri-plugin-positioner` (`Position::TrayCenter`); popover is a Svelte route `#tray` in a 320 × 420 non-resizable, borderless, `skipTaskbar`, always-on-top window.

@@ -1,0 +1,49 @@
+// src/lib/components/shell/icons.ts
+// Shell icon paths (approved Geist preview): 16-unit grid, stroke 1.5, round
+// caps. Rendered by Icon.svelte. Shapes only, no fills.
+export const ICONS = {
+  pulse: 'M1.5 8h3l2-5 3 10 2-5h3',
+  events: 'M8 2.5v6M8 11.5v.5M2.5 13.5h11L8 2.5z',
+  pods: 'M8 1.8l5.5 3v6.4L8 14.2l-5.5-3V4.8zM2.8 5L8 8l5.2-3M8 8v6',
+  deploy: 'M2.5 3h11v3h-11zM2.5 9h5v4h-5zM10 9h3.5v4H10z',
+  sts: 'M3 3.5h10v3H3zM3 9.5h10v3H3zM5.5 5h.1M5.5 11h.1',
+  ds: 'M4 4h8v8H4zM6.5 1.5v2.5M9.5 1.5v2.5M6.5 12v2.5M9.5 12v2.5',
+  rs: 'M5 5V3h8v8h-2M3 5h8v8H3z',
+  job: 'M2.5 5.5h11v8h-11zM6 5.5V3.5h4v2',
+  cron: 'M8 4.5V8l2.5 1.5M14 8A6 6 0 1 1 2 8a6 6 0 0 1 12 0z',
+  svc: 'M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2zM2 8h12M8 2c2 2.2 2 9.8 0 12M8 2c-2 2.2-2 9.8 0 12',
+  ing: 'M2 13h12M4 13V6l4-3 4 3v7M7 13v-3h2v3',
+  netpol: 'M8 1.8l5 2v4c0 3-2.2 5.3-5 6.4-2.8-1.1-5-3.4-5-6.4v-4zM6 8l1.5 1.5L10.5 6',
+  cm: 'M4 2h6l3 3v9H4zM10 2v3h3M6 8h5M6 11h5',
+  secret: 'M4.5 7V5a3.5 3.5 0 0 1 7 0v2M3.5 7h9v7h-9zM8 10v1.5',
+  pv: 'M3 4c0-1.1 2.2-2 5-2s5 .9 5 2-2.2 2-5 2-5-.9-5-2zM3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4',
+  pvc: 'M3 4c0-1.1 2.2-2 5-2s5 .9 5 2-2.2 2-5 2-5-.9-5-2zM3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2',
+  hpa: 'M2 12l4-4 3 3 5-6M10 5h4v4',
+  sa: 'M8 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM3 14c.6-2.6 2.6-4 5-4s4.4 1.4 5 4',
+  node: 'M2.5 3h11v4h-11zM2.5 9h11v4h-11zM5 5h.1M5 11h.1',
+  ns: 'M2.5 4.5h4l1.5 1.5h5.5v7h-11z',
+  logs: 'M3 3.5h10M3 6.5h10M3 9.5h6M3 12.5h8',
+  open: 'M9 3h4v4M13 3L7.5 8.5M11 9.5V13H3V5h3.5',
+  restart: 'M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3',
+  more: 'M4 8h.1M8 8h.1M12 8h.1',
+  scale: 'M8 2v12M4 6l4-4 4 4M4 10l4 4 4-4',
+  menu: 'M2.5 4h11M2.5 8h11M2.5 12h11',
+  search: 'M7 11.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zM10.5 10.5L14 14',
+  density: 'M2.5 3.5h11M2.5 6.5h11M2.5 9.5h11M2.5 12.5h11',
+  shield: 'M8 1.8l5 2v4c0 3-2.2 5.3-5 6.4-2.8-1.1-5-3.4-5-6.4v-4z',
+  link: 'M6.5 9.5l3-3M7 4.5l1-1a2.8 2.8 0 0 1 4 4l-1 1M9 11.5l-1 1a2.8 2.8 0 0 1-4-4l1-1',
+  chevron: 'M5 6.5L8 9.5l3-3',
+  close: 'M4 4l8 8M12 4l-8 8',
+  forward: 'M3 5.5h9M9.5 3l2.5 2.5L9.5 8M13 10.5H4M6.5 8L4 10.5 6.5 13',
+  rail: 'M1.5 8h3l2-5 3 10 2-5h3',
+  bell: 'M4 11V7a4 4 0 1 1 8 0v4l1 1.5H3zM6.5 14h3',
+  bellOff: 'M4 11V7a4 4 0 0 1 6.5-3.1M12 7v4l1 1.5H5M6.5 14h3M2.5 2.5l11 11',
+  download: 'M8 2.5v8M4.5 7L8 10.5 11.5 7M3 13.5h10',
+  copy: 'M5.5 5.5h7v7h-7zM3.5 10.5v-7h7',
+  cordon: 'M3.5 12.5l9-9M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z',
+} as const;
+
+export type IconName = keyof typeof ICONS;
+
+/** Half-filled circle for the theme toggle (drawn separately: it has a fill). */
+export const THEME_ICON = { ring: 'M8 2.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11z', half: 'M8 2.5a5.5 5.5 0 0 0 0 11z' };

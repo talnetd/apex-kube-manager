@@ -103,7 +103,7 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       bind:this={menuRef}
-      class="absolute z-50 w-full bg-bg-secondary border border-border-subtle rounded-lg shadow-xl overflow-hidden"
+      class="absolute z-50 w-full bg-bg-secondary border border-border-subtle rounded-lg overflow-hidden"
       class:bottom-full={openUpward}
       class:mb-1={openUpward}
       class:top-full={!openUpward}

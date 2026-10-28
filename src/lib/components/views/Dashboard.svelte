@@ -88,28 +88,9 @@
     currentView.set(view);
   }
 
-  function getColorClass(color: string, hasFail: boolean = false) {
-    const colorMap: Record<string, string> = {
-      'accent-primary': 'text-accent-text border-accent-primary/30 bg-accent-primary/10',
-      'accent-success': 'text-success border-accent-success/30 bg-accent-success/10',
-      'accent-warning': 'text-warning border-accent-warning/30 bg-accent-warning/10',
-      'accent-error': 'text-danger border-accent-error/30 bg-accent-error/10',
-      'purple-400': 'text-purple-400 border-purple-400/30 bg-purple-400/10',
-      'blue-400': 'text-blue-400 border-blue-400/30 bg-blue-400/10',
-      'cyan-400': 'text-cyan-400 border-cyan-400/30 bg-cyan-400/10',
-      'pink-400': 'text-pink-400 border-pink-400/30 bg-pink-400/10',
-      'amber-400': 'text-amber-400 border-amber-400/30 bg-amber-400/10',
-      'indigo-400': 'text-indigo-400 border-indigo-400/30 bg-indigo-400/10',
-      'violet-400': 'text-violet-400 border-violet-400/30 bg-violet-400/10',
-      'emerald-400': 'text-emerald-400 border-emerald-400/30 bg-emerald-400/10',
-      'orange-400': 'text-orange-400 border-orange-400/30 bg-orange-400/10',
-      'rose-400': 'text-rose-400 border-rose-400/30 bg-rose-400/10',
-      'teal-400': 'text-teal-400 border-teal-400/30 bg-teal-400/10',
-    };
-    if (hasFail) {
-      return colorMap[color]?.replace(/border-[^\s]+/, 'border-accent-error/50') || colorMap['accent-primary'];
-    }
-    return colorMap[color] || colorMap['accent-primary'];
+  // Geist: neutral cards; only a failure count is coloured.
+  function getColorClass(_color: string, _hasFail: boolean = false) {
+    return 'text-secondary border-line bg-app';
   }
 
   function getValue(card: ResourceCard): { ok: number; fail: number } | number {
@@ -153,7 +134,7 @@
         <div class="flex items-center gap-3">
           <h1 class="text-lg font-semibold text-text-primary">Pulse</h1>
           {#if $selectedNamespace}
-            <span class="px-2 py-0.5 bg-accent-primary/20 text-accent-text text-base rounded-sm">
+            <span class="px-2 py-0.5 border border-line-strong text-secondary text-base rounded-sm">
               {$selectedNamespace}
             </span>
           {/if}
@@ -169,7 +150,7 @@
       {#if $pulseMetrics.metrics_available}
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <!-- CPU Gauge -->
-          <div class="relative bg-bg-secondary rounded-xl border border-border-subtle p-6 overflow-hidden">
+          <div class="relative bg-app rounded-lg border border-line p-6 overflow-hidden">
             <div class="relative flex items-center gap-6">
               <!-- Ring Gauge -->
               <div class="relative w-32 h-32 shrink-0">
@@ -182,7 +163,7 @@
                     fill="none"
                     stroke="currentColor"
                     stroke-width="12"
-                    class="text-bg-tertiary"
+                    class="text-active"
                   />
                   <!-- Progress ring -->
                   <circle
@@ -190,18 +171,12 @@
                     cy="60"
                     r="52"
                     fill="none"
-                    stroke="url(#cpuGradient)"
+                    stroke="var(--ui-accent)"
                     stroke-width="12"
                     stroke-linecap="round"
                     stroke-dasharray={getStrokeDasharray(cpuUsage(), 52)}
                     class="transition-all duration-300"
                   />
-                  <defs>
-                    <linearGradient id="cpuGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stop-color="#06b6d4" />
-                      <stop offset="100%" stop-color="#3b82f6" />
-                    </linearGradient>
-                  </defs>
                 </svg>
                 <!-- Center text -->
                 <div class="absolute inset-0 flex flex-col items-center justify-center">
@@ -213,7 +188,7 @@
               <!-- Info -->
               <div class="flex-1">
                 <div class="flex items-center gap-2 mb-2">
-                  <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="w-5 h-5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                   </svg>
                   <h3 class="text-[18px]/7 font-semibold text-text-primary">CPU</h3>
@@ -221,7 +196,7 @@
                 <div class="space-y-1">
                   <div class="flex justify-between text-base">
                     <span class="text-text-muted">Usage</span>
-                    <span class="text-cyan-400 font-mono">{formatCpu($pulseMetrics.cpu_usage ?? 0)} cores</span>
+                    <span class="text-muted font-mono">{formatCpu($pulseMetrics.cpu_usage ?? 0)} cores</span>
                   </div>
                   <div class="flex justify-between text-base">
                     <span class="text-text-muted">Allocatable</span>
@@ -233,7 +208,7 @@
           </div>
 
           <!-- Memory Gauge -->
-          <div class="relative bg-bg-secondary rounded-xl border border-border-subtle p-6 overflow-hidden">
+          <div class="relative bg-app rounded-lg border border-line p-6 overflow-hidden">
             <div class="relative flex items-center gap-6">
               <!-- Ring Gauge -->
               <div class="relative w-32 h-32 shrink-0">
@@ -246,7 +221,7 @@
                     fill="none"
                     stroke="currentColor"
                     stroke-width="12"
-                    class="text-bg-tertiary"
+                    class="text-active"
                   />
                   <!-- Progress ring -->
                   <circle
@@ -254,18 +229,12 @@
                     cy="60"
                     r="52"
                     fill="none"
-                    stroke="url(#memGradient)"
+                    stroke="var(--ui-accent)"
                     stroke-width="12"
                     stroke-linecap="round"
                     stroke-dasharray={getStrokeDasharray(memoryUsage(), 52)}
                     class="transition-all duration-300"
                   />
-                  <defs>
-                    <linearGradient id="memGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stop-color="#10b981" />
-                      <stop offset="100%" stop-color="#8b5cf6" />
-                    </linearGradient>
-                  </defs>
                 </svg>
                 <!-- Center text -->
                 <div class="absolute inset-0 flex flex-col items-center justify-center">
@@ -277,7 +246,7 @@
               <!-- Info -->
               <div class="flex-1">
                 <div class="flex items-center gap-2 mb-2">
-                  <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="w-5 h-5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
                   </svg>
                   <h3 class="text-[18px]/7 font-semibold text-text-primary">Memory</h3>
@@ -285,7 +254,7 @@
                 <div class="space-y-1">
                   <div class="flex justify-between text-base">
                     <span class="text-text-muted">Usage</span>
-                    <span class="text-emerald-400 font-mono">{formatMemory($pulseMetrics.memory_usage ?? 0)} Gi</span>
+                    <span class="text-muted font-mono">{formatMemory($pulseMetrics.memory_usage ?? 0)} Gi</span>
                   </div>
                   <div class="flex justify-between text-base">
                     <span class="text-text-muted">Allocatable</span>
@@ -298,10 +267,10 @@
         </div>
       {:else}
         <!-- Metrics unavailable message -->
-        <div class="mb-6 bg-bg-secondary rounded-xl border border-border-subtle p-6">
+        <div class="mb-6 bg-bg-secondary rounded-lg border border-border-subtle p-6">
           <div class="flex items-center gap-4">
-            <div class="p-3 rounded-lg bg-amber-400/10">
-              <svg class="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="p-3 rounded-lg bg-transparent">
+              <svg class="w-6 h-6 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
@@ -327,10 +296,8 @@
           {@const hasFail = hasStatus && (value as ResourceCount).fail > 0}
           <button
             onclick={() => navigateToView(card.view)}
-            class="group relative overflow-hidden rounded-lg border {getColorClass(card.color, hasFail)} p-3 transition-all duration-200 hover:scale-[1.02] hover:shadow-lg text-left cursor-pointer"
+            class="group relative overflow-hidden rounded-lg border {getColorClass(card.color, hasFail)} p-3 transition-colors hover:bg-hover text-left cursor-pointer"
           >
-            <!-- Background glow effect -->
-            <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-linear-to-br from-current/5 to-transparent"></div>
 
             <div class="relative">
               <div class="flex items-center justify-between mb-1">
@@ -343,7 +310,7 @@
               {#if hasStatus}
                 {@const statusValue = value as ResourceCount}
                 <div class="text-lg font-bold">
-                  <span class="text-success">{statusValue.ok}</span>
+                  <span class="text-primary">{statusValue.ok}</span>
                   {#if statusValue.fail > 0}
                     <span class="text-text-muted">:</span>
                     <span class="text-danger">{statusValue.fail}</span>

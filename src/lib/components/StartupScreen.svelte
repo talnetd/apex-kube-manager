@@ -55,12 +55,11 @@
   <div class="w-full max-w-md px-8">
     <!-- Logo -->
     <div class="text-center mb-12 {mounted ? 'animate-fade-in' : 'opacity-0'}">
-      <div class="inline-flex items-center justify-center w-20 h-20 bg-linear-to-br from-accent-primary to-accent-primary/50 rounded-xl mb-6 shadow-lg shadow-accent-primary/20">
-        <svg class="w-10 h-10 text-on-accent" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
+      <div class="inline-flex mb-6" aria-hidden="true">
+        <!-- Geist mark: a plain triangle in the primary text colour -->
+        <span style="width:0;height:0;border-left:18px solid transparent;border-right:18px solid transparent;border-bottom:32px solid var(--ui-primary)"></span>
       </div>
-      <h1 class="text-xl font-bold text-text-primary mb-2">Apex Kube Manager</h1>
+      <h1 class="text-xl font-semibold tracking-[-0.025em] text-text-primary mb-2">Apex</h1>
       <p class="text-text-muted text-base">Initializing your Kubernetes environment</p>
     </div>
 
@@ -72,7 +71,7 @@
       </div>
       <div class="h-1.5 bg-bg-tertiary rounded-full overflow-hidden">
         <div
-          class="h-full bg-linear-to-r from-accent-primary to-accent-success transition-all duration-500 ease-out"
+          class="h-full bg-primary transition-all duration-500 ease-out"
           style="width: {$startupProgress}%"
         ></div>
       </div>

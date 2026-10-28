@@ -427,7 +427,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <p class="text-text-muted">{error}</p>
-          <button onclick={loadPodDetail} class="mt-4 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90">
+          <button onclick={loadPodDetail} class="mt-4 px-4 py-2 bg-btn text-on-btn rounded-lg hover:opacity-90">
             Retry
           </button>
         </div>
@@ -876,12 +876,12 @@
         <!-- Log content -->
         <div class="flex-1 overflow-hidden relative">
           <div class="h-full overflow-auto p-4 bg-[#1e1e1e]" bind:this={logContainerRef}>
-            <pre class="text-xs font-mono text-green-400 whitespace-pre-wrap">{filteredLogs() || (isDeleted ? 'No cached logs available' : 'No logs available')}</pre>
+            <pre class="text-xs font-mono text-primary whitespace-pre-wrap">{filteredLogs() || (isDeleted ? 'No cached logs available' : 'No logs available')}</pre>
           </div>
           <!-- Scroll to bottom button -->
           <button
             onclick={scrollToBottom}
-            class="absolute bottom-4 right-4 p-2 bg-accent-primary text-white rounded-full shadow-lg hover:bg-accent-primary/90 transition-all hover:scale-110"
+            class="absolute bottom-4 right-4 p-2 bg-surface border border-line-strong text-primary rounded-full hover:bg-hover transition-colors"
             title="Scroll to bottom"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

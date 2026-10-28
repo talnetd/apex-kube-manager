@@ -368,7 +368,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <p class="text-text-muted">{error}</p>
-          <button onclick={loadDeploymentDetail} class="mt-4 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90">
+          <button onclick={loadDeploymentDetail} class="mt-4 px-4 py-2 bg-btn text-on-btn rounded-lg hover:opacity-90">
             Retry
           </button>
         </div>
@@ -380,7 +380,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <p class="text-text-muted">No deployment data loaded</p>
-          <button onclick={loadDeploymentDetail} class="mt-4 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90">
+          <button onclick={loadDeploymentDetail} class="mt-4 px-4 py-2 bg-btn text-on-btn rounded-lg hover:opacity-90">
             Retry
           </button>
         </div>
@@ -616,7 +616,7 @@
 <!-- Scale Modal -->
 {#if showScaleModal}
   <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-    <div class="bg-bg-secondary rounded-lg p-6 w-96 shadow-xl">
+    <div class="bg-bg-secondary rounded-lg p-6 w-96 border border-line-strong">
       <h3 class="text-[18px]/7 font-semibold text-text-primary mb-4">Scale Deployment</h3>
       <p class="text-base text-text-secondary mb-4">
         Set the number of replicas for <span class="text-accent-text">{name}</span>
@@ -655,7 +655,7 @@
         <button
           onclick={handleScale}
           disabled={isScaling}
-          class="px-4 py-2 text-base bg-accent-primary text-white rounded-sm hover:bg-accent-primary/90 transition-colors disabled:opacity-50"
+          class="px-4 py-2 text-base bg-btn text-on-btn rounded-sm hover:opacity-90 transition-colors disabled:opacity-50"
         >
           {isScaling ? 'Scaling...' : 'Scale'}
         </button>

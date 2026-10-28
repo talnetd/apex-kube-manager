@@ -3,11 +3,12 @@
   export type ButtonSize = 'sm' | 'md' | 'lg';
 
   export const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-    primary: 'btn-bright bg-accent text-on-accent',
-    secondary: 'bg-surface border border-line text-primary hover:bg-hover hover:border-line-strong active:bg-active',
-    ghost: 'bg-transparent text-secondary hover:bg-hover hover:text-primary active:bg-active',
-    danger: 'btn-bright bg-danger-button text-white',
-    'danger-ghost': 'bg-transparent text-danger hover:bg-danger-tint active:bg-danger-tint',
+    // Geist: primary is a solid neutral fill; everything else is outlined.
+    primary: 'btn-solid bg-btn text-on-btn border border-btn',
+    secondary: 'bg-app border border-line-strong text-primary hover:bg-hover hover:border-faint active:bg-active',
+    ghost: 'bg-transparent border border-transparent text-secondary hover:border-line-strong hover:text-primary active:bg-active',
+    danger: 'bg-transparent border border-danger text-danger hover:bg-hover active:bg-active',
+    'danger-ghost': 'bg-transparent border border-transparent text-danger hover:bg-hover active:bg-active',
   };
 
   export const BUTTON_SIZES: Record<ButtonSize, string> = {
@@ -58,7 +59,7 @@
   {type}
   disabled={inert}
   aria-busy={loading ? 'true' : undefined}
-  class="inline-flex items-center justify-center shrink-0 rounded-md font-medium whitespace-nowrap select-none transition-colors duration-100 ease-out disabled:opacity-45 disabled:cursor-not-allowed disabled:pointer-events-none {BUTTON_SIZES[size]} {BUTTON_VARIANTS[variant]} {className}"
+  class="inline-flex items-center justify-center shrink-0 rounded-md font-medium whitespace-nowrap select-none transition-colors duration-100 ease-out disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none {BUTTON_SIZES[size]} {BUTTON_VARIANTS[variant]} {className}"
   {...rest}
 >
   {#if loading}
@@ -67,19 +68,17 @@
     <span class="inline-flex shrink-0 w-4 h-4 items-center justify-center" aria-hidden="true">{@render icon()}</span>
   {/if}
   {#if children}<span class="truncate">{@render children()}</span>{/if}
-  {#if kbd}<Kbd keys={kbd} class="ml-0.5 {variant === 'primary' || variant === 'danger' ? 'kbd-on-fill' : ''}" />{/if}
+  {#if kbd}<Kbd keys={kbd} class="ml-0.5 {variant === 'primary' ? 'kbd-on-fill' : ''}" />{/if}
 </button>
 
 <style>
-  .btn-bright:hover:not(:disabled) {
-    filter: brightness(1.08);
-  }
-  .btn-bright:active:not(:disabled) {
-    filter: brightness(0.95);
+  .btn-solid:hover:not(:disabled) {
+    opacity: 0.88;
   }
   :global(.kbd-on-fill) {
-    background: rgb(255 255 255 / 0.16) !important;
-    border-color: rgb(255 255 255 / 0.28) !important;
-    color: rgb(255 255 255 / 0.9) !important;
+    background: transparent !important;
+    border-color: currentColor !important;
+    color: inherit !important;
+    opacity: 0.7;
   }
 </style>

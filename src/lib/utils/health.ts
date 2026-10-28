@@ -81,13 +81,14 @@ export function healthAriaLabel(health: Health, label: string): string {
 
 /**
  * Class names per state (11.2). Written out literally so Tailwind's scanner
- * picks them up. Unknown and neutral use the neutral text tokens, no tint.
+ * picks them up. Geist: no tinted fills anywhere, status is icon plus text.
  */
 export const HEALTH_CLASSES: Record<Health, { fg: string; solid: string; tint: string; icon: string }> = {
-  failed: { fg: 'text-danger', solid: 'bg-danger-solid', tint: 'bg-danger-tint', icon: 'text-danger-solid' },
-  warning: { fg: 'text-warning', solid: 'bg-warning-solid', tint: 'bg-warning-tint', icon: 'text-warning-solid' },
-  progressing: { fg: 'text-info', solid: 'bg-info-solid', tint: 'bg-info-tint', icon: 'text-info-solid' },
-  healthy: { fg: 'text-success', solid: 'bg-success-solid', tint: 'bg-success-tint', icon: 'text-success-solid' },
+  failed: { fg: 'text-danger', solid: 'bg-danger-solid', tint: '', icon: 'text-danger-solid' },
+  warning: { fg: 'text-warning', solid: 'bg-warning-solid', tint: '', icon: 'text-warning-solid' },
+  progressing: { fg: 'text-info', solid: 'bg-info-solid', tint: '', icon: 'text-info-solid' },
+  // Calm by default (spec 13.1): healthy is neutral text with a muted icon.
+  healthy: { fg: 'text-secondary', solid: 'bg-line-strong', tint: '', icon: 'text-muted' },
   unknown: { fg: 'text-secondary', solid: 'bg-muted', tint: '', icon: 'text-muted' },
   neutral: { fg: 'text-secondary', solid: 'bg-muted', tint: '', icon: 'text-muted' },
 };

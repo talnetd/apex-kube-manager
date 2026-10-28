@@ -46,7 +46,7 @@
   disabled={disabled || loading}
   aria-busy={loading ? 'true' : undefined}
   use:tooltip={tip}
-  class="inline-flex items-center justify-center shrink-0 rounded-md transition-colors duration-100 ease-out disabled:opacity-45 disabled:cursor-not-allowed disabled:pointer-events-none {SIZES[size]} {BUTTON_VARIANTS[variant]} {active ? 'bg-active! text-primary!' : ''} {className}"
+  class="inline-flex items-center justify-center shrink-0 rounded-md transition-colors duration-100 ease-out disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none {SIZES[size]} {variant === 'ghost' ? 'text-secondary hover:bg-hover hover:text-primary active:bg-active' : BUTTON_VARIANTS[variant]} {active ? 'bg-active! text-primary!' : ''} {className}"
   {...rest}
 >
   {#if loading}<Spinner />{:else}<span class="inline-flex w-4 h-4 items-center justify-center" aria-hidden="true">{@render children()}</span>{/if}

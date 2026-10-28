@@ -33,7 +33,7 @@
   let { view }: Props = $props();
 </script>
 
-<main class="flex-1 overflow-hidden bg-bg-primary">
+<main class="shell-main overflow-hidden bg-app min-w-0 min-h-0">
   {#if view === 'dashboard'}
     <Dashboard />
   <!-- Workloads -->
@@ -88,3 +88,15 @@
     </div>
   {/if}
 </main>
+
+<style>
+  .shell-main {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  @media (width < 640px) {
+    .shell-main {
+      grid-column: 1;
+    }
+  }
+</style>

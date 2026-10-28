@@ -1272,6 +1272,7 @@ export async function loadPulseMetrics(namespace?: string | null) {
   try {
     const metrics = await tauriInvoke<PulseMetrics>('get_pulse_metrics', { namespace });
     pulseMetrics.set(metrics);
+    markSynced('pulse');
   } catch (e) {
     error.set(String(e));
   }

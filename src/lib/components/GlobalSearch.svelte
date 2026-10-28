@@ -160,38 +160,9 @@
   }
 
   // Get badge color for resource type
-  function getBadgeColor(category: keyof SearchResults): string {
-    switch (category) {
-      case 'pods':
-        return 'bg-blue-500/20 text-blue-400';
-      case 'deployments':
-      case 'statefulsets':
-      case 'daemonsets':
-      case 'replicasets':
-        return 'bg-purple-500/20 text-purple-400';
-      case 'jobs':
-      case 'cronjobs':
-        return 'bg-amber-500/20 text-amber-400';
-      case 'services':
-      case 'ingresses':
-        return 'bg-cyan-500/20 text-cyan-400';
-      case 'configmaps':
-      case 'secrets':
-        return 'bg-emerald-500/20 text-emerald-400';
-      case 'networkPolicies':
-        return 'bg-rose-500/20 text-rose-400';
-      case 'hpas':
-        return 'bg-orange-500/20 text-orange-400';
-      case 'pvs':
-      case 'pvcs':
-        return 'bg-indigo-500/20 text-indigo-400';
-      case 'namespaces':
-      case 'nodes':
-      case 'serviceAccounts':
-        return 'bg-slate-500/20 text-slate-400';
-      default:
-        return 'bg-gray-500/20 text-gray-400';
-    }
+  // Geist: one outlined, neutral kind tag for every type; the text says the kind.
+  function getBadgeColor(_category: keyof SearchResults): string {
+    return 'border border-line-strong text-secondary font-mono';
   }
 
   // Short display name for badge
@@ -227,7 +198,7 @@
     onclick={handleBackdropClick}
   >
     <div
-      class="w-full max-w-xl bg-bg-primary border border-border-subtle rounded-xl shadow-2xl overflow-hidden"
+      class="w-full max-w-xl bg-bg-primary border border-border-subtle rounded-lg overflow-hidden"
       onkeydown={handleKeydown}
     >
       <!-- Search Input -->

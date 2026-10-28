@@ -2,6 +2,8 @@
   import { onMount, onDestroy } from 'svelte';
   import Sidebar from './lib/components/Sidebar.svelte';
   import Header from './lib/components/Header.svelte';
+  import StatusBar from './lib/components/StatusBar.svelte';
+  import { currentContextIsProd } from './lib/stores/production';
   import MainPanel from './lib/components/MainPanel.svelte';
   import StartupScreen from './lib/components/StartupScreen.svelte';
   import GlobalSearch from './lib/components/GlobalSearch.svelte';
@@ -161,18 +163,15 @@
 {#if !$isInitialized}
   <StartupScreen />
 {:else}
-  <div class="flex h-full bg-bg-primary">
-    <!-- Sidebar -->
+  <!-- Production marker: a 2px warning line across the top (spec 4.6) -->
+  {#if $currentContextIsProd}<div class="prodline" aria-hidden="true"></div>{/if}
+
+  <!-- Shell grid (spec 4.1, 13.2): sidebar | header / main, status bar below -->
+  <div class="app-shell">
     <Sidebar />
-
-    <!-- Main Content Area -->
-    <div class="flex-1 flex flex-col overflow-hidden">
-      <!-- Header -->
-      <Header />
-
-      <!-- Main Panel -->
-      <MainPanel view={$currentView} />
-    </div>
+    <Header />
+    <MainPanel view={$currentView} />
+    <StatusBar />
   </div>
 
   <!-- Pulse Rail: capacity + live events -->
@@ -186,3 +185,33 @@
 {/if}
 
 <Toaster />
+
+<style>
+  .app-shell {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-rows: 44px minmax(0, 1fr) 24px;
+    height: 100%;
+    background: var(--ui-app);
+  }
+  .prodline {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 2px;
+    background: var(--ui-warning-solid);
+    z-index: 60;
+    pointer-events: none;
+  }
+  @media (640px <= width < 1200px) {
+    .app-shell {
+      grid-template-columns: 52px minmax(0, 1fr);
+    }
+  }
+  @media (width < 640px) {
+    .app-shell {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

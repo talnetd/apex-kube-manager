@@ -1,6 +1,8 @@
 // WCAG AA guard for the design tokens in src/styles/app.css (spec 2.2-2.4, 8).
 // Every token meant for readable text must reach 4.5:1 on the app and
-// surface backgrounds in both themes; button fills must carry white text.
+// surface backgrounds in both themes (Geist palette). Filled controls are
+// the neutral primary button and the blue accent; both must carry their text.
+// Danger buttons are outlined, so they're covered by text-danger above.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -48,9 +50,22 @@ describe('token contrast (WCAG AA 4.5:1)', () => {
       }
     }
 
-    it(`${theme}: white on accent and danger-button fills`, () => {
-      expect(contrast('#ffffff', t['accent'])).toBeGreaterThanOrEqual(4.5);
-      expect(contrast('#ffffff', t['danger-button'])).toBeGreaterThanOrEqual(4.5);
+    it(`${theme}: on-btn text on the primary button fill`, () => {
+      expect(contrast(t['on-btn'], t['btn'])).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it(`${theme}: on-accent text on the accent fill`, () => {
+      expect(contrast(t['on-accent'], t['accent'])).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it(`${theme}: problem dots (danger/warning text tokens) stand out from the ground (3:1)`, () => {
+      for (const tok of ['danger', 'warning']) {
+        expect(contrast(t[tok], t['app'])).toBeGreaterThanOrEqual(3);
+      }
+    });
+
+    it(`${theme}: no tinted status fills`, () => {
+      expect(t['tint']).toBe('0%');
     });
   }
 });
