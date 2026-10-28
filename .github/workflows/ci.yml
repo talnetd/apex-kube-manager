@@ -36,6 +36,9 @@ jobs:
         run: npx svelte-check --tsconfig ./tsconfig.json
         continue-on-error: true
 
+      - name: Unit + component tests (vitest)
+        run: npm test
+
       - name: Build frontend
         run: npm run build
 

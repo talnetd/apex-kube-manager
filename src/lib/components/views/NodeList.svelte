@@ -195,10 +195,10 @@
   function getStatusColor(status: string): string {
     if (status.includes('Ready') && !status.includes('NotReady')) {
       return status.includes('SchedulingDisabled')
-        ? 'text-accent-warning bg-accent-warning/10'
-        : 'text-accent-success bg-accent-success/10';
+        ? 'text-warning bg-accent-warning/10'
+        : 'text-success bg-accent-success/10';
     }
-    return 'text-accent-error bg-accent-error/10';
+    return 'text-danger bg-accent-error/10';
   }
 </script>
 
@@ -206,7 +206,7 @@
   <!-- Toolbar -->
   <div class="px-6 py-4 border-b border-border-subtle">
     <div class="flex items-center justify-between">
-      <h1 class="text-xl font-semibold text-text-primary">Nodes</h1>
+      <h1 class="text-lg font-semibold text-text-primary">Nodes</h1>
       <ViewFilter bind:this={filterRef} value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter nodes..." />
     </div>
   </div>
@@ -234,7 +234,7 @@
           {@const isSelected = $keyboardNavActive && $selectedRowIndex === index}
           <tr class="border-b border-border-subtle/50 cursor-pointer transition-colors {isSelected ? 'bg-accent-primary/20 ring-1 ring-accent-primary/50' : 'hover:bg-bg-secondary'}" onclick={() => openDetail(node)}>
             <td class="py-3 pr-4">
-              <span class="text-accent-primary font-medium hover:underline">{node.name}</span>
+              <span class="text-accent-text font-medium hover:underline">{node.name}</span>
             </td>
             <td class="py-3 pr-4">
               <span class="text-xs px-2 py-0.5 rounded-sm {getStatusColor(node.status)}">{node.status}</span>
@@ -242,7 +242,7 @@
             <td class="py-3 pr-4">
               <div class="flex flex-wrap gap-1">
                 {#each node.roles as role}
-                  <span class="text-xs bg-accent-primary/10 text-accent-primary px-2 py-0.5 rounded-sm">{role}</span>
+                  <span class="text-xs bg-accent-primary/10 text-accent-text px-2 py-0.5 rounded-sm">{role}</span>
                 {/each}
               </div>
             </td>
@@ -256,7 +256,7 @@
               <UsageBar percent={node.disk_pct} detail={node.disk_detail} unavailableHint="No disk usage — kubelet stats unreachable (needs nodes/proxy access)" />
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{node.version}</span>
+              <span class="text-text-secondary text-base">{node.version}</span>
             </td>
             <td class="py-3 pr-4">
               <code class="text-xs bg-bg-tertiary px-2 py-0.5 rounded-sm text-text-secondary">{node.internal_ip || '-'}</code>
@@ -271,7 +271,7 @@
               {#if node.taints && node.taints.length > 0}
                 <div class="flex flex-wrap gap-1">
                   {#each node.taints as taint}
-                    <span class="text-xs px-1.5 py-0.5 rounded-sm {taint.effect === 'NoSchedule' ? 'bg-accent-error/10 text-accent-error' : taint.effect === 'PreferNoSchedule' ? 'bg-accent-warning/10 text-accent-warning' : 'bg-accent-primary/10 text-accent-primary'}" title="{taint.key}={taint.value || ''}:{taint.effect}">
+                    <span class="text-xs px-1.5 py-0.5 rounded-sm {taint.effect === 'NoSchedule' ? 'bg-accent-error/10 text-danger' : taint.effect === 'PreferNoSchedule' ? 'bg-accent-warning/10 text-warning' : 'bg-accent-primary/10 text-accent-text'}" title="{taint.key}={taint.value || ''}:{taint.effect}">
                       {taint.key}
                     </span>
                   {/each}
@@ -281,7 +281,7 @@
               {/if}
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{node.age}</span>
+              <span class="text-text-secondary text-base">{node.age}</span>
             </td>
           </tr>
         {/each}

@@ -50,7 +50,7 @@
   <!-- Toolbar -->
   <div class="px-6 py-4 border-b border-border-subtle">
     <div class="flex items-center justify-between">
-      <h1 class="text-xl font-semibold text-text-primary">Service Accounts</h1>
+      <h1 class="text-lg font-semibold text-text-primary">Service Accounts</h1>
       <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter accounts..." />
     </div>
   </div>
@@ -70,16 +70,16 @@
         {#each sortedData() as sa}
           <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer" onclick={() => openDetail(sa)}>
             <td class="py-3 pr-4">
-              <span class="text-accent-primary font-medium hover:underline">{sa.name}</span>
+              <span class="text-accent-text font-medium hover:underline">{sa.name}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{sa.namespace}</span>
+              <span class="text-text-secondary text-base">{sa.namespace}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{sa.secrets}</span>
+              <span class="text-text-secondary text-base">{sa.secrets}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{sa.age}</span>
+              <span class="text-text-secondary text-base">{sa.age}</span>
             </td>
           </tr>
         {/each}

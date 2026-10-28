@@ -52,7 +52,7 @@
     return type === 'Warning' ? '[WARN]' : '[ ok ]';
   }
   function evColor(type: string): string {
-    return type === 'Warning' ? 'text-accent-warning' : 'text-accent-success';
+    return type === 'Warning' ? 'text-warning' : 'text-success';
   }
 </script>
 
@@ -92,7 +92,7 @@
                 {formatCpu($pulseMetrics.cpu_usage ?? 0)} / {formatCpu($pulseMetrics.cpu_allocatable)}
               </span>
             </div>
-            <div class="h-1.5 rounded-xs bg-bg-tertiary border border-border-subtle overflow-hidden">
+            <div class="h-1.5 rounded-sm bg-bg-tertiary border border-border-subtle overflow-hidden">
               <div class="h-full bg-accent-primary" style="width:{cpuPct()}%"></div>
             </div>
           </div>
@@ -104,13 +104,13 @@
                 {formatMemory($pulseMetrics.memory_usage ?? 0)} / {formatMemory($pulseMetrics.memory_allocatable)}
               </span>
             </div>
-            <div class="h-1.5 rounded-xs bg-bg-tertiary border border-border-subtle overflow-hidden">
+            <div class="h-1.5 rounded-sm bg-bg-tertiary border border-border-subtle overflow-hidden">
               <div class="h-full bg-accent-secondary" style="width:{memPct()}%"></div>
             </div>
           </div>
         {:else}
           <!-- No metrics-server: still show allocatable capacity + a hint. -->
-          <div class="text-xs text-accent-warning font-mono mb-2">metrics-server not detected</div>
+          <div class="text-xs text-warning font-mono mb-2">metrics-server not detected</div>
           <div class="text-xs text-text-secondary font-mono leading-relaxed">
             <div class="flex justify-between"><span>cpu</span><span class="text-text-primary tabular-nums">{formatCpu($pulseMetrics.cpu_allocatable)}</span></div>
             <div class="flex justify-between"><span>mem</span><span class="text-text-primary tabular-nums">{formatMemory($pulseMetrics.memory_allocatable)}</span></div>

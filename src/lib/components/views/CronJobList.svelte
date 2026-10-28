@@ -56,7 +56,7 @@
   <!-- Toolbar -->
   <div class="px-6 py-4 border-b border-border-subtle">
     <div class="flex items-center justify-between">
-      <h1 class="text-xl font-semibold text-text-primary">CronJobs</h1>
+      <h1 class="text-lg font-semibold text-text-primary">CronJobs</h1>
       <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter cronjobs..." />
     </div>
   </div>
@@ -80,34 +80,34 @@
         {#each sortedData() as cj}
           <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer" onclick={() => openDetail(cj)}>
             <td class="py-3 pr-4">
-              <span class="text-accent-primary font-medium hover:underline">{cj.name}</span>
+              <span class="text-accent-text font-medium hover:underline">{cj.name}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{cj.namespace}</span>
+              <span class="text-text-secondary text-base">{cj.namespace}</span>
             </td>
             <td class="py-3 pr-4">
-              <code class="text-xs bg-bg-tertiary px-2 py-0.5 rounded-sm text-accent-primary">{cj.schedule}</code>
+              <code class="text-xs bg-bg-tertiary px-2 py-0.5 rounded-sm text-accent-text">{cj.schedule}</code>
             </td>
             <td class="py-3 pr-4">
               {#if cj.suspend}
-                <span class="px-2 py-0.5 rounded-sm text-xs font-medium text-accent-warning bg-accent-warning/10">Suspended</span>
+                <span class="px-2 py-0.5 rounded-sm text-xs font-medium text-warning bg-accent-warning/10">Suspended</span>
               {:else}
-                <span class="px-2 py-0.5 rounded-sm text-xs font-medium text-accent-success bg-accent-success/10">Active</span>
+                <span class="px-2 py-0.5 rounded-sm text-xs font-medium text-success bg-accent-success/10">Active</span>
               {/if}
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{cj.active}</span>
+              <span class="text-text-secondary text-base">{cj.active}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{cj.last_schedule || 'Never'}</span>
+              <span class="text-text-secondary text-base">{cj.last_schedule || 'Never'}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{cj.age}</span>
+              <span class="text-text-secondary text-base">{cj.age}</span>
             </td>
             <td class="py-3">
               <div class="flex items-center gap-1">
                 <button
-                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-success transition-colors"
+                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-success transition-colors"
                   title="Trigger Now"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -116,7 +116,7 @@
                   </svg>
                 </button>
                 <button
-                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-warning transition-colors"
+                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-warning transition-colors"
                   title="{cj.suspend ? 'Resume' : 'Suspend'}"
                 >
                   {#if cj.suspend}

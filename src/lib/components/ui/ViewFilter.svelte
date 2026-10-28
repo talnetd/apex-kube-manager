@@ -45,7 +45,7 @@
         bind:this={inputRef}
         type="text"
         {placeholder}
-        class="w-40 bg-transparent text-sm text-text-primary placeholder-text-muted focus:outline-hidden"
+        class="w-40 bg-transparent text-base text-text-primary placeholder-text-muted focus:outline-hidden"
         {value}
         oninput={(e) => onchange(e.currentTarget.value)}
         onkeydown={handleKeydown}

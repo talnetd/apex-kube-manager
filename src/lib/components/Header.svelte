@@ -87,7 +87,7 @@
       class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-tertiary border border-border-subtle hover:border-accent-primary transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
     >
       <div class="w-2 h-2 rounded-full {$isSwitchingContext ? 'bg-accent-warning animate-pulse' : 'bg-accent-success'}"></div>
-      <span class="text-sm text-text-primary max-w-[180px] truncate">{$isSwitchingContext ? 'Switching...' : ($currentContext || 'Select Context')}</span>
+      <span class="text-base text-text-primary max-w-[180px] truncate">{$isSwitchingContext ? 'Switching...' : ($currentContext || 'Select Context')}</span>
       <svg class="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
       </svg>
@@ -103,7 +103,7 @@
             <li>
               <button
                 onclick={() => handleContextChange(ctx.name)}
-                class="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-bg-tertiary transition-colors {ctx.is_current ? 'text-accent-primary' : 'text-text-primary'}"
+                class="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-bg-tertiary transition-colors {ctx.is_current ? 'text-accent-text' : 'text-text-primary'}"
               >
                 {#if ctx.is_current}
                   <svg class="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -113,7 +113,7 @@
                   <div class="w-4"></div>
                 {/if}
                 <div class="flex-1 min-w-0">
-                  <div class="text-sm truncate">{ctx.name}</div>
+                  <div class="text-base truncate">{ctx.name}</div>
                   <div class="text-xs text-text-muted truncate">{ctx.cluster}</div>
                 </div>
               </button>
@@ -133,7 +133,7 @@
       }}
       class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-tertiary border border-border-subtle hover:border-accent-primary transition-colors"
     >
-      <span class="text-sm text-text-primary">{$selectedNamespace || '*'}</span>
+      <span class="text-base text-text-primary">{$selectedNamespace || '*'}</span>
       <svg class="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
       </svg>
@@ -145,7 +145,7 @@
           <li>
             <button
               onclick={() => handleNamespaceChange(null)}
-              class="w-full px-3 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors {!$selectedNamespace ? 'text-accent-primary' : 'text-text-primary'}"
+              class="w-full px-3 py-2 text-left text-base hover:bg-bg-tertiary transition-colors {!$selectedNamespace ? 'text-accent-text' : 'text-text-primary'}"
             >
               *
             </button>
@@ -154,7 +154,7 @@
             <li>
               <button
                 onclick={() => handleNamespaceChange(ns)}
-                class="w-full px-3 py-2 text-left text-sm hover:bg-bg-tertiary transition-colors {$selectedNamespace === ns ? 'text-accent-primary' : 'text-text-primary'}"
+                class="w-full px-3 py-2 text-left text-base hover:bg-bg-tertiary transition-colors {$selectedNamespace === ns ? 'text-accent-text' : 'text-text-primary'}"
               >
                 {ns}
               </button>
@@ -172,7 +172,7 @@
   {#if $pulseMetrics}
     <!-- K8s Version -->
     <div class="flex items-center gap-1.5 px-2.5 py-1 bg-bg-tertiary rounded-md border border-accent-success/30">
-      <span class="text-accent-success font-mono text-xs">{$pulseMetrics.k8s_version}</span>
+      <span class="text-success font-mono text-xs">{$pulseMetrics.k8s_version}</span>
     </div>
 
     <!-- Nodes -->
@@ -224,7 +224,7 @@
   <!-- Pulse Rail Toggle (capacity + live events) -->
   <button
     onclick={() => pulseRailOpen.update(v => !v)}
-    class="p-2 rounded-lg hover:bg-bg-tertiary transition-colors {$pulseRailOpen ? 'text-accent-primary' : 'text-text-muted hover:text-text-primary'}"
+    class="p-2 rounded-lg hover:bg-bg-tertiary transition-colors {$pulseRailOpen ? 'text-accent-text' : 'text-text-muted hover:text-text-primary'}"
     title="Pulse rail — capacity & events (⌘E)"
   >
     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -236,7 +236,7 @@
   <div class="relative">
     <button
       onclick={() => portForwardPanelOpen.update(v => !v)}
-      class="relative p-2 rounded-lg hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors {$portForwardPanelOpen ? 'bg-bg-tertiary text-accent-primary' : ''}"
+      class="relative p-2 rounded-lg hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors {$portForwardPanelOpen ? 'bg-bg-tertiary text-accent-text' : ''}"
       title="Port Forwards (⌘P)"
     >
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -262,7 +262,7 @@
           e.stopPropagation();
           showUpdateDropdown = !showUpdateDropdown;
         }}
-        class="relative p-2 rounded-lg hover:bg-bg-tertiary text-accent-success hover:text-accent-success transition-colors"
+        class="relative p-2 rounded-lg hover:bg-bg-tertiary text-success hover:text-success transition-colors"
         title="Update available"
       >
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -275,26 +275,26 @@
         <div class="absolute top-full right-0 mt-1 w-72 bg-bg-card border border-border-subtle rounded-lg shadow-xl z-50">
           <div class="p-4">
             <div class="flex items-center gap-2 mb-3">
-              <svg class="w-5 h-5 text-accent-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-5 h-5 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span class="text-sm font-medium text-text-primary">Update Available</span>
+              <span class="text-base font-medium text-text-primary">Update Available</span>
             </div>
 
             <div class="space-y-2 mb-4">
-              <div class="flex justify-between text-sm">
+              <div class="flex justify-between text-base">
                 <span class="text-text-muted">Current</span>
                 <span class="text-text-primary font-mono">v{$updateInfo.current_version}</span>
               </div>
-              <div class="flex justify-between text-sm">
+              <div class="flex justify-between text-base">
                 <span class="text-text-muted">Latest</span>
-                <span class="text-accent-success font-mono">v{$updateInfo.latest_version}</span>
+                <span class="text-success font-mono">v{$updateInfo.latest_version}</span>
               </div>
             </div>
 
             <button
               onclick={openReleasePage}
-              class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-accent-success text-white rounded-lg hover:bg-accent-success/90 transition-colors text-sm"
+              class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-accent-success text-white rounded-lg hover:bg-accent-success/90 transition-colors text-base"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />

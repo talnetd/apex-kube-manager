@@ -310,22 +310,22 @@
 
   function getStatusColor(status: string): string {
     switch (status.toLowerCase()) {
-      case 'running': return 'text-accent-success bg-accent-success/10';
-      case 'succeeded': return 'text-accent-success bg-accent-success/10';
-      case 'pending': return 'text-accent-warning bg-accent-warning/10';
-      case 'failed': return 'text-accent-error bg-accent-error/10';
-      case 'terminated': return 'text-accent-error bg-accent-error/10';
-      case 'waiting': return 'text-accent-warning bg-accent-warning/10';
+      case 'running': return 'text-success bg-accent-success/10';
+      case 'succeeded': return 'text-success bg-accent-success/10';
+      case 'pending': return 'text-warning bg-accent-warning/10';
+      case 'failed': return 'text-danger bg-accent-error/10';
+      case 'terminated': return 'text-danger bg-accent-error/10';
+      case 'waiting': return 'text-warning bg-accent-warning/10';
       default: return 'text-text-muted bg-bg-tertiary';
     }
   }
 
   function getConditionColor(status: string): string {
-    return status === 'True' ? 'text-accent-success' : 'text-accent-error';
+    return status === 'True' ? 'text-success' : 'text-danger';
   }
 
   function getEventTypeColor(type: string): string {
-    return type === 'Normal' ? 'text-accent-success bg-accent-success/10' : 'text-accent-warning bg-accent-warning/10';
+    return type === 'Normal' ? 'text-success bg-accent-success/10' : 'text-warning bg-accent-warning/10';
   }
 
   async function openTerminal(containerName?: string) {
@@ -348,43 +348,43 @@
     <nav class="flex gap-1 px-4">
       <button
         onclick={() => handleTabChange('overview')}
-        class="px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'overview' ? 'border-accent-primary text-accent-primary' : 'border-transparent text-text-muted hover:text-text-primary'}"
+        class="px-4 py-3 text-base font-medium border-b-2 transition-colors {activeTab === 'overview' ? 'border-accent-primary text-accent-text' : 'border-transparent text-text-muted hover:text-text-primary'}"
       >
         Overview
       </button>
       <button
         onclick={() => handleTabChange('containers')}
-        class="px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'containers' ? 'border-accent-primary text-accent-primary' : 'border-transparent text-text-muted hover:text-text-primary'}"
+        class="px-4 py-3 text-base font-medium border-b-2 transition-colors {activeTab === 'containers' ? 'border-accent-primary text-accent-text' : 'border-transparent text-text-muted hover:text-text-primary'}"
       >
         Containers
       </button>
       <button
         onclick={() => handleTabChange('env')}
-        class="px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'env' ? 'border-accent-primary text-accent-primary' : 'border-transparent text-text-muted hover:text-text-primary'}"
+        class="px-4 py-3 text-base font-medium border-b-2 transition-colors {activeTab === 'env' ? 'border-accent-primary text-accent-text' : 'border-transparent text-text-muted hover:text-text-primary'}"
       >
         Env
       </button>
       <button
         onclick={() => handleTabChange('volumes')}
-        class="px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'volumes' ? 'border-accent-primary text-accent-primary' : 'border-transparent text-text-muted hover:text-text-primary'}"
+        class="px-4 py-3 text-base font-medium border-b-2 transition-colors {activeTab === 'volumes' ? 'border-accent-primary text-accent-text' : 'border-transparent text-text-muted hover:text-text-primary'}"
       >
         Volumes
       </button>
       <button
         onclick={() => handleTabChange('events')}
-        class="px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'events' ? 'border-accent-primary text-accent-primary' : 'border-transparent text-text-muted hover:text-text-primary'}"
+        class="px-4 py-3 text-base font-medium border-b-2 transition-colors {activeTab === 'events' ? 'border-accent-primary text-accent-text' : 'border-transparent text-text-muted hover:text-text-primary'}"
       >
         Events
       </button>
       <button
         onclick={() => handleTabChange('logs')}
-        class="px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'logs' ? 'border-accent-primary text-accent-primary' : 'border-transparent text-text-muted hover:text-text-primary'}"
+        class="px-4 py-3 text-base font-medium border-b-2 transition-colors {activeTab === 'logs' ? 'border-accent-primary text-accent-text' : 'border-transparent text-text-muted hover:text-text-primary'}"
       >
         Logs
       </button>
       <button
         onclick={() => handleTabChange('yaml')}
-        class="px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'yaml' ? 'border-accent-primary text-accent-primary' : 'border-transparent text-text-muted hover:text-text-primary'}"
+        class="px-4 py-3 text-base font-medium border-b-2 transition-colors {activeTab === 'yaml' ? 'border-accent-primary text-accent-text' : 'border-transparent text-text-muted hover:text-text-primary'}"
       >
         YAML
       </button>
@@ -395,13 +395,13 @@
   {#if isDeleted}
     <div class="flex items-center justify-between px-4 py-3 bg-accent-warning/10 border-b border-accent-warning/30">
       <div class="flex items-center gap-3">
-        <svg class="w-5 h-5 text-accent-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-5 h-5 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
         <div>
-          <span class="font-medium text-accent-warning">This pod no longer exists</span>
+          <span class="font-medium text-warning">This pod no longer exists</span>
           {#if lastSeen}
-            <span class="text-text-muted text-sm ml-2">Last seen: {lastSeen}</span>
+            <span class="text-text-muted text-base ml-2">Last seen: {lastSeen}</span>
           {/if}
         </div>
       </div>
@@ -414,7 +414,7 @@
     {#if isLoading}
       <div class="flex items-center justify-center h-full">
         <div class="text-center">
-          <svg class="w-8 h-8 text-accent-primary mx-auto mb-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-8 h-8 text-accent-text mx-auto mb-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
           <p class="text-text-muted">Loading pod details...</p>
@@ -423,7 +423,7 @@
     {:else if error}
       <div class="flex items-center justify-center h-full">
         <div class="text-center">
-          <svg class="w-16 h-16 text-accent-error mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-16 h-16 text-danger mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <p class="text-text-muted">{error}</p>
@@ -436,32 +436,32 @@
       <div class="p-6 space-y-6">
         <!-- Status Section -->
         <section>
-          <h2 class="text-lg font-semibold text-text-primary mb-4">Status</h2>
+          <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Status</h2>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="bg-bg-secondary rounded-lg p-4">
               <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Phase</div>
-              <span class="text-sm px-2 py-0.5 rounded-sm {getStatusColor(podDetail.phase)}">{podDetail.phase}</span>
+              <span class="text-base px-2 py-0.5 rounded-sm {getStatusColor(podDetail.phase)}">{podDetail.phase}</span>
             </div>
             <div class="bg-bg-secondary rounded-lg p-4">
               <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Pod IP</div>
-              <code class="text-sm text-text-primary">{podDetail.pod_ip || 'N/A'}</code>
+              <code class="text-base text-text-primary">{podDetail.pod_ip || 'N/A'}</code>
             </div>
             <div class="bg-bg-secondary rounded-lg p-4">
               <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Node</div>
-              <span class="text-sm text-text-primary">{podDetail.node_name || 'N/A'}</span>
+              <span class="text-base text-text-primary">{podDetail.node_name || 'N/A'}</span>
             </div>
             <div class="bg-bg-secondary rounded-lg p-4">
               <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Service Account</div>
-              <span class="text-sm text-text-primary">{podDetail.service_account || 'default'}</span>
+              <span class="text-base text-text-primary">{podDetail.service_account || 'default'}</span>
             </div>
           </div>
         </section>
 
         <!-- Conditions Section -->
         <section>
-          <h2 class="text-lg font-semibold text-text-primary mb-4">Conditions</h2>
+          <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Conditions</h2>
           <div class="bg-bg-secondary rounded-lg overflow-hidden">
-            <table class="w-full text-sm">
+            <table class="w-full text-base">
               <thead class="bg-bg-tertiary">
                 <tr>
                   <th class="px-4 py-2 text-left text-xs text-text-muted uppercase">Type</th>
@@ -487,7 +487,7 @@
         <!-- Labels & Annotations -->
         <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Labels</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Labels</h2>
             <div class="bg-bg-secondary rounded-lg p-4">
               {#if Object.keys(podDetail.labels).length > 0}
                 <div class="flex flex-wrap gap-2">
@@ -498,12 +498,12 @@
                   {/each}
                 </div>
               {:else}
-                <p class="text-text-muted text-sm">No labels</p>
+                <p class="text-text-muted text-base">No labels</p>
               {/if}
             </div>
           </div>
           <div>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Annotations</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Annotations</h2>
             <div class="bg-bg-secondary rounded-lg p-4 max-h-48 overflow-auto">
               {#if Object.keys(podDetail.annotations).length > 0}
                 <div class="space-y-1">
@@ -515,7 +515,7 @@
                   {/each}
                 </div>
               {:else}
-                <p class="text-text-muted text-sm">No annotations</p>
+                <p class="text-text-muted text-base">No annotations</p>
               {/if}
             </div>
           </div>
@@ -527,7 +527,7 @@
         <!-- Init Containers -->
         {#if podDetail.init_containers.length > 0}
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Init Containers ({podDetail.init_containers.length})</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Init Containers ({podDetail.init_containers.length})</h2>
             <div class="space-y-4">
               {#each podDetail.init_containers as container}
                 <div class="bg-bg-secondary rounded-lg p-4">
@@ -543,7 +543,7 @@
                       <button
                         onclick={() => openTerminal(container.name)}
                         disabled={isDeleted}
-                        class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-text-muted"
+                        class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-text-muted"
                         title={isDeleted ? "Pod no longer exists" : `Open Terminal in ${container.name}`}
                       >
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -552,7 +552,7 @@
                       </button>
                     </div>
                   </div>
-                  <div class="text-sm">
+                  <div class="text-base">
                     <span class="text-text-muted">Image:</span>
                     <code class="ml-2 text-text-secondary break-all">{container.image}</code>
                   </div>
@@ -564,7 +564,7 @@
 
         <!-- Containers -->
         <section>
-          <h2 class="text-lg font-semibold text-text-primary mb-4">Containers ({podDetail.containers.length})</h2>
+          <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Containers ({podDetail.containers.length})</h2>
           <div class="space-y-4">
             {#each podDetail.containers as container}
               <div class="bg-bg-secondary rounded-lg p-4">
@@ -579,7 +579,7 @@
                     <button
                       onclick={() => openTerminal(container.name)}
                       disabled={isDeleted}
-                      class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-text-muted"
+                      class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-text-muted"
                       title={isDeleted ? "Pod no longer exists" : `Open Terminal in ${container.name}`}
                     >
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -588,7 +588,7 @@
                     </button>
                   </div>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-base">
                   <div>
                     <span class="text-text-muted">Image:</span>
                     <code class="ml-2 text-text-secondary break-all">{container.image}</code>
@@ -615,9 +615,9 @@
                   </div>
                 </div>
                 {#if container.state_reason}
-                  <div class="mt-3 text-sm">
+                  <div class="mt-3 text-base">
                     <span class="text-text-muted">Reason:</span>
-                    <span class="ml-2 text-accent-warning">{container.state_reason}</span>
+                    <span class="ml-2 text-warning">{container.state_reason}</span>
                   </div>
                 {/if}
               </div>
@@ -631,13 +631,13 @@
         <div class="space-y-6">
           {#each [...podDetail.containers, ...podDetail.init_containers] as container}
             <section>
-              <h2 class="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
+              <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4 flex items-center gap-2">
                 <span>{container.name}</span>
                 <span class="text-xs px-2 py-0.5 rounded-sm bg-bg-tertiary text-text-muted">{container.env_vars.length} vars</span>
               </h2>
               {#if container.env_vars.length > 0}
                 <div class="bg-bg-secondary rounded-lg overflow-hidden">
-                  <table class="w-full text-sm">
+                  <table class="w-full text-base">
                     <thead class="bg-bg-tertiary">
                       <tr>
                         <th class="px-4 py-2 text-left text-xs text-text-muted uppercase w-1/4">Name</th>
@@ -653,11 +653,11 @@
                             {#if env.source === 'literal'}
                               <code class="text-xs text-text-secondary break-all">{env.value || ''}</code>
                             {:else if env.source === 'secretKeyRef'}
-                              <span class="text-xs text-accent-warning">
+                              <span class="text-xs text-warning">
                                 {env.source_name || '?'} → {env.source_key || '?'}
                               </span>
                             {:else if env.source === 'configMapKeyRef'}
-                              <span class="text-xs text-accent-primary">
+                              <span class="text-xs text-accent-text">
                                 {env.source_name || '?'} → {env.source_key || '?'}
                               </span>
                             {:else if env.source === 'fieldRef'}
@@ -668,8 +668,8 @@
                           </td>
                           <td class="px-4 py-2">
                             <span class="text-xs px-2 py-0.5 rounded-sm {
-                              env.source === 'secretKeyRef' ? 'bg-accent-warning/10 text-accent-warning' :
-                              env.source === 'configMapKeyRef' ? 'bg-accent-primary/10 text-accent-primary' :
+                              env.source === 'secretKeyRef' ? 'bg-accent-warning/10 text-warning' :
+                              env.source === 'configMapKeyRef' ? 'bg-accent-primary/10 text-accent-text' :
                               env.source === 'fieldRef' ? 'bg-bg-tertiary text-text-muted' :
                               'bg-bg-tertiary text-text-secondary'
                             }">
@@ -682,7 +682,7 @@
                   </table>
                 </div>
               {:else}
-                <p class="text-text-muted text-sm bg-bg-secondary rounded-lg p-4">No environment variables</p>
+                <p class="text-text-muted text-base bg-bg-secondary rounded-lg p-4">No environment variables</p>
               {/if}
             </section>
           {/each}
@@ -693,10 +693,10 @@
       <div class="p-6 space-y-6">
         <!-- Volume Definitions -->
         <section>
-          <h2 class="text-lg font-semibold text-text-primary mb-4">Volumes ({podDetail.volumes.length})</h2>
+          <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Volumes ({podDetail.volumes.length})</h2>
           {#if podDetail.volumes.length > 0}
             <div class="bg-bg-secondary rounded-lg overflow-hidden">
-              <table class="w-full text-sm">
+              <table class="w-full text-base">
                 <thead class="bg-bg-tertiary">
                   <tr>
                     <th class="px-4 py-2 text-left text-xs text-text-muted uppercase">Name</th>
@@ -710,41 +710,41 @@
                       <td class="px-4 py-2 text-text-primary font-medium">{volume.name}</td>
                       <td class="px-4 py-2">
                         <span class="text-xs px-2 py-0.5 rounded-sm {
-                          volume.volume_type === 'Secret' ? 'bg-accent-warning/10 text-accent-warning' :
-                          volume.volume_type === 'ConfigMap' ? 'bg-accent-primary/10 text-accent-primary' :
-                          volume.volume_type === 'PersistentVolumeClaim' ? 'bg-accent-success/10 text-accent-success' :
+                          volume.volume_type === 'Secret' ? 'bg-accent-warning/10 text-warning' :
+                          volume.volume_type === 'ConfigMap' ? 'bg-accent-primary/10 text-accent-text' :
+                          volume.volume_type === 'PersistentVolumeClaim' ? 'bg-accent-success/10 text-success' :
                           'bg-bg-tertiary text-text-secondary'
                         }">
                           {volume.volume_type}
                         </span>
                       </td>
-                      <td class="px-4 py-2 text-text-secondary text-sm">{volume.source_name || '-'}</td>
+                      <td class="px-4 py-2 text-text-secondary text-base">{volume.source_name || '-'}</td>
                     </tr>
                   {/each}
                 </tbody>
               </table>
             </div>
           {:else}
-            <p class="text-text-muted text-sm bg-bg-secondary rounded-lg p-4">No volumes defined</p>
+            <p class="text-text-muted text-base bg-bg-secondary rounded-lg p-4">No volumes defined</p>
           {/if}
         </section>
 
         <!-- Volume Mounts by Container -->
         <section>
-          <h2 class="text-lg font-semibold text-text-primary mb-4">Volume Mounts</h2>
+          <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Volume Mounts</h2>
           <div class="space-y-4">
             {#each [...podDetail.containers, ...podDetail.init_containers] as container}
               {#if container.volume_mounts.length > 0}
                 <div class="bg-bg-secondary rounded-lg p-4">
-                  <h3 class="text-sm font-medium text-text-primary mb-3">{container.name}</h3>
+                  <h3 class="text-base font-medium text-text-primary mb-3">{container.name}</h3>
                   <div class="space-y-2">
                     {#each container.volume_mounts as mount}
-                      <div class="flex items-center gap-4 text-sm">
-                        <code class="text-accent-primary">{mount.name}</code>
+                      <div class="flex items-center gap-4 text-base">
+                        <code class="text-accent-text">{mount.name}</code>
                         <span class="text-text-muted">→</span>
                         <code class="text-text-secondary">{mount.mount_path}</code>
                         {#if mount.read_only}
-                          <span class="text-xs px-2 py-0.5 rounded-sm bg-accent-warning/10 text-accent-warning">read-only</span>
+                          <span class="text-xs px-2 py-0.5 rounded-sm bg-accent-warning/10 text-warning">read-only</span>
                         {/if}
                         {#if mount.sub_path}
                           <span class="text-xs text-text-muted">subPath: {mount.sub_path}</span>
@@ -804,7 +804,7 @@
             </div>
 
             <!-- Previous logs toggle -->
-            <label class="flex items-center gap-2 text-sm text-text-muted cursor-pointer">
+            <label class="flex items-center gap-2 text-base text-text-muted cursor-pointer">
               <input
                 type="checkbox"
                 bind:checked={showPreviousLogs}
@@ -816,12 +816,12 @@
             </label>
 
             {#if !isDeleted}
-              <label class="flex items-center gap-2 text-sm text-text-muted cursor-pointer">
+              <label class="flex items-center gap-2 text-base text-text-muted cursor-pointer">
                 <input type="checkbox" bind:checked={autoRefreshLogs} onchange={toggleAutoRefresh} class="rounded-sm" />
                 Tail
               </label>
             {:else}
-              <span class="text-xs text-accent-warning">Showing cached logs</span>
+              <span class="text-xs text-warning">Showing cached logs</span>
             {/if}
           </div>
           <div class="flex items-center gap-2">
@@ -856,7 +856,7 @@
             type="text"
             bind:value={logSearch}
             placeholder="Filter logs..."
-            class="flex-1 bg-transparent text-sm text-text-primary placeholder-text-muted focus:outline-hidden"
+            class="flex-1 bg-transparent text-base text-text-primary placeholder-text-muted focus:outline-hidden"
           />
           {#if logSearch}
             <span class="text-xs text-text-muted">
@@ -895,9 +895,9 @@
       <div class="h-full flex flex-col">
         <div class="flex items-center justify-between px-4 py-2 bg-bg-secondary border-b border-border-subtle">
           <div class="flex items-center gap-2">
-            <span class="text-sm text-text-muted">Pod Events</span>
+            <span class="text-base text-text-muted">Pod Events</span>
             {#if isDeleted}
-              <span class="text-xs text-accent-warning">(cached)</span>
+              <span class="text-xs text-warning">(cached)</span>
             {/if}
           </div>
           <button
@@ -923,7 +923,7 @@
                     </div>
                     <span class="text-xs text-text-muted">{event.last_timestamp || event.first_timestamp}</span>
                   </div>
-                  <p class="text-sm text-text-secondary">{event.message}</p>
+                  <p class="text-base text-text-secondary">{event.message}</p>
                   <p class="text-xs text-text-muted mt-1">Source: {event.source}</p>
                 </div>
               {/each}

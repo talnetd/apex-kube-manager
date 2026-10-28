@@ -1,27 +1,27 @@
 // src/lib/stores/theme.ts
 import { writable, derived, type Readable } from "svelte/store";
 
-export type Theme = "light" | "dark" | "neon" | "system";
-export type ResolvedTheme = "light" | "dark" | "neon";
+// Dark and Light only; System follows the OS between the two (spec 0, 10.2).
+export type Theme = "light" | "dark" | "system";
+export type ResolvedTheme = "light" | "dark";
 
-const THEME_STORAGE_KEY = "apex-kube-manager-theme";
+export const THEME_STORAGE_KEY = "apex-kube-manager-theme";
 
-// Get initial theme from localStorage or default to 'system'
-function getInitialTheme(): Theme {
-  if (typeof globalThis.window === "undefined") return "system";
-
-  const stored = localStorage.getItem(THEME_STORAGE_KEY);
-
-  if (
-    stored === "light" ||
-    stored === "dark" ||
-    stored === "neon" ||
-    stored === "system"
-  ) {
+/**
+ * Parse a stored theme value. Anything unknown falls back to "system";
+ * a value left over from a retired theme lands on "dark".
+ */
+export function parseStoredTheme(stored: string | null): Theme {
+  if (stored === "light" || stored === "dark" || stored === "system") {
     return stored;
   }
-
+  if (stored) return "dark";
   return "system";
+}
+
+function getInitialTheme(): Theme {
+  if (typeof globalThis.window === "undefined") return "system";
+  return parseStoredTheme(localStorage.getItem(THEME_STORAGE_KEY));
 }
 
 // Detect system theme preference
@@ -65,10 +65,13 @@ export const resolvedTheme: Readable<ResolvedTheme> = derived<
   getSystemTheme()
 );
 
-// Subscribe to theme changes and persist to localStorage
+// Subscribe to theme changes and persist to localStorage. Skipping identical
+// writes also rewrites a retired stored value exactly once.
 theme.subscribe((value: Theme) => {
   if (typeof globalThis.window !== "undefined") {
-    localStorage.setItem(THEME_STORAGE_KEY, value);
+    if (localStorage.getItem(THEME_STORAGE_KEY) !== value) {
+      localStorage.setItem(THEME_STORAGE_KEY, value);
+    }
   }
 });
 
@@ -78,10 +81,18 @@ resolvedTheme.subscribe((value: ResolvedTheme) => {
     typeof globalThis.window !== "undefined" &&
     typeof document !== "undefined"
   ) {
-    document.documentElement.classList.remove("light", "dark", "neon");
+    document.documentElement.classList.remove("light", "dark");
     document.documentElement.classList.add(value);
   }
 });
+
+// Detail and terminal windows are separate webviews sharing localStorage:
+// follow theme changes made in the main window live.
+if (typeof globalThis.window !== "undefined") {
+  globalThis.window.addEventListener("storage", (e: StorageEvent) => {
+    if (e.key === THEME_STORAGE_KEY) theme.set(parseStoredTheme(e.newValue));
+  });
+}
 
 // Helper function to set theme
 export function setTheme(newTheme: Theme) {

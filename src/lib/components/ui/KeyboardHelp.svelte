@@ -27,7 +27,7 @@
       onclick={(e) => e.stopPropagation()}
     >
       <div class="flex items-center justify-between mb-6">
-        <h2 class="text-lg font-semibold text-text-primary">Keyboard Shortcuts</h2>
+        <h2 class="text-[18px]/7 font-semibold text-text-primary">Keyboard Shortcuts</h2>
         <button
           onclick={close}
           class="p-1 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
@@ -46,7 +46,7 @@
           <div class="space-y-2">
             {#each navigationShortcuts as shortcut}
               <div class="flex items-center justify-between">
-                <span class="text-text-secondary text-sm">{shortcut.description}</span>
+                <span class="text-text-secondary text-base">{shortcut.description}</span>
                 <kbd class="px-2 py-1 bg-bg-tertiary border border-border-subtle rounded-sm text-xs text-text-primary font-mono">
                   {shortcut.key}
                 </kbd>
@@ -61,7 +61,7 @@
           <div class="space-y-2">
             {#each actionShortcuts as shortcut}
               <div class="flex items-center justify-between">
-                <span class="text-text-secondary text-sm">{shortcut.description}</span>
+                <span class="text-text-secondary text-base">{shortcut.description}</span>
                 <kbd class="px-2 py-1 bg-bg-tertiary border border-border-subtle rounded-sm text-xs text-text-primary font-mono">
                   {shortcut.key}
                 </kbd>
@@ -76,7 +76,7 @@
           <div class="space-y-2">
             {#each globalShortcuts as shortcut}
               <div class="flex items-center justify-between">
-                <span class="text-text-secondary text-sm">{shortcut.description}</span>
+                <span class="text-text-secondary text-base">{shortcut.description}</span>
                 <kbd class="px-2 py-1 bg-bg-tertiary border border-border-subtle rounded-sm text-xs text-text-primary font-mono">
                   {shortcut.key}
                 </kbd>

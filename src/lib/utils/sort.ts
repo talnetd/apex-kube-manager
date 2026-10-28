@@ -49,7 +49,7 @@ function getNestedValue(obj: any, path: string): any {
   return path.split('.').reduce((acc, part) => acc?.[part], obj);
 }
 
-function parseAge(age: string): number {
+export function parseAge(age: string): number {
   // Parse age strings like "5d", "2h30m", "45s", etc.
   let totalSeconds = 0;
 

@@ -29,19 +29,29 @@
   } from './lib/stores/keyboard';
   // Intialize theme (subscribes to changes and applies to DOM)
   import './lib/stores/theme';
+  // Density: sets data-density on <html> (spec 3.1)
+  import { toggleDensity, densityLabel } from './lib/stores/density';
+  import { toast } from './lib/stores/toast';
+  import { isTypingTarget } from './lib/utils/keys';
+  import Toaster from './lib/components/ui/Toaster.svelte';
 
   // Track 'g' key for 'gg' combo
   let lastKeyTime = 0;
   let lastKey = '';
 
   function isInputFocused(): boolean {
-    const active = document.activeElement;
-    if (!active) return false;
-    const tag = active.tagName.toLowerCase();
-    return tag === 'input' || tag === 'textarea' || (active as HTMLElement).isContentEditable;
+    return isTypingTarget(document.activeElement);
   }
 
   function handleKeydown(e: KeyboardEvent) {
+    // Cmd+Shift+D (Mac) or Ctrl+Shift+D to toggle density (works anywhere)
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'd') {
+      e.preventDefault();
+      const next = toggleDensity();
+      toast(`Density: ${densityLabel(next)}`, { duration: 1500 });
+      return;
+    }
+
     // Don't intercept when typing in inputs
     if (isInputFocused()) return;
 
@@ -174,3 +184,5 @@
   <!-- Keyboard Shortcuts Help -->
   <KeyboardHelp />
 {/if}
+
+<Toaster />

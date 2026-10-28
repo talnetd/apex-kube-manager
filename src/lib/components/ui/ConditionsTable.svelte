@@ -28,7 +28,7 @@
 </script>
 
 <section>
-  <h2 class="text-lg font-semibold text-text-primary mb-4">{title}</h2>
+  <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">{title}</h2>
   <div class="bg-bg-secondary rounded-lg overflow-hidden">
     <table class="w-full">
       <thead>
@@ -50,11 +50,11 @@
                 <span class="text-text-secondary">{condition.status}</span>
               </span>
             </td>
-            <td class="px-4 py-3 text-text-secondary text-sm">{condition.reason || '-'}</td>
-            <td class="px-4 py-3 text-text-muted text-sm hidden md:table-cell max-w-xs truncate" title={condition.message || ''}>
+            <td class="px-4 py-3 text-text-secondary text-base">{condition.reason || '-'}</td>
+            <td class="px-4 py-3 text-text-muted text-base hidden md:table-cell max-w-xs truncate" title={condition.message || ''}>
               {condition.message || '-'}
             </td>
-            <td class="px-4 py-3 text-text-muted text-sm">
+            <td class="px-4 py-3 text-text-muted text-base">
               {formatTime(condition.last_transition_time || condition.last_update_time)}
             </td>
           </tr>

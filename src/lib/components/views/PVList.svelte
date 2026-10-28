@@ -47,10 +47,10 @@
 
   function getStatusColor(status: string): string {
     switch (status) {
-      case 'Available': return 'text-accent-success bg-accent-success/10';
-      case 'Bound': return 'text-accent-primary bg-accent-primary/10';
-      case 'Released': return 'text-accent-warning bg-accent-warning/10';
-      case 'Failed': return 'text-accent-error bg-accent-error/10';
+      case 'Available': return 'text-success bg-accent-success/10';
+      case 'Bound': return 'text-accent-text bg-accent-primary/10';
+      case 'Released': return 'text-warning bg-accent-warning/10';
+      case 'Failed': return 'text-danger bg-accent-error/10';
       default: return 'text-text-muted bg-bg-tertiary';
     }
   }
@@ -60,7 +60,7 @@
   <!-- Toolbar -->
   <div class="px-6 py-4 border-b border-border-subtle">
     <div class="flex items-center justify-between">
-      <h1 class="text-xl font-semibold text-text-primary">Persistent Volumes</h1>
+      <h1 class="text-lg font-semibold text-text-primary">Persistent Volumes</h1>
       <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter volumes..." />
     </div>
   </div>
@@ -84,28 +84,28 @@
         {#each sortedData() as pv}
           <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer" onclick={() => openDetail(pv)}>
             <td class="py-3 pr-4">
-              <span class="text-accent-primary font-medium hover:underline">{pv.name}</span>
+              <span class="text-accent-text font-medium hover:underline">{pv.name}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-accent-primary font-medium">{pv.capacity}</span>
+              <span class="text-accent-text font-medium">{pv.capacity}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{pv.access_modes.join(', ')}</span>
+              <span class="text-text-secondary text-base">{pv.access_modes.join(', ')}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{pv.reclaim_policy}</span>
+              <span class="text-text-secondary text-base">{pv.reclaim_policy}</span>
             </td>
             <td class="py-3 pr-4">
               <span class="text-xs px-2 py-0.5 rounded-sm {getStatusColor(pv.status)}">{pv.status}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{pv.claim || '-'}</span>
+              <span class="text-text-secondary text-base">{pv.claim || '-'}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{pv.storage_class || '-'}</span>
+              <span class="text-text-secondary text-base">{pv.storage_class || '-'}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{pv.age}</span>
+              <span class="text-text-secondary text-base">{pv.age}</span>
             </td>
           </tr>
         {/each}

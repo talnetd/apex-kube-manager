@@ -50,7 +50,7 @@
   <!-- Toolbar -->
   <div class="px-6 py-4 border-b border-border-subtle">
     <div class="flex items-center justify-between">
-      <h1 class="text-xl font-semibold text-text-primary">ConfigMaps</h1>
+      <h1 class="text-lg font-semibold text-text-primary">ConfigMaps</h1>
       <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter configmaps..." />
     </div>
   </div>
@@ -70,16 +70,16 @@
         {#each sortedData() as cm}
           <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer" onclick={() => openDetail(cm)}>
             <td class="py-3 pr-4">
-              <span class="text-accent-primary font-medium hover:underline">{cm.name}</span>
+              <span class="text-accent-text font-medium hover:underline">{cm.name}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{cm.namespace}</span>
+              <span class="text-text-secondary text-base">{cm.namespace}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{cm.data_count} {cm.data_count === 1 ? 'key' : 'keys'}</span>
+              <span class="text-text-secondary text-base">{cm.data_count} {cm.data_count === 1 ? 'key' : 'keys'}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{cm.age}</span>
+              <span class="text-text-secondary text-base">{cm.age}</span>
             </td>
           </tr>
         {/each}

@@ -62,7 +62,7 @@
   <!-- Toolbar -->
   <div class="px-6 py-4 border-b border-border-subtle">
     <div class="flex items-center justify-between">
-      <h1 class="text-xl font-semibold text-text-primary">DaemonSets</h1>
+      <h1 class="text-lg font-semibold text-text-primary">DaemonSets</h1>
       <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter daemonsets..." />
     </div>
   </div>
@@ -87,30 +87,30 @@
           {@const status = getReadyStatus(ds.ready, ds.desired)}
           <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer" onclick={() => openDetail(ds)}>
             <td class="py-3 pr-4">
-              <span class="text-accent-primary font-medium hover:underline">{ds.name}</span>
+              <span class="text-accent-text font-medium hover:underline">{ds.name}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{ds.namespace}</span>
+              <span class="text-text-secondary text-base">{ds.namespace}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{ds.desired}</span>
+              <span class="text-text-secondary text-base">{ds.desired}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{ds.current}</span>
+              <span class="text-text-secondary text-base">{ds.current}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-sm {status === 'healthy' ? 'text-accent-success' : status === 'degraded' ? 'text-accent-warning' : 'text-accent-error'}">{ds.ready}/{ds.desired}</span>
+              <span class="text-base {status === 'healthy' ? 'text-success' : status === 'degraded' ? 'text-warning' : 'text-danger'}">{ds.ready}/{ds.desired}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{ds.up_to_date}</span>
+              <span class="text-text-secondary text-base">{ds.up_to_date}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{ds.age}</span>
+              <span class="text-text-secondary text-base">{ds.age}</span>
             </td>
             <td class="py-3">
               <div class="flex items-center gap-1">
                 <button
-                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-warning transition-colors"
+                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-warning transition-colors"
                   title="Restart"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

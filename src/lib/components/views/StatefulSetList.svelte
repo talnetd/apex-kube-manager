@@ -121,7 +121,7 @@
   <!-- Toolbar -->
   <div class="px-6 py-4 border-b border-border-subtle">
     <div class="flex items-center justify-between">
-      <h1 class="text-xl font-semibold text-text-primary">StatefulSets</h1>
+      <h1 class="text-lg font-semibold text-text-primary">StatefulSets</h1>
       <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter statefulsets..." />
     </div>
   </div>
@@ -148,28 +148,28 @@
             onclick={() => openStatefulSetDetail(sts)}
           >
             <td class="py-3 pr-4">
-              <span class="text-accent-primary font-medium hover:underline">{sts.name}</span>
+              <span class="text-accent-text font-medium hover:underline">{sts.name}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{sts.namespace}</span>
+              <span class="text-text-secondary text-base">{sts.namespace}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-sm {status === 'healthy' ? 'text-accent-success' : status === 'degraded' ? 'text-accent-warning' : 'text-accent-error'}">{sts.ready}</span>
+              <span class="text-base {status === 'healthy' ? 'text-success' : status === 'degraded' ? 'text-warning' : 'text-danger'}">{sts.ready}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{sts.replicas}</span>
+              <span class="text-text-secondary text-base">{sts.replicas}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{sts.service_name || '-'}</span>
+              <span class="text-text-secondary text-base">{sts.service_name || '-'}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{sts.age}</span>
+              <span class="text-text-secondary text-base">{sts.age}</span>
             </td>
             <td class="py-3">
               <div class="flex items-center gap-1">
                 <button
                   onclick={(e) => openScaleModal(sts, e)}
-                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors"
+                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-text transition-colors"
                   title="Scale"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -179,7 +179,7 @@
                 <button
                   onclick={(e) => handleRestart(sts, e)}
                   disabled={restartingStatefulSet === sts.name}
-                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-warning transition-colors disabled:opacity-50"
+                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-warning transition-colors disabled:opacity-50"
                   title="Restart"
                 >
                   <svg class="w-4 h-4 {restartingStatefulSet === sts.name ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -210,14 +210,14 @@
 {#if showScaleModal && scaleTarget}
   <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
     <div class="bg-bg-secondary rounded-lg p-6 w-96 shadow-xl">
-      <h3 class="text-lg font-semibold text-text-primary mb-4">Scale StatefulSet</h3>
-      <p class="text-sm text-text-secondary mb-4">
-        Set the number of replicas for <span class="text-accent-primary">{scaleTarget.name}</span>
+      <h3 class="text-[18px]/7 font-semibold text-text-primary mb-4">Scale StatefulSet</h3>
+      <p class="text-base text-text-secondary mb-4">
+        Set the number of replicas for <span class="text-accent-text">{scaleTarget.name}</span>
       </p>
       <div class="flex items-center justify-center gap-3 mb-6">
         <button
           onclick={() => scaleReplicas = Math.max(0, scaleReplicas - 1)}
-          class="w-12 h-12 rounded-lg bg-bg-tertiary hover:bg-accent-error/20 hover:text-accent-error border border-border-subtle text-text-primary transition-colors flex items-center justify-center"
+          class="w-12 h-12 rounded-lg bg-bg-tertiary hover:bg-accent-error/20 hover:text-danger border border-border-subtle text-text-primary transition-colors flex items-center justify-center"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
@@ -227,11 +227,11 @@
           type="number"
           bind:value={scaleReplicas}
           min="0"
-          class="w-24 text-center text-3xl font-bold bg-bg-primary border border-border-subtle rounded-lg py-3 text-text-primary focus:outline-hidden focus:border-accent-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          class="w-24 text-center text-[30px]/9 font-bold bg-bg-primary border border-border-subtle rounded-lg py-3 text-text-primary focus:outline-hidden focus:border-accent-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         />
         <button
           onclick={() => scaleReplicas++}
-          class="w-12 h-12 rounded-lg bg-bg-tertiary hover:bg-accent-success/20 hover:text-accent-success border border-border-subtle text-text-primary transition-colors flex items-center justify-center"
+          class="w-12 h-12 rounded-lg bg-bg-tertiary hover:bg-accent-success/20 hover:text-success border border-border-subtle text-text-primary transition-colors flex items-center justify-center"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -241,14 +241,14 @@
       <div class="flex justify-end gap-3">
         <button
           onclick={() => { showScaleModal = false; scaleTarget = null; }}
-          class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+          class="px-4 py-2 text-base text-text-secondary hover:text-text-primary transition-colors"
         >
           Cancel
         </button>
         <button
           onclick={handleScale}
           disabled={isScaling}
-          class="px-4 py-2 text-sm bg-accent-primary text-white rounded-sm hover:bg-accent-primary/90 transition-colors disabled:opacity-50"
+          class="px-4 py-2 text-base bg-accent-primary text-white rounded-sm hover:bg-accent-primary/90 transition-colors disabled:opacity-50"
         >
           {isScaling ? 'Scaling...' : 'Scale'}
         </button>

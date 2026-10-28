@@ -202,16 +202,16 @@
   // Status helpers
   function getPodStatusColor(status: string): string {
     switch (status) {
-      case 'Running': return 'text-accent-success bg-accent-success/10';
-      case 'Succeeded': return 'text-accent-primary bg-accent-primary/10';
-      case 'Pending': return 'text-accent-warning bg-accent-warning/10';
-      case 'Failed': return 'text-accent-error bg-accent-error/10';
+      case 'Running': return 'text-success bg-accent-success/10';
+      case 'Succeeded': return 'text-accent-text bg-accent-primary/10';
+      case 'Pending': return 'text-warning bg-accent-warning/10';
+      case 'Failed': return 'text-danger bg-accent-error/10';
       default: return 'text-text-muted bg-bg-tertiary';
     }
   }
 
   function getConditionColor(status: string): string {
-    return status === 'True' ? 'text-accent-success' : status === 'False' ? 'text-accent-error' : 'text-text-muted';
+    return status === 'True' ? 'text-success' : status === 'False' ? 'text-danger' : 'text-text-muted';
   }
 
   // Tab label display
@@ -405,7 +405,7 @@
       {#each config.tabs as tab}
         <button
           onclick={() => handleTabChange(tab)}
-          class="px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === tab ? 'border-accent-primary text-accent-primary' : 'border-transparent text-text-muted hover:text-text-primary'}"
+          class="px-4 py-3 text-base font-medium border-b-2 transition-colors {activeTab === tab ? 'border-accent-primary text-accent-text' : 'border-transparent text-text-muted hover:text-text-primary'}"
         >
           {getTabLabel(tab)}
         </button>
@@ -417,13 +417,13 @@
   {#if isDeleted}
     <div class="flex items-center justify-between px-4 py-3 bg-accent-warning/10 border-b border-accent-warning/30">
       <div class="flex items-center gap-3">
-        <svg class="w-5 h-5 text-accent-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-5 h-5 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
         <div>
-          <span class="font-medium text-accent-warning">This {config.displayName} no longer exists</span>
+          <span class="font-medium text-warning">This {config.displayName} no longer exists</span>
           {#if lastSeen}
-            <span class="text-text-muted text-sm ml-2">Last seen: {lastSeen}</span>
+            <span class="text-text-muted text-base ml-2">Last seen: {lastSeen}</span>
           {/if}
         </div>
       </div>
@@ -436,7 +436,7 @@
     {#if isLoading}
       <div class="flex items-center justify-center h-full">
         <div class="text-center">
-          <svg class="w-8 h-8 text-accent-primary mx-auto mb-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-8 h-8 text-accent-text mx-auto mb-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
           <p class="text-text-muted">Loading {config.displayName} details...</p>
@@ -445,7 +445,7 @@
     {:else if error}
       <div class="flex items-center justify-center h-full">
         <div class="text-center">
-          <svg class="w-16 h-16 text-accent-error mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-16 h-16 text-danger mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <p class="text-text-muted">{error}</p>
@@ -462,16 +462,16 @@
       <div class="p-6 space-y-6">
         <!-- Basic Info - Common to all -->
         <section>
-          <h2 class="text-lg font-semibold text-text-primary mb-4">{config.displayName} Info</h2>
+          <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">{config.displayName} Info</h2>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="bg-bg-secondary rounded-lg p-4">
               <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Name</div>
-              <span class="text-sm text-text-primary font-mono truncate block">{detail.name}</span>
+              <span class="text-base text-text-primary font-mono truncate block">{detail.name}</span>
             </div>
             {#if detail.namespace}
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Namespace</div>
-                <span class="text-sm text-text-primary">{detail.namespace}</span>
+                <span class="text-base text-text-primary">{detail.namespace}</span>
               </div>
             {/if}
             <div class="bg-bg-secondary rounded-lg p-4">
@@ -480,7 +480,7 @@
             </div>
             <div class="bg-bg-secondary rounded-lg p-4">
               <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Created</div>
-              <span class="text-sm text-text-primary">{detail.creation_timestamp}</span>
+              <span class="text-base text-text-primary">{detail.creation_timestamp}</span>
             </div>
           </div>
         </section>
@@ -490,35 +490,35 @@
         <!-- DEPLOYMENT -->
         {#if resourceType === 'deployment'}
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Replica Status</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Replica Status</h2>
             <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Desired</div>
-                <span class="text-xl font-bold text-text-primary">{detail.replicas ?? 0}</span>
+                <span class="text-lg font-bold text-text-primary">{detail.replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Ready</div>
-                <span class="text-xl font-bold text-accent-success">{detail.ready_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-success">{detail.ready_replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Available</div>
-                <span class="text-xl font-bold text-accent-primary">{detail.available_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-accent-text">{detail.available_replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Up-to-date</div>
-                <span class="text-xl font-bold text-text-primary">{detail.updated_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-text-primary">{detail.updated_replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Unavailable</div>
-                <span class="text-xl font-bold {(detail.unavailable_replicas ?? 0) > 0 ? 'text-accent-error' : 'text-text-primary'}">{detail.unavailable_replicas ?? 0}</span>
+                <span class="text-lg font-bold {(detail.unavailable_replicas ?? 0) > 0 ? 'text-danger' : 'text-text-primary'}">{detail.unavailable_replicas ?? 0}</span>
               </div>
             </div>
           </section>
           {#if detail.strategy}
             <section>
-              <h2 class="text-lg font-semibold text-text-primary mb-4">Strategy</h2>
+              <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Strategy</h2>
               <div class="bg-bg-secondary rounded-lg p-4">
-                <span class="text-sm px-2 py-0.5 rounded-sm bg-accent-primary/10 text-accent-primary">{detail.strategy}</span>
+                <span class="text-base px-2 py-0.5 rounded-sm bg-accent-primary/10 text-accent-text">{detail.strategy}</span>
               </div>
             </section>
           {/if}
@@ -526,31 +526,31 @@
         <!-- STATEFULSET -->
         {:else if resourceType === 'statefulset'}
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Replica Status</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Replica Status</h2>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Desired</div>
-                <span class="text-xl font-bold text-text-primary">{detail.replicas ?? 0}</span>
+                <span class="text-lg font-bold text-text-primary">{detail.replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Ready</div>
-                <span class="text-xl font-bold text-accent-success">{detail.ready_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-success">{detail.ready_replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Current</div>
-                <span class="text-xl font-bold text-accent-primary">{detail.current_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-accent-text">{detail.current_replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Updated</div>
-                <span class="text-xl font-bold text-text-primary">{detail.updated_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-text-primary">{detail.updated_replicas ?? 0}</span>
               </div>
             </div>
           </section>
           {#if detail.service_name}
             <section>
-              <h2 class="text-lg font-semibold text-text-primary mb-4">Service</h2>
+              <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Service</h2>
               <div class="bg-bg-secondary rounded-lg p-4">
-                <span class="text-sm text-accent-primary font-mono">{detail.service_name}</span>
+                <span class="text-base text-accent-text font-mono">{detail.service_name}</span>
               </div>
             </section>
           {/if}
@@ -558,27 +558,27 @@
         <!-- DAEMONSET -->
         {:else if resourceType === 'daemonset'}
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Scheduling Status</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Scheduling Status</h2>
             <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Desired</div>
-                <span class="text-xl font-bold text-text-primary">{detail.desired_number_scheduled ?? 0}</span>
+                <span class="text-lg font-bold text-text-primary">{detail.desired_number_scheduled ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Current</div>
-                <span class="text-xl font-bold text-accent-primary">{detail.current_number_scheduled ?? 0}</span>
+                <span class="text-lg font-bold text-accent-text">{detail.current_number_scheduled ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Ready</div>
-                <span class="text-xl font-bold text-accent-success">{detail.number_ready ?? 0}</span>
+                <span class="text-lg font-bold text-success">{detail.number_ready ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Available</div>
-                <span class="text-xl font-bold text-accent-success">{detail.number_available ?? 0}</span>
+                <span class="text-lg font-bold text-success">{detail.number_available ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Misscheduled</div>
-                <span class="text-xl font-bold {(detail.number_misscheduled ?? 0) > 0 ? 'text-accent-error' : 'text-text-primary'}">{detail.number_misscheduled ?? 0}</span>
+                <span class="text-lg font-bold {(detail.number_misscheduled ?? 0) > 0 ? 'text-danger' : 'text-text-primary'}">{detail.number_misscheduled ?? 0}</span>
               </div>
             </div>
           </section>
@@ -586,34 +586,34 @@
         <!-- REPLICASET -->
         {:else if resourceType === 'replicaset'}
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Replica Status</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Replica Status</h2>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Desired</div>
-                <span class="text-xl font-bold text-text-primary">{detail.replicas ?? 0}</span>
+                <span class="text-lg font-bold text-text-primary">{detail.replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Ready</div>
-                <span class="text-xl font-bold text-accent-success">{detail.ready_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-success">{detail.ready_replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Available</div>
-                <span class="text-xl font-bold text-accent-primary">{detail.available_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-accent-text">{detail.available_replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Fully Labeled</div>
-                <span class="text-xl font-bold text-text-primary">{detail.fully_labeled_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-text-primary">{detail.fully_labeled_replicas ?? 0}</span>
               </div>
             </div>
           </section>
           {#if detail.owner_references && detail.owner_references.length > 0}
             <section>
-              <h2 class="text-lg font-semibold text-text-primary mb-4">Owner</h2>
+              <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Owner</h2>
               <div class="bg-bg-secondary rounded-lg p-4">
                 {#each detail.owner_references as owner}
                   <div class="flex items-center gap-2">
-                    <span class="text-xs px-2 py-0.5 rounded-sm bg-accent-primary/10 text-accent-primary">{owner.kind}</span>
-                    <span class="text-sm text-text-primary font-mono">{owner.name}</span>
+                    <span class="text-xs px-2 py-0.5 rounded-sm bg-accent-primary/10 text-accent-text">{owner.kind}</span>
+                    <span class="text-base text-text-primary font-mono">{owner.name}</span>
                   </div>
                 {/each}
               </div>
@@ -623,50 +623,50 @@
         <!-- JOB -->
         {:else if resourceType === 'job'}
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Job Status</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Job Status</h2>
             <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Status</div>
-                <span class="text-sm px-2 py-0.5 rounded-sm {detail.completion_time ? 'text-accent-success bg-accent-success/10' : detail.active > 0 ? 'text-accent-primary bg-accent-primary/10' : 'text-accent-warning bg-accent-warning/10'}">
+                <span class="text-base px-2 py-0.5 rounded-sm {detail.completion_time ? 'text-success bg-accent-success/10' : detail.active > 0 ? 'text-accent-text bg-accent-primary/10' : 'text-warning bg-accent-warning/10'}">
                   {detail.completion_time ? 'Complete' : detail.active > 0 ? 'Running' : 'Pending'}
                 </span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Active</div>
-                <span class="text-xl font-bold text-accent-primary">{detail.active ?? 0}</span>
+                <span class="text-lg font-bold text-accent-text">{detail.active ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Succeeded</div>
-                <span class="text-xl font-bold text-accent-success">{detail.succeeded ?? 0}</span>
+                <span class="text-lg font-bold text-success">{detail.succeeded ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Failed</div>
-                <span class="text-xl font-bold {(detail.failed ?? 0) > 0 ? 'text-accent-error' : 'text-text-primary'}">{detail.failed ?? 0}</span>
+                <span class="text-lg font-bold {(detail.failed ?? 0) > 0 ? 'text-danger' : 'text-text-primary'}">{detail.failed ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Completions</div>
-                <span class="text-sm text-text-primary">{detail.succeeded ?? 0}/{detail.completions ?? '∞'}</span>
+                <span class="text-base text-text-primary">{detail.succeeded ?? 0}/{detail.completions ?? '∞'}</span>
               </div>
             </div>
           </section>
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Configuration</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Configuration</h2>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Parallelism</div>
-                <span class="text-sm text-text-primary">{detail.parallelism ?? 1}</span>
+                <span class="text-base text-text-primary">{detail.parallelism ?? 1}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Backoff Limit</div>
-                <span class="text-sm text-text-primary">{detail.backoff_limit ?? 6}</span>
+                <span class="text-base text-text-primary">{detail.backoff_limit ?? 6}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Completion Mode</div>
-                <span class="text-sm text-text-primary">{detail.completion_mode || 'NonIndexed'}</span>
+                <span class="text-base text-text-primary">{detail.completion_mode || 'NonIndexed'}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">TTL After Finished</div>
-                <span class="text-sm text-text-primary">{detail.ttl_seconds_after_finished ? `${detail.ttl_seconds_after_finished}s` : 'Never'}</span>
+                <span class="text-base text-text-primary">{detail.ttl_seconds_after_finished ? `${detail.ttl_seconds_after_finished}s` : 'Never'}</span>
               </div>
             </div>
           </section>
@@ -674,42 +674,42 @@
         <!-- CRONJOB -->
         {:else if resourceType === 'cronjob'}
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Schedule</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Schedule</h2>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Schedule</div>
-                <code class="text-sm text-accent-primary">{detail.schedule}</code>
+                <code class="text-base text-accent-text">{detail.schedule}</code>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Suspended</div>
-                <span class="text-sm px-2 py-0.5 rounded-sm {detail.suspend ? 'text-accent-warning bg-accent-warning/10' : 'text-accent-success bg-accent-success/10'}">
+                <span class="text-base px-2 py-0.5 rounded-sm {detail.suspend ? 'text-warning bg-accent-warning/10' : 'text-success bg-accent-success/10'}">
                   {detail.suspend ? 'Yes' : 'No'}
                 </span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Active Jobs</div>
-                <span class="text-xl font-bold text-accent-primary">{detail.active_jobs ?? 0}</span>
+                <span class="text-lg font-bold text-accent-text">{detail.active_jobs ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Last Schedule</div>
-                <span class="text-sm text-text-primary">{detail.last_schedule_time || 'Never'}</span>
+                <span class="text-base text-text-primary">{detail.last_schedule_time || 'Never'}</span>
               </div>
             </div>
           </section>
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Configuration</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Configuration</h2>
             <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Concurrency Policy</div>
-                <span class="text-sm text-text-primary">{detail.concurrency_policy || 'Allow'}</span>
+                <span class="text-base text-text-primary">{detail.concurrency_policy || 'Allow'}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Success History</div>
-                <span class="text-sm text-text-primary">{detail.successful_jobs_history_limit ?? 3}</span>
+                <span class="text-base text-text-primary">{detail.successful_jobs_history_limit ?? 3}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Failed History</div>
-                <span class="text-sm text-text-primary">{detail.failed_jobs_history_limit ?? 1}</span>
+                <span class="text-base text-text-primary">{detail.failed_jobs_history_limit ?? 1}</span>
               </div>
             </div>
           </section>
@@ -717,35 +717,35 @@
         <!-- SERVICE -->
         {:else if resourceType === 'service'}
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Service Info</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Service Info</h2>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Type</div>
-                <span class="text-sm px-2 py-0.5 rounded-sm bg-accent-primary/10 text-accent-primary">{detail.service_type}</span>
+                <span class="text-base px-2 py-0.5 rounded-sm bg-accent-primary/10 text-accent-text">{detail.service_type}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Cluster IP</div>
-                <span class="text-sm text-text-primary font-mono">{detail.cluster_ip || 'None'}</span>
+                <span class="text-base text-text-primary font-mono">{detail.cluster_ip || 'None'}</span>
               </div>
               {#if detail.external_ips && detail.external_ips.length > 0}
                 <div class="bg-bg-secondary rounded-lg p-4">
                   <div class="text-xs text-text-muted uppercase tracking-wide mb-1">External IPs</div>
-                  <span class="text-sm text-text-primary font-mono">{detail.external_ips.join(', ')}</span>
+                  <span class="text-base text-text-primary font-mono">{detail.external_ips.join(', ')}</span>
                 </div>
               {/if}
               {#if detail.load_balancer_ip}
                 <div class="bg-bg-secondary rounded-lg p-4">
                   <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Load Balancer IP</div>
-                  <span class="text-sm text-text-primary font-mono">{detail.load_balancer_ip}</span>
+                  <span class="text-base text-text-primary font-mono">{detail.load_balancer_ip}</span>
                 </div>
               {/if}
             </div>
           </section>
           {#if detail.ports && detail.ports.length > 0}
             <section>
-              <h2 class="text-lg font-semibold text-text-primary mb-4">Ports</h2>
+              <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Ports</h2>
               <div class="bg-bg-secondary rounded-lg overflow-hidden">
-                <table class="w-full text-sm">
+                <table class="w-full text-base">
                   <thead class="bg-bg-tertiary">
                     <tr>
                       <th class="px-4 py-2 text-left text-xs text-text-muted uppercase">Name</th>
@@ -760,7 +760,7 @@
                       <tr class="border-t border-border-subtle">
                         <td class="px-4 py-2 text-text-primary">{port.name || '-'}</td>
                         <td class="px-4 py-2 text-text-secondary">{port.protocol}</td>
-                        <td class="px-4 py-2 text-accent-primary font-mono">{port.port}</td>
+                        <td class="px-4 py-2 text-accent-text font-mono">{port.port}</td>
                         <td class="px-4 py-2 text-text-secondary font-mono">{port.target_port}</td>
                         <td class="px-4 py-2 text-text-secondary font-mono">{port.node_port || '-'}</td>
                       </tr>
@@ -774,33 +774,33 @@
         <!-- INGRESS -->
         {:else if resourceType === 'ingress'}
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Ingress Info</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Ingress Info</h2>
             <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
               {#if detail.ingress_class_name}
                 <div class="bg-bg-secondary rounded-lg p-4">
                   <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Ingress Class</div>
-                  <span class="text-sm text-accent-primary">{detail.ingress_class_name}</span>
+                  <span class="text-base text-accent-text">{detail.ingress_class_name}</span>
                 </div>
               {/if}
               {#if detail.load_balancer_ips && detail.load_balancer_ips.length > 0}
                 <div class="bg-bg-secondary rounded-lg p-4">
                   <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Load Balancer</div>
-                  <span class="text-sm text-text-primary font-mono">{detail.load_balancer_ips.join(', ')}</span>
+                  <span class="text-base text-text-primary font-mono">{detail.load_balancer_ips.join(', ')}</span>
                 </div>
               {/if}
             </div>
           </section>
           {#if detail.rules && detail.rules.length > 0}
             <section>
-              <h2 class="text-lg font-semibold text-text-primary mb-4">Rules</h2>
+              <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Rules</h2>
               <div class="space-y-3">
                 {#each detail.rules as rule}
                   <div class="bg-bg-secondary rounded-lg p-4">
-                    <div class="text-sm font-medium text-accent-primary mb-2">{rule.host || '*'}</div>
+                    <div class="text-base font-medium text-accent-text mb-2">{rule.host || '*'}</div>
                     {#if rule.paths && rule.paths.length > 0}
                       <div class="space-y-1">
                         {#each rule.paths as path}
-                          <div class="flex items-center gap-2 text-sm">
+                          <div class="flex items-center gap-2 text-base">
                             <code class="text-text-secondary">{path.path || '/'}</code>
                             <span class="text-text-muted">→</span>
                             <span class="text-text-primary">{path.backend_service}:{path.backend_port}</span>
@@ -817,15 +817,15 @@
         <!-- CONFIGMAP -->
         {:else if resourceType === 'configmap'}
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Data Summary</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Data Summary</h2>
             <div class="grid grid-cols-2 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Data Keys</div>
-                <span class="text-xl font-bold text-accent-primary">{Object.keys(detail.data || {}).length}</span>
+                <span class="text-lg font-bold text-accent-text">{Object.keys(detail.data || {}).length}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Binary Keys</div>
-                <span class="text-xl font-bold text-text-primary">{(detail.binary_data_keys || []).length}</span>
+                <span class="text-lg font-bold text-text-primary">{(detail.binary_data_keys || []).length}</span>
               </div>
             </div>
           </section>
@@ -833,15 +833,15 @@
         <!-- SECRET -->
         {:else if resourceType === 'secret'}
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Secret Info</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Secret Info</h2>
             <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Type</div>
-                <span class="text-sm text-accent-warning">{detail.secret_type}</span>
+                <span class="text-base text-warning">{detail.secret_type}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Data Keys</div>
-                <span class="text-xl font-bold text-accent-primary">{(detail.data_keys || []).length}</span>
+                <span class="text-lg font-bold text-accent-text">{(detail.data_keys || []).length}</span>
               </div>
             </div>
           </section>
@@ -849,17 +849,17 @@
         <!-- NETWORKPOLICY -->
         {:else if resourceType === 'networkpolicy'}
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Policy Info</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Policy Info</h2>
             <div class="grid grid-cols-2 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Pod Selector</div>
-                <code class="text-sm text-text-primary">{formatLabels(detail.pod_selector)}</code>
+                <code class="text-base text-text-primary">{formatLabels(detail.pod_selector)}</code>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Policy Types</div>
                 <div class="flex gap-2">
                   {#each (detail.policy_types || []) as ptype}
-                    <span class="text-xs px-2 py-0.5 rounded-sm {ptype === 'Ingress' ? 'bg-accent-success/10 text-accent-success' : 'bg-accent-warning/10 text-accent-warning'}">{ptype}</span>
+                    <span class="text-xs px-2 py-0.5 rounded-sm {ptype === 'Ingress' ? 'bg-accent-success/10 text-success' : 'bg-accent-warning/10 text-warning'}">{ptype}</span>
                   {/each}
                 </div>
               </div>
@@ -869,27 +869,27 @@
         <!-- HPA -->
         {:else if resourceType === 'hpa'}
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Autoscaling Status</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Autoscaling Status</h2>
             <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Target</div>
-                <span class="text-sm text-accent-primary">{detail.scale_target_ref}</span>
+                <span class="text-base text-accent-text">{detail.scale_target_ref}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Min Replicas</div>
-                <span class="text-xl font-bold text-text-primary">{detail.min_replicas ?? 1}</span>
+                <span class="text-lg font-bold text-text-primary">{detail.min_replicas ?? 1}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Max Replicas</div>
-                <span class="text-xl font-bold text-text-primary">{detail.max_replicas}</span>
+                <span class="text-lg font-bold text-text-primary">{detail.max_replicas}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Current</div>
-                <span class="text-xl font-bold text-accent-success">{detail.current_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-success">{detail.current_replicas ?? 0}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Desired</div>
-                <span class="text-xl font-bold text-accent-primary">{detail.desired_replicas ?? 0}</span>
+                <span class="text-lg font-bold text-accent-text">{detail.desired_replicas ?? 0}</span>
               </div>
             </div>
           </section>
@@ -897,31 +897,31 @@
         <!-- PV -->
         {:else if resourceType === 'pv'}
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Volume Info</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Volume Info</h2>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Status</div>
-                <span class="text-sm px-2 py-0.5 rounded-sm {detail.phase === 'Bound' ? 'text-accent-success bg-accent-success/10' : detail.phase === 'Available' ? 'text-accent-primary bg-accent-primary/10' : 'text-accent-warning bg-accent-warning/10'}">{detail.phase}</span>
+                <span class="text-base px-2 py-0.5 rounded-sm {detail.phase === 'Bound' ? 'text-success bg-accent-success/10' : detail.phase === 'Available' ? 'text-accent-text bg-accent-primary/10' : 'text-warning bg-accent-warning/10'}">{detail.phase}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Capacity</div>
-                <span class="text-xl font-bold text-accent-primary">{detail.capacity}</span>
+                <span class="text-lg font-bold text-accent-text">{detail.capacity}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Access Modes</div>
-                <span class="text-sm text-text-primary">{(detail.access_modes || []).join(', ')}</span>
+                <span class="text-base text-text-primary">{(detail.access_modes || []).join(', ')}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Reclaim Policy</div>
-                <span class="text-sm text-text-primary">{detail.reclaim_policy}</span>
+                <span class="text-base text-text-primary">{detail.reclaim_policy}</span>
               </div>
             </div>
           </section>
           {#if detail.claim_ref}
             <section>
-              <h2 class="text-lg font-semibold text-text-primary mb-4">Bound Claim</h2>
+              <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Bound Claim</h2>
               <div class="bg-bg-secondary rounded-lg p-4">
-                <span class="text-sm text-accent-primary font-mono">{detail.claim_ref}</span>
+                <span class="text-base text-accent-text font-mono">{detail.claim_ref}</span>
               </div>
             </section>
           {/if}
@@ -929,31 +929,31 @@
         <!-- PVC -->
         {:else if resourceType === 'pvc'}
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Claim Info</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Claim Info</h2>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Status</div>
-                <span class="text-sm px-2 py-0.5 rounded-sm {detail.phase === 'Bound' ? 'text-accent-success bg-accent-success/10' : 'text-accent-warning bg-accent-warning/10'}">{detail.phase}</span>
+                <span class="text-base px-2 py-0.5 rounded-sm {detail.phase === 'Bound' ? 'text-success bg-accent-success/10' : 'text-warning bg-accent-warning/10'}">{detail.phase}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Capacity</div>
-                <span class="text-xl font-bold text-accent-primary">{detail.capacity || 'Pending'}</span>
+                <span class="text-lg font-bold text-accent-text">{detail.capacity || 'Pending'}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Access Modes</div>
-                <span class="text-sm text-text-primary">{(detail.access_modes || []).join(', ')}</span>
+                <span class="text-base text-text-primary">{(detail.access_modes || []).join(', ')}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Storage Class</div>
-                <span class="text-sm text-text-primary">{detail.storage_class || 'Default'}</span>
+                <span class="text-base text-text-primary">{detail.storage_class || 'Default'}</span>
               </div>
             </div>
           </section>
           {#if detail.volume_name}
             <section>
-              <h2 class="text-lg font-semibold text-text-primary mb-4">Bound Volume</h2>
+              <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Bound Volume</h2>
               <div class="bg-bg-secondary rounded-lg p-4">
-                <span class="text-sm text-accent-primary font-mono">{detail.volume_name}</span>
+                <span class="text-base text-accent-text font-mono">{detail.volume_name}</span>
               </div>
             </section>
           {/if}
@@ -961,11 +961,11 @@
         <!-- NAMESPACE -->
         {:else if resourceType === 'namespace'}
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Namespace Status</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Namespace Status</h2>
             <div class="grid grid-cols-2 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Status</div>
-                <span class="text-sm px-2 py-0.5 rounded-sm {detail.phase === 'Active' ? 'text-accent-success bg-accent-success/10' : 'text-accent-warning bg-accent-warning/10'}">{detail.phase}</span>
+                <span class="text-base px-2 py-0.5 rounded-sm {detail.phase === 'Active' ? 'text-success bg-accent-success/10' : 'text-warning bg-accent-warning/10'}">{detail.phase}</span>
               </div>
               {#if detail.finalizers && detail.finalizers.length > 0}
                 <div class="bg-bg-secondary rounded-lg p-4">
@@ -983,59 +983,59 @@
         <!-- NODE -->
         {:else if resourceType === 'node'}
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Node Info</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Node Info</h2>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Status</div>
-                <span class="text-sm px-2 py-0.5 rounded-sm {detail.status === 'Ready' ? 'text-accent-success bg-accent-success/10' : 'text-accent-error bg-accent-error/10'}">{detail.status}</span>
+                <span class="text-base px-2 py-0.5 rounded-sm {detail.status === 'Ready' ? 'text-success bg-accent-success/10' : 'text-danger bg-accent-error/10'}">{detail.status}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Roles</div>
-                <span class="text-sm text-text-primary">{(detail.roles || []).join(', ') || 'worker'}</span>
+                <span class="text-base text-text-primary">{(detail.roles || []).join(', ') || 'worker'}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Kubelet Version</div>
-                <span class="text-sm text-text-primary">{detail.kubelet_version}</span>
+                <span class="text-base text-text-primary">{detail.kubelet_version}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Internal IP</div>
-                <span class="text-sm text-text-primary font-mono">{detail.internal_ip || 'N/A'}</span>
+                <span class="text-base text-text-primary font-mono">{detail.internal_ip || 'N/A'}</span>
               </div>
             </div>
           </section>
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">System Info</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">System Info</h2>
             <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">OS</div>
-                <span class="text-sm text-text-primary">{detail.os_image}</span>
+                <span class="text-base text-text-primary">{detail.os_image}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Kernel</div>
-                <span class="text-sm text-text-primary">{detail.kernel_version}</span>
+                <span class="text-base text-text-primary">{detail.kernel_version}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Container Runtime</div>
-                <span class="text-sm text-text-primary">{detail.container_runtime_version}</span>
+                <span class="text-base text-text-primary">{detail.container_runtime_version}</span>
               </div>
             </div>
           </section>
 
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Scheduling</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Scheduling</h2>
             <div class="bg-bg-secondary rounded-lg p-4">
               <div class="flex items-center justify-between">
                 <div>
                   <div class="flex items-center gap-2 mb-1">
                     {#if detail.unschedulable}
-                      <span class="flex items-center gap-1.5 text-accent-warning">
+                      <span class="flex items-center gap-1.5 text-warning">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                         </svg>
                         <span class="font-medium">Cordoned</span>
                       </span>
                     {:else}
-                      <span class="flex items-center gap-1.5 text-accent-success">
+                      <span class="flex items-center gap-1.5 text-success">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
@@ -1056,7 +1056,7 @@
                     <button
                       onclick={uncordonNode}
                       disabled={cordonLoading || isDeleted}
-                      class="flex items-center gap-2 px-3 py-1.5 text-sm bg-accent-success text-white rounded-lg hover:bg-accent-success/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      class="flex items-center gap-2 px-3 py-1.5 text-base bg-accent-success text-white rounded-lg hover:bg-accent-success/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {#if cordonLoading}
                         <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1069,7 +1069,7 @@
                     <button
                       onclick={() => showCordonConfirm = true}
                       disabled={cordonLoading || isDeleted}
-                      class="flex items-center gap-2 px-3 py-1.5 text-sm bg-accent-warning text-white rounded-lg hover:bg-accent-warning/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      class="flex items-center gap-2 px-3 py-1.5 text-base bg-accent-warning text-white rounded-lg hover:bg-accent-warning/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Cordon
                     </button>
@@ -1082,25 +1082,25 @@
         <!-- SERVICEACCOUNT -->
         {:else if resourceType === 'serviceaccount'}
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">ServiceAccount Info</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">ServiceAccount Info</h2>
             <div class="grid grid-cols-2 gap-4">
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Secrets</div>
-                <span class="text-xl font-bold text-accent-primary">{(detail.secrets || []).length}</span>
+                <span class="text-lg font-bold text-accent-text">{(detail.secrets || []).length}</span>
               </div>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Image Pull Secrets</div>
-                <span class="text-xl font-bold text-text-primary">{(detail.image_pull_secrets || []).length}</span>
+                <span class="text-lg font-bold text-text-primary">{(detail.image_pull_secrets || []).length}</span>
               </div>
             </div>
           </section>
           {#if detail.secrets && detail.secrets.length > 0}
             <section>
-              <h2 class="text-lg font-semibold text-text-primary mb-4">Secrets</h2>
+              <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Secrets</h2>
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="space-y-2">
                   {#each detail.secrets as secret}
-                    <span class="block text-sm text-accent-primary font-mono">{secret}</span>
+                    <span class="block text-base text-accent-text font-mono">{secret}</span>
                   {/each}
                 </div>
               </div>
@@ -1121,7 +1121,7 @@
     {:else if activeTab === 'pods'}
       <div class="p-6">
         <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg font-semibold text-text-primary">Pods ({pods.length})</h2>
+          <h2 class="text-[18px]/7 font-semibold text-text-primary">Pods ({pods.length})</h2>
           <button
             onclick={loadPods}
             disabled={isDeleted}
@@ -1132,7 +1132,7 @@
         </div>
         {#if pods.length > 0}
           <div class="bg-bg-secondary rounded-lg overflow-hidden">
-            <table class="w-full text-sm">
+            <table class="w-full text-base">
               <thead class="bg-bg-tertiary">
                 <tr>
                   <th class="px-4 py-2 text-left text-xs text-text-muted uppercase">Name</th>
@@ -1175,7 +1175,7 @@
       <div class="p-6">
         {#if resourceType === 'configmap'}
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-semibold text-text-primary">Data ({Object.keys(detail.data || {}).length} keys)</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary">Data ({Object.keys(detail.data || {}).length} keys)</h2>
           </div>
           {#if Object.keys(detail.data || {}).length > 0}
             <div class="space-y-3">
@@ -1185,7 +1185,7 @@
                     onclick={() => toggleKey(key)}
                     class="w-full flex items-center justify-between px-4 py-3 hover:bg-bg-tertiary transition-colors"
                   >
-                    <span class="font-mono text-sm text-accent-primary">{key}</span>
+                    <span class="font-mono text-base text-accent-text">{key}</span>
                     <div class="flex items-center gap-2">
                       <span class="text-xs text-text-muted">{String(value).length} chars</span>
                       <svg class="w-4 h-4 text-text-muted transition-transform {expandedKeys.has(key) ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1208,7 +1208,7 @@
           {/if}
         {:else if resourceType === 'secret'}
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-semibold text-text-primary">Secret Data ({(detail.data_keys || []).length} keys)</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary">Secret Data ({(detail.data_keys || []).length} keys)</h2>
             <button
               onclick={loadSecretData}
               disabled={isDeleted}
@@ -1222,12 +1222,12 @@
               {#each (detail.data_keys || []) as key}
                 <div class="bg-bg-secondary rounded-lg overflow-hidden">
                   <div class="flex items-center justify-between px-4 py-3">
-                    <span class="font-mono text-sm text-accent-warning">{key}</span>
+                    <span class="font-mono text-base text-warning">{key}</span>
                     <div class="flex items-center gap-2">
                       {#if secretData[key]}
                         <button
                           onclick={() => toggleReveal(key)}
-                          class="text-xs px-2 py-1 rounded-sm bg-bg-tertiary hover:bg-accent-warning/20 text-text-muted hover:text-accent-warning transition-colors"
+                          class="text-xs px-2 py-1 rounded-sm bg-bg-tertiary hover:bg-accent-warning/20 text-text-muted hover:text-warning transition-colors"
                         >
                           {revealedKeys.has(key) ? 'Hide' : 'Reveal'}
                         </button>
@@ -1255,26 +1255,26 @@
     <!-- INGRESS RULES TAB (NetworkPolicy) -->
     {:else if activeTab === 'ingress' && resourceType === 'networkpolicy'}
       <div class="p-6">
-        <h2 class="text-lg font-semibold text-text-primary mb-4">Ingress Rules</h2>
+        <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Ingress Rules</h2>
         {#if detail.ingress_rules && detail.ingress_rules.length > 0}
           <div class="space-y-4">
             {#each detail.ingress_rules as rule, i}
               <div class="bg-bg-secondary rounded-lg p-4">
-                <div class="text-sm font-medium text-accent-success mb-3">Rule {i + 1}</div>
+                <div class="text-base font-medium text-success mb-3">Rule {i + 1}</div>
                 {#if rule.from && rule.from.length > 0}
                   <div class="mb-3">
                     <div class="text-xs text-text-muted uppercase mb-2">From</div>
                     <div class="space-y-2">
                       {#each rule.from as peer}
-                        <div class="text-sm bg-bg-tertiary rounded-sm px-3 py-2 flex flex-wrap gap-x-4 gap-y-1">
+                        <div class="text-base bg-bg-tertiary rounded-sm px-3 py-2 flex flex-wrap gap-x-4 gap-y-1">
                           {#if peer.ip_block}
-                            <span><span class="text-accent-error">cidr:</span> <code class="text-text-secondary">{peer.ip_block}</code></span>
+                            <span><span class="text-danger">cidr:</span> <code class="text-text-secondary">{peer.ip_block}</code></span>
                           {:else}
                             {#if hasLabels(peer.pod_selector) || !hasLabels(peer.namespace_selector)}
-                              <span><span class="text-accent-primary">pods:</span> <code class="text-text-secondary">{formatLabels(peer.pod_selector)}</code></span>
+                              <span><span class="text-accent-text">pods:</span> <code class="text-text-secondary">{formatLabels(peer.pod_selector)}</code></span>
                             {/if}
                             {#if hasLabels(peer.namespace_selector)}
-                              <span><span class="text-accent-warning">namespaces:</span> <code class="text-text-secondary">{formatLabels(peer.namespace_selector)}</code></span>
+                              <span><span class="text-warning">namespaces:</span> <code class="text-text-secondary">{formatLabels(peer.namespace_selector)}</code></span>
                             {/if}
                           {/if}
                         </div>
@@ -1282,7 +1282,7 @@
                     </div>
                   </div>
                 {:else}
-                  <div class="text-sm text-text-muted mb-3">From: All sources</div>
+                  <div class="text-base text-text-muted mb-3">From: All sources</div>
                 {/if}
                 {#if rule.ports && rule.ports.length > 0}
                   <div>
@@ -1307,26 +1307,26 @@
     <!-- EGRESS RULES TAB (NetworkPolicy) -->
     {:else if activeTab === 'egress' && resourceType === 'networkpolicy'}
       <div class="p-6">
-        <h2 class="text-lg font-semibold text-text-primary mb-4">Egress Rules</h2>
+        <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Egress Rules</h2>
         {#if detail.egress_rules && detail.egress_rules.length > 0}
           <div class="space-y-4">
             {#each detail.egress_rules as rule, i}
               <div class="bg-bg-secondary rounded-lg p-4">
-                <div class="text-sm font-medium text-accent-warning mb-3">Rule {i + 1}</div>
+                <div class="text-base font-medium text-warning mb-3">Rule {i + 1}</div>
                 {#if rule.to && rule.to.length > 0}
                   <div class="mb-3">
                     <div class="text-xs text-text-muted uppercase mb-2">To</div>
                     <div class="space-y-2">
                       {#each rule.to as peer}
-                        <div class="text-sm bg-bg-tertiary rounded-sm px-3 py-2 flex flex-wrap gap-x-4 gap-y-1">
+                        <div class="text-base bg-bg-tertiary rounded-sm px-3 py-2 flex flex-wrap gap-x-4 gap-y-1">
                           {#if peer.ip_block}
-                            <span><span class="text-accent-error">cidr:</span> <code class="text-text-secondary">{peer.ip_block}</code></span>
+                            <span><span class="text-danger">cidr:</span> <code class="text-text-secondary">{peer.ip_block}</code></span>
                           {:else}
                             {#if hasLabels(peer.pod_selector) || !hasLabels(peer.namespace_selector)}
-                              <span><span class="text-accent-primary">pods:</span> <code class="text-text-secondary">{formatLabels(peer.pod_selector)}</code></span>
+                              <span><span class="text-accent-text">pods:</span> <code class="text-text-secondary">{formatLabels(peer.pod_selector)}</code></span>
                             {/if}
                             {#if hasLabels(peer.namespace_selector)}
-                              <span><span class="text-accent-warning">namespaces:</span> <code class="text-text-secondary">{formatLabels(peer.namespace_selector)}</code></span>
+                              <span><span class="text-warning">namespaces:</span> <code class="text-text-secondary">{formatLabels(peer.namespace_selector)}</code></span>
                             {/if}
                           {/if}
                         </div>
@@ -1334,7 +1334,7 @@
                     </div>
                   </div>
                 {:else}
-                  <div class="text-sm text-text-muted mb-3">To: All destinations</div>
+                  <div class="text-base text-text-muted mb-3">To: All destinations</div>
                 {/if}
                 {#if rule.ports && rule.ports.length > 0}
                   <div>
@@ -1359,23 +1359,23 @@
     <!-- METRICS TAB (HPA) -->
     {:else if activeTab === 'metrics' && resourceType === 'hpa'}
       <div class="p-6">
-        <h2 class="text-lg font-semibold text-text-primary mb-4">Metrics</h2>
+        <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Metrics</h2>
         {#if detail.metrics && detail.metrics.length > 0}
           <div class="space-y-4">
             {#each detail.metrics as metric}
               <div class="bg-bg-secondary rounded-lg p-4">
                 <div class="flex items-center justify-between mb-2">
-                  <span class="text-sm font-medium text-text-primary">{metric.name || metric.metric_type}</span>
-                  <span class="text-xs px-2 py-0.5 rounded-sm bg-accent-primary/10 text-accent-primary">{metric.metric_type}</span>
+                  <span class="text-base font-medium text-text-primary">{metric.name || metric.metric_type}</span>
+                  <span class="text-xs px-2 py-0.5 rounded-sm bg-accent-primary/10 text-accent-text">{metric.metric_type}</span>
                 </div>
                 <div class="grid grid-cols-2 gap-4 mt-3">
                   <div>
                     <div class="text-xs text-text-muted">Current</div>
-                    <span class="text-lg font-bold text-accent-success">{metric.current_value || 'N/A'}</span>
+                    <span class="text-[18px]/7 font-bold text-success">{metric.current_value || 'N/A'}</span>
                   </div>
                   <div>
                     <div class="text-xs text-text-muted">Target</div>
-                    <span class="text-lg font-bold text-text-primary">{metric.target_value || 'N/A'}</span>
+                    <span class="text-[18px]/7 font-bold text-text-primary">{metric.target_value || 'N/A'}</span>
                   </div>
                 </div>
               </div>
@@ -1391,26 +1391,26 @@
     <!-- RESOURCES TAB (Node) -->
     {:else if activeTab === 'resources' && resourceType === 'node'}
       <div class="p-6">
-        <h2 class="text-lg font-semibold text-text-primary mb-4">Resource Capacity</h2>
+        <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Resource Capacity</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="bg-bg-secondary rounded-lg p-4">
-            <h3 class="text-sm font-medium text-text-primary mb-4">Capacity</h3>
+            <h3 class="text-base font-medium text-text-primary mb-4">Capacity</h3>
             <div class="space-y-3">
               {#each Object.entries(detail.capacity || {}) as [key, value]}
                 <div class="flex justify-between items-center">
-                  <span class="text-sm text-text-muted">{key}</span>
-                  <span class="text-sm text-text-primary font-mono">{value}</span>
+                  <span class="text-base text-text-muted">{key}</span>
+                  <span class="text-base text-text-primary font-mono">{value}</span>
                 </div>
               {/each}
             </div>
           </div>
           <div class="bg-bg-secondary rounded-lg p-4">
-            <h3 class="text-sm font-medium text-text-primary mb-4">Allocatable</h3>
+            <h3 class="text-base font-medium text-text-primary mb-4">Allocatable</h3>
             <div class="space-y-3">
               {#each Object.entries(detail.allocatable || {}) as [key, value]}
                 <div class="flex justify-between items-center">
-                  <span class="text-sm text-text-muted">{key}</span>
-                  <span class="text-sm text-accent-success font-mono">{value}</span>
+                  <span class="text-base text-text-muted">{key}</span>
+                  <span class="text-base text-success font-mono">{value}</span>
                 </div>
               {/each}
             </div>
@@ -1419,11 +1419,11 @@
         <!-- Taints Section -->
         <div class="mt-6">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-semibold text-text-primary">Taints ({(detail.taints || []).length})</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary">Taints ({(detail.taints || []).length})</h2>
             <button
               onclick={() => { showAddTaintModal = true; taintActionError = null; }}
               disabled={isDeleted || taintActionLoading}
-              class="flex items-center gap-2 px-3 py-1.5 text-sm bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              class="flex items-center gap-2 px-3 py-1.5 text-base bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -1433,14 +1433,14 @@
           </div>
 
           {#if taintActionError}
-            <div class="mb-4 p-3 bg-accent-error/10 border border-accent-error/30 rounded-lg text-accent-error text-sm">
+            <div class="mb-4 p-3 bg-accent-error/10 border border-accent-error/30 rounded-lg text-danger text-base">
               {taintActionError}
             </div>
           {/if}
 
           {#if detail.taints && detail.taints.length > 0}
             <div class="bg-bg-secondary rounded-lg overflow-hidden">
-              <table class="w-full text-sm">
+              <table class="w-full text-base">
                 <thead class="bg-bg-tertiary">
                   <tr>
                     <th class="px-4 py-2 text-left text-xs text-text-muted uppercase">Key</th>
@@ -1455,13 +1455,13 @@
                       <td class="px-4 py-2 text-text-primary font-mono">{taint.key}</td>
                       <td class="px-4 py-2 text-text-secondary">{taint.value || '-'}</td>
                       <td class="px-4 py-2">
-                        <span class="text-xs px-2 py-0.5 rounded-sm {taint.effect === 'NoSchedule' ? 'bg-accent-error/10 text-accent-error' : taint.effect === 'PreferNoSchedule' ? 'bg-accent-warning/10 text-accent-warning' : 'bg-accent-primary/10 text-accent-primary'}">{taint.effect}</span>
+                        <span class="text-xs px-2 py-0.5 rounded-sm {taint.effect === 'NoSchedule' ? 'bg-accent-error/10 text-danger' : taint.effect === 'PreferNoSchedule' ? 'bg-accent-warning/10 text-warning' : 'bg-accent-primary/10 text-accent-text'}">{taint.effect}</span>
                       </td>
                       <td class="px-4 py-2 text-right">
                         <button
                           onclick={() => handleRemoveTaintClick(taint.key, taint.effect)}
                           disabled={isDeleted || taintActionLoading}
-                          class="text-xs px-2 py-1 text-accent-error hover:bg-accent-error/10 rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          class="text-xs px-2 py-1 text-danger hover:bg-accent-error/10 rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Remove
                         </button>
@@ -1488,7 +1488,7 @@
       <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={() => { if (!taintActionLoading) showAddTaintModal = false; }}>
         <div class="bg-bg-secondary rounded-lg shadow-xl w-full max-w-md mx-4" onclick={(e) => e.stopPropagation()}>
           <div class="flex items-center justify-between px-6 py-4 border-b border-border-subtle">
-            <h3 class="text-lg font-semibold text-text-primary">Add Taint</h3>
+            <h3 class="text-[18px]/7 font-semibold text-text-primary">Add Taint</h3>
             <button
               onclick={() => showAddTaintModal = false}
               disabled={taintActionLoading}
@@ -1502,13 +1502,13 @@
 
           <div class="p-6 space-y-4">
             {#if taintActionError}
-              <div class="p-3 bg-accent-error/10 border border-accent-error/30 rounded-lg text-accent-error text-sm">
+              <div class="p-3 bg-accent-error/10 border border-accent-error/30 rounded-lg text-danger text-base">
                 {taintActionError}
               </div>
             {/if}
 
             <div>
-              <label for="taint-key" class="block text-sm font-medium text-text-primary mb-1">Key *</label>
+              <label for="taint-key" class="block text-base font-medium text-text-primary mb-1">Key *</label>
               <input
                 id="taint-key"
                 type="text"
@@ -1520,7 +1520,7 @@
             </div>
 
             <div>
-              <label for="taint-value" class="block text-sm font-medium text-text-primary mb-1">Value (optional)</label>
+              <label for="taint-value" class="block text-base font-medium text-text-primary mb-1">Value (optional)</label>
               <input
                 id="taint-value"
                 type="text"
@@ -1532,7 +1532,7 @@
             </div>
 
             <div>
-              <label class="block text-sm font-medium text-text-primary mb-1">Effect *</label>
+              <label class="block text-base font-medium text-text-primary mb-1">Effect *</label>
               <CustomSelect
                 bind:value={newTaintEffect}
                 disabled={taintActionLoading}
@@ -1549,10 +1549,10 @@
             {#if newTaintEffect === 'NoExecute'}
               <div class="p-3 bg-accent-warning/10 border border-accent-warning/30 rounded-lg">
                 <div class="flex items-start gap-2">
-                  <svg class="w-5 h-5 text-accent-warning shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="w-5 h-5 text-warning shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
-                  <div class="text-sm text-accent-warning">
+                  <div class="text-base text-warning">
                     <strong>Warning:</strong> NoExecute will evict existing pods that don't tolerate this taint.
                   </div>
                 </div>
@@ -1564,14 +1564,14 @@
             <button
               onclick={() => showAddTaintModal = false}
               disabled={taintActionLoading}
-              class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors disabled:opacity-50"
+              class="px-4 py-2 text-base text-text-secondary hover:text-text-primary transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onclick={addTaint}
               disabled={taintActionLoading || !newTaintKey.trim()}
-              class="flex items-center gap-2 px-4 py-2 text-sm bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              class="flex items-center gap-2 px-4 py-2 text-base bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {#if taintActionLoading}
                 <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1590,10 +1590,10 @@
       <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
         <div class="bg-bg-secondary rounded-lg shadow-xl w-full max-w-md mx-4">
           <div class="flex items-center gap-3 px-6 py-4 border-b border-border-subtle">
-            <svg class="w-6 h-6 text-accent-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-6 h-6 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
-            <h3 class="text-lg font-semibold text-text-primary">Confirm Remove Taint</h3>
+            <h3 class="text-[18px]/7 font-semibold text-text-primary">Confirm Remove Taint</h3>
           </div>
 
           <div class="p-6">
@@ -1601,9 +1601,9 @@
               Are you sure you want to remove the <strong class="text-text-primary">NoExecute</strong> taint?
             </p>
             <div class="bg-bg-tertiary rounded-lg p-3 mb-4">
-              <code class="text-sm text-accent-primary">{confirmRemoveTaint.key}:{confirmRemoveTaint.effect}</code>
+              <code class="text-base text-accent-text">{confirmRemoveTaint.key}:{confirmRemoveTaint.effect}</code>
             </div>
-            <p class="text-sm text-text-muted">
+            <p class="text-base text-text-muted">
               Removing this taint may allow previously evicted pods to be rescheduled on this node.
             </p>
           </div>
@@ -1612,14 +1612,14 @@
             <button
               onclick={() => confirmRemoveTaint = null}
               disabled={taintActionLoading}
-              class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors disabled:opacity-50"
+              class="px-4 py-2 text-base text-text-secondary hover:text-text-primary transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onclick={() => confirmRemoveTaint && removeTaint(confirmRemoveTaint.key, confirmRemoveTaint.effect)}
               disabled={taintActionLoading}
-              class="flex items-center gap-2 px-4 py-2 text-sm bg-accent-error text-white rounded-lg hover:bg-accent-error/90 transition-colors disabled:opacity-50"
+              class="flex items-center gap-2 px-4 py-2 text-base bg-accent-error text-white rounded-lg hover:bg-accent-error/90 transition-colors disabled:opacity-50"
             >
               {#if taintActionLoading}
                 <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1638,10 +1638,10 @@
       <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
         <div class="bg-bg-secondary rounded-lg shadow-xl w-full max-w-md mx-4">
           <div class="flex items-center gap-3 px-6 py-4 border-b border-border-subtle">
-            <svg class="w-6 h-6 text-accent-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-6 h-6 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
-            <h3 class="text-lg font-semibold text-text-primary">Cordon Node</h3>
+            <h3 class="text-[18px]/7 font-semibold text-text-primary">Cordon Node</h3>
           </div>
 
           <div class="p-6">
@@ -1649,10 +1649,10 @@
               Are you sure you want to cordon node <strong class="text-text-primary">{name}</strong>?
             </p>
             <div class="bg-bg-tertiary rounded-lg p-3 mb-4">
-              <p class="text-sm text-text-muted">
+              <p class="text-base text-text-muted">
                 <strong class="text-text-primary">What happens:</strong>
               </p>
-              <ul class="text-sm text-text-muted mt-2 space-y-1 list-disc list-inside">
+              <ul class="text-base text-text-muted mt-2 space-y-1 list-disc list-inside">
                 <li>New pods will not be scheduled on this node</li>
                 <li>Existing pods will continue running</li>
                 <li>You can uncordon the node later to resume scheduling</li>
@@ -1664,14 +1664,14 @@
             <button
               onclick={() => showCordonConfirm = false}
               disabled={cordonLoading}
-              class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors disabled:opacity-50"
+              class="px-4 py-2 text-base text-text-secondary hover:text-text-primary transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onclick={cordonNode}
               disabled={cordonLoading}
-              class="flex items-center gap-2 px-4 py-2 text-sm bg-accent-warning text-white rounded-lg hover:bg-accent-warning/90 transition-colors disabled:opacity-50"
+              class="flex items-center gap-2 px-4 py-2 text-base bg-accent-warning text-white rounded-lg hover:bg-accent-warning/90 transition-colors disabled:opacity-50"
             >
               {#if cordonLoading}
                 <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">

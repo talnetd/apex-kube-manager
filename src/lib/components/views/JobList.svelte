@@ -57,13 +57,13 @@
   function getStatusClass(status: string): string {
     switch (status) {
       case 'Complete':
-        return 'text-accent-success bg-accent-success/10';
+        return 'text-success bg-accent-success/10';
       case 'Running':
-        return 'text-accent-primary bg-accent-primary/10';
+        return 'text-accent-text bg-accent-primary/10';
       case 'Failed':
-        return 'text-accent-error bg-accent-error/10';
+        return 'text-danger bg-accent-error/10';
       default:
-        return 'text-accent-warning bg-accent-warning/10';
+        return 'text-warning bg-accent-warning/10';
     }
   }
 
@@ -85,7 +85,7 @@
   <!-- Toolbar -->
   <div class="px-6 py-4 border-b border-border-subtle">
     <div class="flex items-center justify-between">
-      <h1 class="text-xl font-semibold text-text-primary">Jobs</h1>
+      <h1 class="text-lg font-semibold text-text-primary">Jobs</h1>
       <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter jobs..." />
     </div>
   </div>
@@ -108,27 +108,27 @@
         {#each sortedData() as job}
           <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer" onclick={() => openDetail(job)}>
             <td class="py-3 pr-4">
-              <span class="text-accent-primary font-medium hover:underline">{job.name}</span>
+              <span class="text-accent-text font-medium hover:underline">{job.name}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{job.namespace}</span>
+              <span class="text-text-secondary text-base">{job.namespace}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{job.completions}</span>
+              <span class="text-text-secondary text-base">{job.completions}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{job.duration || '-'}</span>
+              <span class="text-text-secondary text-base">{job.duration || '-'}</span>
             </td>
             <td class="py-3 pr-4">
               <span class="px-2 py-0.5 rounded-sm text-xs font-medium {getStatusClass(job.status)}">{job.status}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{job.age}</span>
+              <span class="text-text-secondary text-base">{job.age}</span>
             </td>
             <td class="py-3">
               <div class="flex items-center gap-1">
                 <button
-                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors"
+                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-text transition-colors"
                   title="View Logs"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -136,7 +136,7 @@
                   </svg>
                 </button>
                 <button
-                  class="p-1.5 rounded-sm hover:bg-accent-error/20 text-text-muted hover:text-accent-error transition-colors"
+                  class="p-1.5 rounded-sm hover:bg-accent-error/20 text-text-muted hover:text-danger transition-colors"
                   title="Delete"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

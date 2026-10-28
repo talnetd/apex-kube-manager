@@ -248,20 +248,20 @@
 
   function getStatusColor(status: string): string {
     switch (status.toLowerCase()) {
-      case 'running': return 'text-accent-success bg-accent-success/10';
-      case 'succeeded': return 'text-accent-success bg-accent-success/10';
-      case 'pending': return 'text-accent-warning bg-accent-warning/10';
-      case 'failed': return 'text-accent-error bg-accent-error/10';
+      case 'running': return 'text-success bg-accent-success/10';
+      case 'succeeded': return 'text-success bg-accent-success/10';
+      case 'pending': return 'text-warning bg-accent-warning/10';
+      case 'failed': return 'text-danger bg-accent-error/10';
       default: return 'text-text-muted bg-bg-tertiary';
     }
   }
 
   function getConditionColor(status: string): string {
-    return status === 'True' ? 'text-accent-success' : 'text-accent-error';
+    return status === 'True' ? 'text-success' : 'text-danger';
   }
 
   function getEventTypeColor(type: string): string {
-    return type === 'Normal' ? 'text-accent-success bg-accent-success/10' : 'text-accent-warning bg-accent-warning/10';
+    return type === 'Normal' ? 'text-success bg-accent-success/10' : 'text-warning bg-accent-warning/10';
   }
 
   function isHealthy(): boolean {
@@ -274,13 +274,13 @@
   <!-- Action bar -->
   <div class="flex items-center justify-between px-4 py-2 bg-bg-tertiary/50 border-b border-border-subtle">
     <div class="flex items-center gap-2">
-      <span class="text-sm text-text-muted">Actions:</span>
+      <span class="text-base text-text-muted">Actions:</span>
     </div>
     <div class="flex items-center gap-2">
       <button
         onclick={() => { scaleReplicas = statefulSetDetail?.replicas || 0; showScaleModal = true; }}
         disabled={isDeleted}
-        class="px-3 py-1.5 text-sm bg-accent-primary/10 text-accent-primary rounded-sm hover:bg-accent-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+        class="px-3 py-1.5 text-base bg-accent-primary/10 text-accent-text rounded-sm hover:bg-accent-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
@@ -290,7 +290,7 @@
       <button
         onclick={handleRestart}
         disabled={isDeleted || isRestarting}
-        class="px-3 py-1.5 text-sm bg-accent-warning/10 text-accent-warning rounded-sm hover:bg-accent-warning/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+        class="px-3 py-1.5 text-base bg-accent-warning/10 text-warning rounded-sm hover:bg-accent-warning/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
       >
         <svg class="w-4 h-4 {isRestarting ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -305,25 +305,25 @@
     <nav class="flex gap-1 px-4">
       <button
         onclick={() => handleTabChange('overview')}
-        class="px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'overview' ? 'border-accent-primary text-accent-primary' : 'border-transparent text-text-muted hover:text-text-primary'}"
+        class="px-4 py-3 text-base font-medium border-b-2 transition-colors {activeTab === 'overview' ? 'border-accent-primary text-accent-text' : 'border-transparent text-text-muted hover:text-text-primary'}"
       >
         Overview
       </button>
       <button
         onclick={() => handleTabChange('pods')}
-        class="px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'pods' ? 'border-accent-primary text-accent-primary' : 'border-transparent text-text-muted hover:text-text-primary'}"
+        class="px-4 py-3 text-base font-medium border-b-2 transition-colors {activeTab === 'pods' ? 'border-accent-primary text-accent-text' : 'border-transparent text-text-muted hover:text-text-primary'}"
       >
         Pods
       </button>
       <button
         onclick={() => handleTabChange('events')}
-        class="px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'events' ? 'border-accent-primary text-accent-primary' : 'border-transparent text-text-muted hover:text-text-primary'}"
+        class="px-4 py-3 text-base font-medium border-b-2 transition-colors {activeTab === 'events' ? 'border-accent-primary text-accent-text' : 'border-transparent text-text-muted hover:text-text-primary'}"
       >
         Events
       </button>
       <button
         onclick={() => handleTabChange('yaml')}
-        class="px-4 py-3 text-sm font-medium border-b-2 transition-colors {activeTab === 'yaml' ? 'border-accent-primary text-accent-primary' : 'border-transparent text-text-muted hover:text-text-primary'}"
+        class="px-4 py-3 text-base font-medium border-b-2 transition-colors {activeTab === 'yaml' ? 'border-accent-primary text-accent-text' : 'border-transparent text-text-muted hover:text-text-primary'}"
       >
         YAML
       </button>
@@ -334,13 +334,13 @@
   {#if isDeleted}
     <div class="flex items-center justify-between px-4 py-3 bg-accent-warning/10 border-b border-accent-warning/30">
       <div class="flex items-center gap-3">
-        <svg class="w-5 h-5 text-accent-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-5 h-5 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
         <div>
-          <span class="font-medium text-accent-warning">This statefulset no longer exists</span>
+          <span class="font-medium text-warning">This statefulset no longer exists</span>
           {#if lastSeen}
-            <span class="text-text-muted text-sm ml-2">Last seen: {lastSeen}</span>
+            <span class="text-text-muted text-base ml-2">Last seen: {lastSeen}</span>
           {/if}
         </div>
       </div>
@@ -353,7 +353,7 @@
     {#if isLoading}
       <div class="flex items-center justify-center h-full">
         <div class="text-center">
-          <svg class="w-8 h-8 text-accent-primary mx-auto mb-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-8 h-8 text-accent-text mx-auto mb-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
           <p class="text-text-muted">Loading statefulset details...</p>
@@ -362,7 +362,7 @@
     {:else if error}
       <div class="flex items-center justify-center h-full">
         <div class="text-center">
-          <svg class="w-16 h-16 text-accent-error mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-16 h-16 text-danger mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <p class="text-text-muted">{error}</p>
@@ -387,64 +387,64 @@
       <div class="p-6 space-y-6">
         <!-- Status Section -->
         <section>
-          <h2 class="text-lg font-semibold text-text-primary mb-4">Status</h2>
+          <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Status</h2>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="bg-bg-secondary rounded-lg p-4">
               <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Health</div>
-              <span class="text-sm px-2 py-0.5 rounded-sm {isHealthy() ? 'text-accent-success bg-accent-success/10' : 'text-accent-warning bg-accent-warning/10'}">
+              <span class="text-base px-2 py-0.5 rounded-sm {isHealthy() ? 'text-success bg-accent-success/10' : 'text-warning bg-accent-warning/10'}">
                 {isHealthy() ? 'Healthy' : 'Degraded'}
               </span>
             </div>
             <div class="bg-bg-secondary rounded-lg p-4">
               <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Ready</div>
-              <span class="text-lg font-semibold text-text-primary">{statefulSetDetail.ready_replicas}/{statefulSetDetail.replicas}</span>
+              <span class="text-[18px]/7 font-semibold text-text-primary">{statefulSetDetail.ready_replicas}/{statefulSetDetail.replicas}</span>
             </div>
             <div class="bg-bg-secondary rounded-lg p-4">
               <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Current</div>
-              <span class="text-lg font-semibold text-text-primary">{statefulSetDetail.current_replicas}</span>
+              <span class="text-[18px]/7 font-semibold text-text-primary">{statefulSetDetail.current_replicas}</span>
             </div>
             <div class="bg-bg-secondary rounded-lg p-4">
               <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Updated</div>
-              <span class="text-lg font-semibold text-text-primary">{statefulSetDetail.updated_replicas}</span>
+              <span class="text-[18px]/7 font-semibold text-text-primary">{statefulSetDetail.updated_replicas}</span>
             </div>
           </div>
         </section>
 
         <!-- Spec Section -->
         <section>
-          <h2 class="text-lg font-semibold text-text-primary mb-4">Spec</h2>
+          <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Spec</h2>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="bg-bg-secondary rounded-lg p-4">
               <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Service Name</div>
-              <span class="text-sm text-text-primary">{statefulSetDetail.service_name || '-'}</span>
+              <span class="text-base text-text-primary">{statefulSetDetail.service_name || '-'}</span>
             </div>
             <div class="bg-bg-secondary rounded-lg p-4">
               <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Pod Management</div>
-              <span class="text-sm text-text-primary">{statefulSetDetail.pod_management_policy}</span>
+              <span class="text-base text-text-primary">{statefulSetDetail.pod_management_policy}</span>
             </div>
             <div class="bg-bg-secondary rounded-lg p-4">
               <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Update Strategy</div>
-              <span class="text-sm text-text-primary">{statefulSetDetail.update_strategy}</span>
+              <span class="text-base text-text-primary">{statefulSetDetail.update_strategy}</span>
             </div>
             <div class="bg-bg-secondary rounded-lg p-4">
               <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Revision History</div>
-              <span class="text-sm text-text-primary">{statefulSetDetail.revision_history_limit ?? 'Unlimited'}</span>
+              <span class="text-base text-text-primary">{statefulSetDetail.revision_history_limit ?? 'Unlimited'}</span>
             </div>
           </div>
         </section>
 
         <!-- Container Images -->
         <section>
-          <h2 class="text-lg font-semibold text-text-primary mb-4">Container Images</h2>
+          <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Container Images</h2>
           <div class="bg-bg-secondary rounded-lg p-4">
             {#if statefulSetDetail.container_images.length > 0}
               <div class="space-y-2">
                 {#each statefulSetDetail.container_images as image}
-                  <code class="block text-sm text-text-secondary break-all">{image}</code>
+                  <code class="block text-base text-text-secondary break-all">{image}</code>
                 {/each}
               </div>
             {:else}
-              <p class="text-text-muted text-sm">No container images</p>
+              <p class="text-text-muted text-base">No container images</p>
             {/if}
           </div>
         </section>
@@ -452,9 +452,9 @@
         <!-- Conditions Section -->
         {#if statefulSetDetail.conditions.length > 0}
           <section>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Conditions</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Conditions</h2>
             <div class="bg-bg-secondary rounded-lg overflow-hidden">
-              <table class="w-full text-sm">
+              <table class="w-full text-base">
                 <thead class="bg-bg-tertiary">
                   <tr>
                     <th class="px-4 py-2 text-left text-xs text-text-muted uppercase">Type</th>
@@ -481,7 +481,7 @@
         <!-- Labels & Selector -->
         <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Labels</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Labels</h2>
             <div class="bg-bg-secondary rounded-lg p-4">
               {#if Object.keys(statefulSetDetail.labels).length > 0}
                 <div class="flex flex-wrap gap-2">
@@ -492,23 +492,23 @@
                   {/each}
                 </div>
               {:else}
-                <p class="text-text-muted text-sm">No labels</p>
+                <p class="text-text-muted text-base">No labels</p>
               {/if}
             </div>
           </div>
           <div>
-            <h2 class="text-lg font-semibold text-text-primary mb-4">Selector</h2>
+            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Selector</h2>
             <div class="bg-bg-secondary rounded-lg p-4">
               {#if Object.keys(statefulSetDetail.selector).length > 0}
                 <div class="flex flex-wrap gap-2">
                   {#each Object.entries(statefulSetDetail.selector) as [key, value]}
-                    <span class="text-xs bg-accent-primary/10 text-accent-primary px-2 py-1 rounded-sm">
+                    <span class="text-xs bg-accent-primary/10 text-accent-text px-2 py-1 rounded-sm">
                       {key}={value}
                     </span>
                   {/each}
                 </div>
               {:else}
-                <p class="text-text-muted text-sm">No selector</p>
+                <p class="text-text-muted text-base">No selector</p>
               {/if}
             </div>
           </div>
@@ -518,7 +518,7 @@
     {:else if activeTab === 'pods'}
       <div class="p-6">
         <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg font-semibold text-text-primary">Pods ({statefulSetPods.length})</h2>
+          <h2 class="text-[18px]/7 font-semibold text-text-primary">Pods ({statefulSetPods.length})</h2>
           <button
             onclick={loadStatefulSetPods}
             disabled={isDeleted}
@@ -529,7 +529,7 @@
         </div>
         {#if statefulSetPods.length > 0}
           <div class="bg-bg-secondary rounded-lg overflow-hidden">
-            <table class="w-full text-sm">
+            <table class="w-full text-base">
               <thead class="bg-bg-tertiary">
                 <tr>
                   <th class="px-4 py-2 text-left text-xs text-text-muted uppercase">Name</th>
@@ -545,7 +545,7 @@
                     class="border-t border-border-subtle hover:bg-bg-tertiary cursor-pointer"
                     onclick={() => openPodDetail(pod.name)}
                   >
-                    <td class="px-4 py-2 text-accent-primary hover:underline">{pod.name}</td>
+                    <td class="px-4 py-2 text-accent-text hover:underline">{pod.name}</td>
                     <td class="px-4 py-2">
                       <span class="text-xs px-2 py-0.5 rounded-sm {getStatusColor(pod.status)}">{pod.status}</span>
                     </td>
@@ -567,7 +567,7 @@
     {:else if activeTab === 'events'}
       <div class="h-full flex flex-col">
         <div class="flex items-center justify-between px-4 py-2 bg-bg-secondary border-b border-border-subtle">
-          <span class="text-sm text-text-muted">StatefulSet Events</span>
+          <span class="text-base text-text-muted">StatefulSet Events</span>
           <button
             onclick={loadStatefulSetEvents}
             disabled={isDeleted}
@@ -591,7 +591,7 @@
                     </div>
                     <span class="text-xs text-text-muted">{event.last_timestamp || event.first_timestamp}</span>
                   </div>
-                  <p class="text-sm text-text-secondary">{event.message}</p>
+                  <p class="text-base text-text-secondary">{event.message}</p>
                   <p class="text-xs text-text-muted mt-1">Source: {event.source}</p>
                 </div>
               {/each}
@@ -621,14 +621,14 @@
 {#if showScaleModal}
   <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
     <div class="bg-bg-secondary rounded-lg p-6 w-96 shadow-xl">
-      <h3 class="text-lg font-semibold text-text-primary mb-4">Scale StatefulSet</h3>
-      <p class="text-sm text-text-secondary mb-4">
-        Set the number of replicas for <span class="text-accent-primary">{name}</span>
+      <h3 class="text-[18px]/7 font-semibold text-text-primary mb-4">Scale StatefulSet</h3>
+      <p class="text-base text-text-secondary mb-4">
+        Set the number of replicas for <span class="text-accent-text">{name}</span>
       </p>
       <div class="flex items-center gap-3 mb-6">
         <button
           onclick={() => scaleReplicas = Math.max(0, scaleReplicas - 1)}
-          class="w-12 h-12 rounded-lg bg-bg-tertiary hover:bg-accent-error/20 hover:text-accent-error border border-border-subtle text-text-primary text-2xl font-bold transition-colors flex items-center justify-center"
+          class="w-12 h-12 rounded-lg bg-bg-tertiary hover:bg-accent-error/20 hover:text-danger border border-border-subtle text-text-primary text-xl font-bold transition-colors flex items-center justify-center"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
@@ -638,11 +638,11 @@
           type="number"
           bind:value={scaleReplicas}
           min="0"
-          class="w-24 text-center text-3xl font-bold bg-bg-primary border border-border-subtle rounded-lg py-3 text-text-primary focus:outline-hidden focus:border-accent-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          class="w-24 text-center text-[30px]/9 font-bold bg-bg-primary border border-border-subtle rounded-lg py-3 text-text-primary focus:outline-hidden focus:border-accent-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         />
         <button
           onclick={() => scaleReplicas++}
-          class="w-12 h-12 rounded-lg bg-bg-tertiary hover:bg-accent-success/20 hover:text-accent-success border border-border-subtle text-text-primary text-2xl font-bold transition-colors flex items-center justify-center"
+          class="w-12 h-12 rounded-lg bg-bg-tertiary hover:bg-accent-success/20 hover:text-success border border-border-subtle text-text-primary text-xl font-bold transition-colors flex items-center justify-center"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -652,14 +652,14 @@
       <div class="flex justify-end gap-3">
         <button
           onclick={() => showScaleModal = false}
-          class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+          class="px-4 py-2 text-base text-text-secondary hover:text-text-primary transition-colors"
         >
           Cancel
         </button>
         <button
           onclick={handleScale}
           disabled={isScaling}
-          class="px-4 py-2 text-sm bg-accent-primary text-white rounded-sm hover:bg-accent-primary/90 transition-colors disabled:opacity-50"
+          class="px-4 py-2 text-base bg-accent-primary text-white rounded-sm hover:bg-accent-primary/90 transition-colors disabled:opacity-50"
         >
           {isScaling ? 'Scaling...' : 'Scale'}
         </button>

@@ -18,9 +18,9 @@
   {#each tabs as tab}
     <button
       onclick={() => onTabChange(tab.id)}
-      class="px-4 py-2 text-sm transition-colors relative
+      class="px-4 py-2 text-base transition-colors relative
         {activeTab === tab.id
-          ? 'text-accent-primary'
+          ? 'text-accent-text'
           : 'text-text-secondary hover:text-text-primary'}"
     >
       <span>{tab.label}</span>

@@ -1,67 +1,21 @@
 @import 'tailwindcss';
 
-@custom-variant dark (&:is(.dark *));
-
 /*
-  Theme colors live as raw "R G B" triplets (--rgb-*) that each theme class
-  (.dark / .light / .neon on <html>) redefines. `@theme inline` makes every
-  utility inline `rgb(var(--rgb-*))` at the use site, so it picks up the theme
-  class at runtime, and opacity modifiers like `bg-accent-primary/20` compile
-  to color-mix(), which works on any color, including var()-based ones.
+  Design-system layer for Apex. See docs/design/redesign-spec.md, sections 2-3.
+
+  Two layers:
+  1. Runtime: plain `--ui-*` custom properties holding full colour values,
+     defined on `:root, .dark` and overridden on `.light` (theme class on <html>,
+     set by src/lib/stores/theme.ts). Non-Tailwind code (xterm, canvas, inline
+     styles) reads these.
+  2. Tailwind: `@theme inline` exposes each runtime token as a colour utility
+     that emits `var(--ui-*)` at the use site, so switching the class re-themes
+     everything with no rebuild. Opacity modifiers (`bg-accent/20`) compile to
+     color-mix() and keep working.
+
+  The default Tailwind palette is kept until PR7b (spec 2.8), so unmigrated
+  views that still use `purple-400` and friends keep compiling.
 */
-@theme inline {
-  --font-sans:
-    Inter, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto,
-    sans-serif;
-  --font-mono: Hack, Menlo, Monaco, Courier New, monospace;
-
-  --color-bg-primary: rgb(var(--rgb-bg-primary));
-  --color-bg-secondary: rgb(var(--rgb-bg-secondary));
-  --color-bg-tertiary: rgb(var(--rgb-bg-tertiary));
-  --color-bg-card: rgb(var(--rgb-bg-card));
-
-  --color-border-subtle: rgb(var(--rgb-border-subtle));
-
-  --color-accent-primary: rgb(var(--rgb-accent-primary));
-  --color-accent-secondary: rgb(var(--rgb-accent-secondary));
-  --color-accent-warning: rgb(var(--rgb-accent-warning));
-  --color-accent-error: rgb(var(--rgb-accent-error));
-  --color-accent-success: rgb(var(--rgb-accent-success));
-
-  --color-text-primary: rgb(var(--rgb-text-primary));
-  --color-text-secondary: rgb(var(--rgb-text-secondary));
-  --color-text-muted: rgb(var(--rgb-text-muted));
-}
-
-/*
-  The default border color has changed to `currentcolor` in Tailwind CSS v4,
-  so we've added these compatibility styles to make sure everything still
-  looks the same as it did with Tailwind CSS v3.
-
-  If we ever want to remove these styles, we need to add an explicit border
-  color utility to any element that depends on these defaults.
-*/
-@layer base {
-  *,
-  ::after,
-  ::before,
-  ::backdrop,
-  ::file-selector-button {
-    border-color: var(--color-gray-200, currentcolor);
-  }
-
-  /* v4 dropped the pointer cursor on buttons and lightened placeholders;
-     keep the v3 look until the redesign decides otherwise. */
-  button:not(:disabled),
-  [role='button']:not(:disabled) {
-    cursor: pointer;
-  }
-
-  input::placeholder,
-  textarea::placeholder {
-    color: var(--color-gray-400);
-  }
-}
 
 /* Font imports */
 @font-face {
@@ -88,158 +42,291 @@
   font-display: swap;
 }
 
-/* Global styles */
-:root {
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+/* Legacy: keep the dark: variant pointing at the theme class, in case any view uses it */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------- Tailwind layer ---------- */
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans--font-feature-settings: 'cv11', 'ss01';
+  --font-mono: 'Hack', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --text-*: initial;
+  --text-2xs: 11px;
+  --text-2xs--line-height: 16px;
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 20px;
+  --text-base: 14px;
+  --text-base--line-height: 20px;
+  --text-md: 16px;
+  --text-md--line-height: 24px;
+  --text-lg: 20px;
+  --text-lg--line-height: 28px;
+  --text-xl: 24px;
+  --text-xl--line-height: 32px;
+
+  --radius-*: initial;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
 }
 
-/* Accent palette shared by light + dark (teal family) */
+@theme inline {
+  /* `--color-*: initial` lands in PR7b, once no view uses raw palette classes. */
+  --color-app: var(--ui-app);
+  --color-subtle: var(--ui-subtle);
+  --color-surface: var(--ui-surface);
+  --color-hover: var(--ui-hover);
+  --color-active: var(--ui-active);
+  --color-selected: var(--ui-selected);
+  --color-scrim: var(--ui-scrim);
+
+  --color-divider: var(--ui-divider);
+  --color-line: var(--ui-line);
+  --color-line-strong: var(--ui-line-strong);
+
+  --color-primary: var(--ui-primary);
+  --color-secondary: var(--ui-secondary);
+  --color-muted: var(--ui-muted);
+  --color-faint: var(--ui-faint);
+
+  --color-accent: var(--ui-accent);
+  --color-accent-text: var(--ui-accent-text);
+  --color-on-accent: var(--ui-on-accent);
+
+  --color-danger: var(--ui-danger);
+  --color-danger-solid: var(--ui-danger-solid);
+  --color-danger-tint: var(--ui-danger-tint);
+  --color-danger-button: var(--ui-danger-button);
+  --color-warning: var(--ui-warning);
+  --color-warning-solid: var(--ui-warning-solid);
+  --color-warning-tint: var(--ui-warning-tint);
+  --color-success: var(--ui-success);
+  --color-success-solid: var(--ui-success-solid);
+  --color-success-tint: var(--ui-success-tint);
+  --color-info: var(--ui-info);
+  --color-info-solid: var(--ui-info-solid);
+  --color-info-tint: var(--ui-info-tint);
+
+  --shadow-popover: var(--ui-shadow-popover);
+  --shadow-dialog: var(--ui-shadow-dialog);
+
+  /* Legacy aliases: today's class names keep working until PR7b removes them */
+  --color-bg-primary: var(--ui-app);
+  --color-bg-secondary: var(--ui-subtle);
+  --color-bg-tertiary: var(--ui-hover);
+  --color-bg-card: var(--ui-surface);
+  --color-border-subtle: var(--ui-line);
+  --color-text-primary: var(--ui-primary);
+  --color-text-secondary: var(--ui-secondary);
+  --color-text-muted: var(--ui-muted);
+  --color-accent-primary: var(--ui-accent);
+  --color-accent-secondary: var(--ui-accent);
+  --color-accent-error: var(--ui-danger-solid);
+  --color-accent-warning: var(--ui-warning-solid);
+  --color-accent-success: var(--ui-success-solid);
+}
+
+/* ---------- Runtime layer ---------- */
+:root,
+.dark {
+  /* dark is the default, so first paint is dark */
+  color-scheme: dark;
+  --ui-app: #0e0e10;
+  --ui-subtle: #141416;
+  --ui-surface: #18181b;
+  --ui-hover: #1f1f23;
+  --ui-active: #26262b;
+  --ui-divider: #232328;
+  --ui-line: #2e2e34;
+  --ui-line-strong: #3f3f46;
+  --ui-primary: #ededf0;
+  --ui-secondary: #b4b4bd;
+  --ui-muted: #8d8d97;
+  --ui-faint: #6b6b75;
+  --ui-accent: #5e63e6;
+  --ui-accent-text: #9da2ff;
+  --ui-on-accent: #fff;
+  --ui-danger: #f87171;
+  --ui-danger-solid: #e5484d;
+  --ui-danger-button: #cd2b31;
+  --ui-warning: #f5b74a;
+  --ui-warning-solid: #f59e0b;
+  --ui-success: #4ccf7f;
+  --ui-success-solid: #30a46c;
+  --ui-info: #7cb4ff;
+  --ui-info-solid: #3b82f6;
+  --ui-tint: 12%;
+  --ui-select: 16%;
+  --ui-scrim: rgb(0 0 0 / 0.5);
+  --ui-shadow-popover: 0 0 0 1px var(--ui-line), 0 8px 24px rgb(0 0 0 / 0.45);
+  --ui-shadow-dialog: 0 0 0 1px var(--ui-line), 0 24px 64px rgb(0 0 0 / 0.6);
+}
+
+.light {
+  color-scheme: light;
+  --ui-app: #ffffff;
+  --ui-subtle: #f8f8f9;
+  --ui-surface: #ffffff;
+  --ui-hover: #f2f2f4;
+  --ui-active: #eaeaee;
+  --ui-divider: #ececef;
+  --ui-line: #dedee3;
+  --ui-line-strong: #c8c8cf;
+  --ui-primary: #18181b;
+  --ui-secondary: #46464e;
+  --ui-muted: #6a6a73;
+  --ui-faint: #8e8e98;
+  --ui-accent: #4f52d9;
+  --ui-accent-text: #4346c8;
+  --ui-on-accent: #fff;
+  --ui-danger: #c4252b;
+  --ui-danger-solid: #dc2626;
+  --ui-danger-button: #dc2626;
+  --ui-warning: #985700;
+  --ui-warning-solid: #d97706;
+  --ui-success: #18794e;
+  --ui-success-solid: #16a34a;
+  --ui-info: #1d63c9;
+  --ui-info-solid: #2563eb;
+  --ui-tint: 10%;
+  --ui-select: 10%;
+  --ui-scrim: rgb(16 16 24 / 0.25);
+  --ui-shadow-popover: 0 0 0 1px var(--ui-line), 0 8px 24px rgb(16 16 24 / 0.1);
+  --ui-shadow-dialog: 0 0 0 1px var(--ui-line), 0 24px 64px rgb(16 16 24 / 0.16);
+}
+
+/* Derived tokens: defined once, follow the theme automatically.
+   sRGB mixing matches the contrast measurements in spec 2.3-2.4. */
+:root,
 .dark,
 .light {
-  --rgb-accent-primary: 0 212 170;
-  --rgb-accent-secondary: 0 212 170;
-  --rgb-accent-warning: 245 158 11;
-  --rgb-accent-error: 239 68 68;
-  --rgb-accent-success: 34 197 94;
+  --ui-danger-tint: color-mix(in srgb, var(--ui-danger-solid) var(--ui-tint), transparent);
+  --ui-warning-tint: color-mix(in srgb, var(--ui-warning-solid) var(--ui-tint), transparent);
+  --ui-success-tint: color-mix(in srgb, var(--ui-success-solid) var(--ui-tint), transparent);
+  --ui-info-tint: color-mix(in srgb, var(--ui-info-solid) var(--ui-tint), transparent);
+  --ui-selected: color-mix(in srgb, var(--ui-accent) var(--ui-select), transparent);
 }
 
-/* Dark theme colors (default) */
-.dark {
-  --rgb-bg-primary: 10 10 10;
-  --rgb-bg-secondary: 17 17 17;
-  --rgb-bg-tertiary: 26 26 26;
-  --rgb-bg-card: 20 20 20;
-  --rgb-border-subtle: 34 34 34;
-  --rgb-text-primary: 255 255 255;
-  --rgb-text-secondary: 136 136 136;
-  --rgb-text-muted: 85 85 85;
+/* ---------- Density (spec 3.2) ----------
+   Runtime variables, not @theme tokens: they switch with data-density on
+   <html> (src/lib/stores/density.ts). Components consume them through the
+   variable shorthand, e.g. h-(--row-h), px-(--cell-px). */
+:root,
+[data-density='comfortable'] {
+  --row-h: 36px;
+  --cell-px: 12px;
+  --cell-font: 13px;
+  --header-row-h: 32px;
+  --page-px: 24px;
+  --page-py: 16px;
+  --toolbar-gap: 12px;
+  --nav-item-h: 30px;
+  --nav-font: 13px;
+  --control-h: 28px;
+  --badge-h: 20px;
+  --title-font: 20px;
+  --section-gap: 24px;
+  --card-p: 16px;
 }
 
-/* Light theme colors */
-.light {
-  --rgb-bg-primary: 255 255 255;
-  --rgb-bg-secondary: 249 250 251;
-  --rgb-bg-tertiary: 243 244 246;
-  --rgb-bg-card: 255 255 255;
-  --rgb-border-subtle: 229 231 235;
-  --rgb-text-primary: 17 24 39;
-  --rgb-text-secondary: 107 114 128;
-  --rgb-text-muted: 156 163 175;
+[data-density='compact'] {
+  --row-h: 26px;
+  --cell-px: 8px;
+  --cell-font: 12px;
+  --header-row-h: 26px;
+  --page-px: 16px;
+  --page-py: 10px;
+  --toolbar-gap: 8px;
+  --nav-item-h: 26px;
+  --nav-font: 12px;
+  --control-h: 24px;
+  --badge-h: 18px;
+  --title-font: 16px;
+  --section-gap: 16px;
+  --card-p: 12px;
 }
 
-/* ===== Neon / Cyberpunk TUI theme ===== */
-.neon {
-  --rgb-bg-primary: 5 7 11;      /* near-black, blue bias */
-  --rgb-bg-secondary: 8 12 18;
-  --rgb-bg-tertiary: 13 20 28;
-  --rgb-bg-card: 8 13 20;
-  --rgb-border-subtle: 20 33 44;
-  --rgb-text-primary: 200 214 224;
-  --rgb-text-secondary: 105 126 141;
-  --rgb-text-muted: 57 80 95;
-  /* neon accents */
-  --rgb-accent-primary: 0 230 255;   /* cyan */
-  --rgb-accent-secondary: 255 46 151; /* magenta */
-  --rgb-accent-warning: 255 176 46;  /* amber */
-  --rgb-accent-error: 255 59 92;     /* red */
-  --rgb-accent-success: 18 255 160;  /* green */
+/* ---------- Base ---------- */
+@layer base {
+  html {
+    background: var(--ui-app);
+    color: var(--ui-primary);
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv11', 'ss01';
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html,
+  body,
+  #app {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  /* v4 defaults borders to currentColor; restore a token default so a bare `border` reads right */
+  *,
+  ::before,
+  ::after,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--ui-line);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--ui-faint);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ui-accent);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--ui-accent) 30%, transparent);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--ui-line);
+    border-radius: 6px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--ui-line-strong);
+  }
+
+  /* v4 removed this default */
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      transition-duration: 0ms !important;
+      animation-duration: 0ms !important;
+    }
+  }
 }
-
-/* Mono-first typography for the neon theme */
-.neon body,
-.neon {
-  font-family: 'Hack', ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
-  letter-spacing: 0.1px;
-}
-
-/* CRT scanline overlay — decorative, never intercepts input */
-.neon body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 9999;
-  background: repeating-linear-gradient(
-    0deg,
-    rgba(0, 0, 0, 0.14) 0 1px,
-    transparent 1px 3px
-  );
-  mix-blend-mode: multiply;
-  opacity: 0.5;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .neon body::before { opacity: 0.32; }
-}
-
-/* Neon scrollbar */
-.neon ::-webkit-scrollbar { width: 8px; height: 8px; }
-.neon ::-webkit-scrollbar-track { background: #05070b; }
-.neon ::-webkit-scrollbar-thumb {
-  background: #13202b;
-  border-radius: 4px;
-  box-shadow: inset 0 0 6px rgba(0, 230, 255, 0.25);
-}
-.neon ::-webkit-scrollbar-thumb:hover { background: #1d3040; }
-
-/* Neon selection */
-.neon ::selection { background: rgba(0, 230, 255, 0.28); color: #eaffff; }
-
-html, body, #app {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-}
-
-/* Dark theme scrollbar styling */
-.dark ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.dark ::-webkit-scrollbar-track {
-  background: #111111;
-}
-
-.dark ::-webkit-scrollbar-thumb {
-  background: #333333;
-  border-radius: 4px;
-}
-
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: #444444;
-}
-
-/* Light theme scrollbar styling */
-.light ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.light ::-webkit-scrollbar-track {
-  background: #f5f5f5;
-}
-
-.light ::-webkit-scrollbar-thumb {
-  background: #d0d0d0;
-  border-radius: 4px;
-}
-
-.light ::-webkit-scrollbar-thumb:hover {
-  background: #b0b0b0;
-}
-
-/* Selection styling */
-.dark ::selection {
-  background: rgba(0, 212, 170, 0.3);
-}
-
-.light ::selection {
-  background: rgba(0, 212, 170, 0.2);
-}
-

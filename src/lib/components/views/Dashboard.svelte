@@ -90,10 +90,10 @@
 
   function getColorClass(color: string, hasFail: boolean = false) {
     const colorMap: Record<string, string> = {
-      'accent-primary': 'text-accent-primary border-accent-primary/30 bg-accent-primary/10',
-      'accent-success': 'text-accent-success border-accent-success/30 bg-accent-success/10',
-      'accent-warning': 'text-accent-warning border-accent-warning/30 bg-accent-warning/10',
-      'accent-error': 'text-accent-error border-accent-error/30 bg-accent-error/10',
+      'accent-primary': 'text-accent-text border-accent-primary/30 bg-accent-primary/10',
+      'accent-success': 'text-success border-accent-success/30 bg-accent-success/10',
+      'accent-warning': 'text-warning border-accent-warning/30 bg-accent-warning/10',
+      'accent-error': 'text-danger border-accent-error/30 bg-accent-error/10',
       'purple-400': 'text-purple-400 border-purple-400/30 bg-purple-400/10',
       'blue-400': 'text-blue-400 border-blue-400/30 bg-blue-400/10',
       'cyan-400': 'text-cyan-400 border-cyan-400/30 bg-cyan-400/10',
@@ -151,9 +151,9 @@
     <div class="px-6 py-4 border-b border-border-subtle">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <h1 class="text-xl font-semibold text-text-primary">Pulse</h1>
+          <h1 class="text-lg font-semibold text-text-primary">Pulse</h1>
           {#if $selectedNamespace}
-            <span class="px-2 py-0.5 bg-accent-primary/20 text-accent-primary text-sm rounded-sm">
+            <span class="px-2 py-0.5 bg-accent-primary/20 text-accent-text text-base rounded-sm">
               {$selectedNamespace}
             </span>
           {/if}
@@ -205,7 +205,7 @@
                 </svg>
                 <!-- Center text -->
                 <div class="absolute inset-0 flex flex-col items-center justify-center">
-                  <span class="text-2xl font-bold text-text-primary">{cpuUsage().toFixed(0)}%</span>
+                  <span class="text-xl font-bold text-text-primary">{cpuUsage().toFixed(0)}%</span>
                   <span class="text-xs text-text-muted">usage</span>
                 </div>
               </div>
@@ -216,14 +216,14 @@
                   <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                   </svg>
-                  <h3 class="text-lg font-semibold text-text-primary">CPU</h3>
+                  <h3 class="text-[18px]/7 font-semibold text-text-primary">CPU</h3>
                 </div>
                 <div class="space-y-1">
-                  <div class="flex justify-between text-sm">
+                  <div class="flex justify-between text-base">
                     <span class="text-text-muted">Usage</span>
                     <span class="text-cyan-400 font-mono">{formatCpu($pulseMetrics.cpu_usage ?? 0)} cores</span>
                   </div>
-                  <div class="flex justify-between text-sm">
+                  <div class="flex justify-between text-base">
                     <span class="text-text-muted">Allocatable</span>
                     <span class="text-text-primary font-mono">{formatCpu($pulseMetrics.cpu_allocatable)} cores</span>
                   </div>
@@ -269,7 +269,7 @@
                 </svg>
                 <!-- Center text -->
                 <div class="absolute inset-0 flex flex-col items-center justify-center">
-                  <span class="text-2xl font-bold text-text-primary">{memoryUsage().toFixed(0)}%</span>
+                  <span class="text-xl font-bold text-text-primary">{memoryUsage().toFixed(0)}%</span>
                   <span class="text-xs text-text-muted">usage</span>
                 </div>
               </div>
@@ -280,14 +280,14 @@
                   <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
                   </svg>
-                  <h3 class="text-lg font-semibold text-text-primary">Memory</h3>
+                  <h3 class="text-[18px]/7 font-semibold text-text-primary">Memory</h3>
                 </div>
                 <div class="space-y-1">
-                  <div class="flex justify-between text-sm">
+                  <div class="flex justify-between text-base">
                     <span class="text-text-muted">Usage</span>
                     <span class="text-emerald-400 font-mono">{formatMemory($pulseMetrics.memory_usage ?? 0)} Gi</span>
                   </div>
-                  <div class="flex justify-between text-sm">
+                  <div class="flex justify-between text-base">
                     <span class="text-text-muted">Allocatable</span>
                     <span class="text-text-primary font-mono">{formatMemory($pulseMetrics.memory_allocatable)} Gi</span>
                   </div>
@@ -306,10 +306,10 @@
               </svg>
             </div>
             <div class="flex-1">
-              <h3 class="text-sm font-medium text-text-primary">Metrics Unavailable</h3>
-              <p class="text-sm text-text-muted">Install metrics-server to view cluster CPU and memory usage</p>
+              <h3 class="text-base font-medium text-text-primary">Metrics Unavailable</h3>
+              <p class="text-base text-text-muted">Install metrics-server to view cluster CPU and memory usage</p>
             </div>
-            <div class="text-right text-sm">
+            <div class="text-right text-base">
               <div class="text-text-muted">Allocatable</div>
               <div class="text-text-primary font-mono">{formatCpu($pulseMetrics.cpu_allocatable)} cores, {formatMemory($pulseMetrics.memory_allocatable)} Gi</div>
             </div>
@@ -342,15 +342,15 @@
               </div>
               {#if hasStatus}
                 {@const statusValue = value as ResourceCount}
-                <div class="text-xl font-bold">
-                  <span class="text-accent-success">{statusValue.ok}</span>
+                <div class="text-lg font-bold">
+                  <span class="text-success">{statusValue.ok}</span>
                   {#if statusValue.fail > 0}
                     <span class="text-text-muted">:</span>
-                    <span class="text-accent-error">{statusValue.fail}</span>
+                    <span class="text-danger">{statusValue.fail}</span>
                   {/if}
                 </div>
               {:else}
-                <div class="text-2xl font-bold">{value}</div>
+                <div class="text-xl font-bold">{value}</div>
               {/if}
               <div class="text-xs opacity-70 mt-0.5">{card.label}</div>
             </div>
@@ -363,7 +363,7 @@
     <div class="flex items-center justify-center h-full">
       <div class="text-center">
         <div class="inline-flex items-center justify-center w-16 h-16 mb-4">
-          <svg class="w-10 h-10 text-accent-primary animate-spin" fill="none" viewBox="0 0 24 24">
+          <svg class="w-10 h-10 text-accent-text animate-spin" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>

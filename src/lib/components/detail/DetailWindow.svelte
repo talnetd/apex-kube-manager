@@ -9,6 +9,11 @@
   import ResourceDetail from './ResourceDetail.svelte';
   // Window controls
   import WindowControls from '../ui/WindowControls.svelte';
+  import Toaster from '../ui/Toaster.svelte';
+  // Separate webview: apply theme + density here too, and follow changes
+  // made in the main window through the storage event.
+  import '../../stores/theme';
+  import '../../stores/density';
 
   // Close window on Cmd+W
   function handleKeydown(e: KeyboardEvent) {
@@ -96,11 +101,11 @@
   <!-- Header with locked context info -->
   <header class="flex items-center px-4 py-3 bg-bg-secondary border-b border-border-subtle">
     <div class="flex items-center gap-3" data-tauri-drag-region>
-      <svg class="w-5 h-5 text-accent-primary pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg class="w-5 h-5 text-accent-text pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={getResourceIcon(resourceType)} />
       </svg>
       <div class="pointer-events-none">
-        <h1 class="text-lg font-semibold text-text-primary"><span class="capitalize">{resourceType}</span>: {resourceName}</h1>
+        <h1 class="text-[18px]/7 font-semibold text-text-primary"><span class="capitalize">{resourceType}</span>: {resourceName}</h1>
         <div class="flex items-center gap-2 text-xs text-text-muted">
           <span class="flex items-center gap-1">
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -124,7 +129,7 @@
     <div class="flex-1 h-full cursor-grab active:cursor-grabbing" data-tauri-drag-region></div>
     <!-- Locked view badge and window controls -->
     <div class="flex items-center gap-2">
-      <span class="text-xs px-2 py-1 bg-accent-primary/10 text-accent-primary rounded-sm">
+      <span class="text-xs px-2 py-1 bg-accent-primary/10 text-accent-text rounded-sm">
         Locked View
       </span>
       <div class="ml-2 pl-2 border-l border-border-subtle">
@@ -138,7 +143,7 @@
     {#if loadError}
       <div class="flex items-center justify-center h-full">
         <div class="text-center">
-          <svg class="w-16 h-16 text-accent-error mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-16 h-16 text-danger mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <p class="text-text-muted">{loadError}</p>
@@ -147,7 +152,7 @@
     {:else if !isLoaded}
       <div class="flex items-center justify-center h-full">
         <div class="text-center">
-          <svg class="w-8 h-8 text-accent-primary mx-auto mb-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-8 h-8 text-accent-text mx-auto mb-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
           <p class="text-text-muted">Loading...</p>
@@ -188,10 +193,12 @@
           <svg class="w-16 h-16 text-text-muted mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d={getResourceIcon(resourceType)} />
           </svg>
-          <h2 class="text-xl text-text-primary mb-2"><span class="capitalize">{resourceType}</span> Details</h2>
+          <h2 class="text-lg text-text-primary mb-2"><span class="capitalize">{resourceType}</span> Details</h2>
           <p class="text-text-muted">Detail view coming soon...</p>
         </div>
       </div>
     {/if}
   </main>
 </div>
+
+<Toaster />
