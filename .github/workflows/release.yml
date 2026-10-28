@@ -13,6 +13,7 @@ jobs:
   build-macos:
     runs-on: macos-latest
     strategy:
+      fail-fast: false
       matrix:
         target: [aarch64-apple-darwin, x86_64-apple-darwin]
 
@@ -34,10 +35,51 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Fail loudly instead of shipping an unsigned build when a secret is
+      # missing (an empty APPLE_CERTIFICATE would also break the bundler).
+      - name: Check signing secrets
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+        run: |
+          missing=0
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
+                      APPLE_API_ISSUER APPLE_API_KEY APPLE_API_PRIVATE_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing repository secret $name (see docs/release-signing.md)"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      # notarytool needs the App Store Connect key as a file on disk.
+      - name: Write App Store Connect API key
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+        run: |
+          umask 077
+          mkdir -p "$RUNNER_TEMP/asc"
+          key_path="$RUNNER_TEMP/asc/AuthKey_${APPLE_API_KEY}.p8"
+          printf '%s\n' "$APPLE_API_PRIVATE_KEY" > "$key_path"
+          echo "APPLE_API_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+
+      # The Tauri bundler imports APPLE_CERTIFICATE into a temporary keychain,
+      # signs the .app (hardened runtime), notarizes and staples it, then
+      # builds and signs the .dmg around the stapled app.
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Apex Kube Manager ${{ github.ref_name }}'
@@ -53,11 +95,47 @@ jobs:
             - kubectl installed and configured
             - Valid kubeconfig at ~/.kube/config
 
-            ## First Launch
-            Since the app is not notarized, you'll need to right-click and select "Open" on first launch, then click "Open" in the dialog.
+            The macOS build is signed with a Developer ID certificate and notarized by Apple, so it opens normally on first launch.
           releaseDraft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
           args: --target ${{ matrix.target }}
+
+      - name: Verify signature and notarization
+        env:
+          TARGET: ${{ matrix.target }}
+          # Optional: set to check the TeamIdentifier. Skipped when unset.
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID || secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          bundle="src-tauri/target/$TARGET/release/bundle"
+          app="$bundle/macos/Apex Kube Manager.app"
+          dmg=$(ls "$bundle"/dmg/*.dmg)
+
+          codesign --verify --deep --strict --verbose=2 "$app"
+          spctl -a -vv -t exec "$app"
+          xcrun stapler validate "$app"
+          codesign --verify --verbose=2 "$dmg"
+
+          if [ -n "$APPLE_TEAM_ID" ]; then
+            team=$(codesign -dv "$app" 2>&1 | sed -n 's/^TeamIdentifier=//p')
+            if [ "$team" != "$APPLE_TEAM_ID" ]; then
+              echo "::error::TeamIdentifier is '$team', expected '$APPLE_TEAM_ID'"
+              exit 1
+            fi
+            echo "TeamIdentifier matches: $team"
+          fi
+
+          # The bundler notarizes and staples the .app, not the .dmg, so check
+          # that the app shipped inside the dmg carries the stapled ticket.
+          mnt=$(mktemp -d)
+          hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$dmg" >/dev/null
+          trap 'hdiutil detach "$mnt" -quiet || true' EXIT
+          xcrun stapler validate "$mnt/Apex Kube Manager.app"
+          spctl -a -vv -t exec "$mnt/Apex Kube Manager.app"
+
+      - name: Remove App Store Connect API key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/asc"
 
   build-linux:
     runs-on: ubuntu-22.04
@@ -91,7 +169,7 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'Apex Kube Manager ${{ github.ref_name }}'
           releaseDraft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
 
   build-windows:
     runs-on: windows-latest
@@ -120,4 +198,4 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'Apex Kube Manager ${{ github.ref_name }}'
           releaseDraft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
