@@ -83,7 +83,7 @@
     >
       <button
         on:click={() => selectTheme("light")}
-        class="w-full flex items-center justify-between px-4 py-2.5 text-sm text-text-primary hover:bg-bg-tertiary transition-colors"
+        class="w-full flex items-center justify-between px-4 py-2.5 text-base text-text-primary hover:bg-bg-tertiary transition-colors"
       >
         <div class="flex items-center gap-2">
           <span aria-hidden="true">{@html SunIcon}</span>
@@ -96,7 +96,7 @@
 
       <button
         on:click={() => selectTheme("dark")}
-        class="w-full flex items-center justify-between px-4 py-2.5 text-sm text-text-primary hover:bg-bg-tertiary transition-colors"
+        class="w-full flex items-center justify-between px-4 py-2.5 text-base text-text-primary hover:bg-bg-tertiary transition-colors"
       >
         <div class="flex items-center gap-2">
           <span aria-hidden="true">{@html MoonIcon}</span>
@@ -110,7 +110,7 @@
 
       <button
         on:click={() => selectTheme("system")}
-        class="w-full flex items-center justify-between px-4 py-2.5 text-sm text-text-primary hover:bg-bg-tertiary transition-colors"
+        class="w-full flex items-center justify-between px-4 py-2.5 text-base text-text-primary hover:bg-bg-tertiary transition-colors"
       >
         <div class="flex items-center gap-2">
           <span aria-hidden="true">{@html MonitorIcon}</span>

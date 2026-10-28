@@ -8,15 +8,15 @@
 
   const variantStyles = {
     default: 'bg-text-muted/20 text-text-secondary',
-    success: 'bg-accent-success/20 text-accent-success',
-    warning: 'bg-accent-warning/20 text-accent-warning',
-    error: 'bg-accent-error/20 text-accent-error',
-    info: 'bg-accent-primary/20 text-accent-primary',
+    success: 'bg-accent-success/20 text-success',
+    warning: 'bg-accent-warning/20 text-warning',
+    error: 'bg-accent-error/20 text-danger',
+    info: 'bg-accent-primary/20 text-accent-text',
   };
 
   const sizeStyles = {
     sm: 'px-2 py-0.5 text-xs',
-    md: 'px-3 py-1 text-sm',
+    md: 'px-3 py-1 text-base',
   };
 </script>
 

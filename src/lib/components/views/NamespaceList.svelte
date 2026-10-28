@@ -47,8 +47,8 @@
 
   function getStatusColor(status: string): string {
     switch (status) {
-      case 'Active': return 'text-accent-success bg-accent-success/10';
-      case 'Terminating': return 'text-accent-warning bg-accent-warning/10';
+      case 'Active': return 'text-success bg-accent-success/10';
+      case 'Terminating': return 'text-warning bg-accent-warning/10';
       default: return 'text-text-muted bg-bg-tertiary';
     }
   }
@@ -77,13 +77,13 @@
         {#each sortedData() as ns}
           <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer" onclick={() => openDetail(ns)}>
             <td class="py-3 pr-4">
-              <span class="text-accent-primary font-medium hover:underline">{ns.name}</span>
+              <span class="text-accent-text font-medium hover:underline">{ns.name}</span>
             </td>
             <td class="py-3 pr-4">
               <span class="text-xs px-2 py-0.5 rounded-sm {getStatusColor(ns.status)}">{ns.status}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{ns.age}</span>
+              <span class="text-text-secondary text-base">{ns.age}</span>
             </td>
           </tr>
         {/each}

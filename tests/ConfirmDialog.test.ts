@@ -140,4 +140,39 @@ describe('ConfirmDialog', () => {
     expect(document.querySelector('[role="alert"]')?.textContent).toContain('forbidden');
     expect(document.querySelector('[role="dialog"]')).not.toBeNull();
   });
+
+  it('after a rejected confirm, focus stays inside and Esc closes', async () => {
+    const onClose = vi.fn();
+    const failing = vi.fn(async () => {
+      throw new Error('boom');
+    });
+    const { dialog, q } = await open({ context: 'staging', onConfirm: failing, onClose });
+    key(dialog, 'Enter');
+    await settle();
+    await settle();
+    expect(failing).toHaveBeenCalled();
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).toBe(q('cancel'));
+
+    key(document.activeElement!, 'Escape');
+    await settle();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('keys from outside the dialog (focus lost to body) are swallowed; Esc still closes', async () => {
+    const onClose = vi.fn();
+    const windowSpy = vi.fn();
+    window.addEventListener('keydown', windowSpy);
+    const { onConfirm } = await open({ context: 'staging', onClose });
+    (document.activeElement as HTMLElement | null)?.blur();
+    key(document.body, 'Enter');
+    key(document.body, 'd');
+    await settle();
+    expect(windowSpy).not.toHaveBeenCalled();
+    expect(onConfirm).not.toHaveBeenCalled();
+    key(document.body, 'Escape');
+    await settle();
+    expect(onClose).toHaveBeenCalledTimes(1);
+    window.removeEventListener('keydown', windowSpy);
+  });
 });

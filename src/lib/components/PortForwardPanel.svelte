@@ -216,7 +216,7 @@
   <div class="absolute top-full right-0 mt-2 w-80 bg-bg-secondary border border-border-subtle rounded-lg shadow-xl z-50">
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-border-subtle">
-      <span class="text-sm font-medium text-text-primary">Port Forwards</span>
+      <span class="text-base font-medium text-text-primary">Port Forwards</span>
       <button onclick={onClose} class="p-1 text-text-muted hover:text-text-primary transition-colors">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -227,7 +227,7 @@
     <!-- Active Forwards -->
     <div class="max-h-48 overflow-y-auto">
       {#if $portForwards.length === 0}
-        <div class="py-6 text-center text-text-muted text-sm">
+        <div class="py-6 text-center text-text-muted text-base">
           No active forwards
         </div>
       {:else}
@@ -236,8 +236,8 @@
             <div class="flex items-center gap-3 min-w-0 flex-1">
               <div class="w-1.5 h-1.5 rounded-full shrink-0 {getStatusIndicator(forward.status)}"></div>
               <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-1.5 text-sm">
-                  <span class="font-mono text-accent-primary">{forward.local_port}</span>
+                <div class="flex items-center gap-1.5 text-base">
+                  <span class="font-mono text-accent-text">{forward.local_port}</span>
                   <svg class="w-3 h-3 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
                   </svg>
@@ -261,7 +261,7 @@
             {#if forward.status === 'active' || forward.status === 'starting'}
               <button
                 onclick={() => handleStopForward(forward.id)}
-                class="p-1.5 text-text-muted hover:text-accent-error hover:bg-accent-error/10 rounded-sm transition-colors opacity-0 group-hover:opacity-100 shrink-0"
+                class="p-1.5 text-text-muted hover:text-danger hover:bg-accent-error/10 rounded-sm transition-colors opacity-0 group-hover:opacity-100 shrink-0"
                 title="Stop"
               >
                 <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
@@ -279,7 +279,7 @@
       {#if !showNewForm}
         <button
           onclick={openNewForm}
-          class="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm text-text-muted hover:text-accent-primary hover:bg-bg-tertiary/50 transition-colors"
+          class="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-base text-text-muted hover:text-accent-text hover:bg-bg-tertiary/50 transition-colors"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -290,7 +290,7 @@
         <div class="p-4 space-y-3 bg-bg-tertiary/30 overflow-visible">
           <!-- Error -->
           {#if formError}
-            <div class="text-xs text-accent-error bg-accent-error/10 px-2 py-1.5 rounded-sm">
+            <div class="text-xs text-danger bg-accent-error/10 px-2 py-1.5 rounded-sm">
               {formError}
             </div>
           {/if}
@@ -337,7 +337,7 @@
                 min="1"
                 max="65535"
                 placeholder="Local"
-                class="w-full px-3 py-2 bg-bg-primary border border-border-subtle rounded-lg text-sm text-text-primary text-center font-mono focus:outline-hidden focus:border-accent-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                class="w-full px-3 py-2 bg-bg-primary border border-border-subtle rounded-lg text-base text-text-primary text-center font-mono focus:outline-hidden focus:border-accent-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
               <div class="text-xs text-text-muted text-center mt-1">Local</div>
             </div>
@@ -364,7 +364,7 @@
                   max="65535"
                   placeholder="Port"
                   disabled={isLoadingPorts}
-                  class="w-full px-3 py-2 bg-bg-primary border border-border-subtle rounded-lg text-sm text-text-primary text-center font-mono focus:outline-hidden focus:border-accent-primary disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  class="w-full px-3 py-2 bg-bg-primary border border-border-subtle rounded-lg text-base text-text-primary text-center font-mono focus:outline-hidden focus:border-accent-primary disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
               {/if}
               <div class="text-xs text-text-muted text-center mt-1">
@@ -377,14 +377,14 @@
           <div class="flex gap-2 pt-1">
             <button
               onclick={resetForm}
-              class="flex-1 px-3 py-2 text-sm text-text-muted hover:text-text-primary transition-colors"
+              class="flex-1 px-3 py-2 text-base text-text-muted hover:text-text-primary transition-colors"
             >
               Cancel
             </button>
             <button
               onclick={handleStartForward}
               disabled={isStarting || !selectedResource || !selectedNamespaceForm || !remotePort}
-              class="flex-1 px-3 py-2 text-sm bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+              class="flex-1 px-3 py-2 text-base bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
             >
               {isStarting ? 'Starting...' : 'Forward'}
             </button>

@@ -87,7 +87,7 @@
         <div class="w-7 h-7 bg-[#20D4A9] rounded-lg flex items-center justify-center" data-tauri-drag-region>
           <span class="text-white font-bold text-xs" data-tauri-drag-region>K8</span>
         </div>
-        <span class="text-text-primary font-semibold text-sm" data-tauri-drag-region>Apex Kube</span>
+        <span class="text-text-primary font-semibold text-base" data-tauri-drag-region>Apex Kube</span>
       </div>
     {:else}
       <div class="w-7 h-7  bg-[#20D4A9] rounded-lg flex items-center justify-center mx-auto" data-tauri-drag-region>
@@ -119,7 +119,7 @@
               title={$sidebarCollapsed ? item.label : ''}
               class="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md transition-colors
                 {$currentView === item.id
-                  ? 'bg-accent-primary/10 text-accent-primary'
+                  ? 'bg-accent-primary/10 text-accent-text'
                   : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary'}"
             >
               <svg

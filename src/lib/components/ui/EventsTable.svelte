@@ -31,7 +31,7 @@
   }
 
   function getEventTypeColor(type: string): string {
-    return type === 'Warning' ? 'bg-accent-warning/20 text-accent-warning' : 'bg-accent-success/20 text-accent-success';
+    return type === 'Warning' ? 'bg-accent-warning/20 text-warning' : 'bg-accent-success/20 text-success';
   }
 </script>
 
@@ -39,9 +39,9 @@
   <!-- Header Bar -->
   <div class="flex items-center justify-between px-4 py-2 bg-bg-secondary border-b border-border-subtle">
     <div class="flex items-center gap-2">
-      <span class="text-sm text-text-muted">{resourceType} Events</span>
+      <span class="text-base text-text-muted">{resourceType} Events</span>
       {#if isDeleted}
-        <span class="text-xs text-accent-warning">(cached)</span>
+        <span class="text-xs text-warning">(cached)</span>
       {/if}
     </div>
     {#if onRefresh}
@@ -60,7 +60,7 @@
     {#if isLoading}
       <div class="flex items-center justify-center h-full">
         <div class="text-center">
-          <svg class="w-8 h-8 text-accent-primary mx-auto mb-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-8 h-8 text-accent-text mx-auto mb-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
           <p class="text-text-muted">Loading events...</p>
@@ -80,7 +80,7 @@
               </div>
               <span class="text-xs text-text-muted">{formatTime(event.last_timestamp) || formatTime(event.first_timestamp)}</span>
             </div>
-            <p class="text-sm text-text-secondary">{event.message}</p>
+            <p class="text-base text-text-secondary">{event.message}</p>
             {#if event.source}
               <p class="text-xs text-text-muted mt-1">Source: {event.source}</p>
             {/if}

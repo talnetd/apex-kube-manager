@@ -20,9 +20,9 @@
   }
 
   const variantStyles = {
-    success: 'bg-accent-success/20 text-accent-success',
-    warning: 'bg-accent-warning/20 text-accent-warning',
-    error: 'bg-accent-error/20 text-accent-error',
+    success: 'bg-accent-success/20 text-success',
+    warning: 'bg-accent-warning/20 text-warning',
+    error: 'bg-accent-error/20 text-danger',
     default: 'bg-text-muted/20 text-text-secondary',
   };
 

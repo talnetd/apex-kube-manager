@@ -91,6 +91,11 @@
     ariaLabel?: string;
   } = $props();
 
+  // Claim the global keyboard selection: only the owner reads or writes it.
+  const tableId = nextTableId++;
+  navOwner = tableId;
+  const ownsNav = () => navOwner === tableId;
+
   // A "default" sort the header cycle returns to.
   let sort = $state<TableSort | null>(untrack(() => defaultSort ?? null));
 
@@ -109,6 +114,7 @@
   $effect(() => {
     const idx = $selectedRowIndex;
     untrack(() => {
+      if (!ownsNav()) return;
       lastIndex = idx;
       anchoredKey = idx >= 0 && idx < sorted.length ? rowKey(sorted[idx]) : null;
     });
@@ -118,6 +124,7 @@
   $effect(() => {
     const items = sorted;
     untrack(() => {
+      if (!ownsNav()) return;
       totalRows.set(items.length);
       const keys = items.map(rowKey);
       const next = anchorSelection(anchoredKey, lastIndex, keys);
@@ -130,7 +137,7 @@
   // Scroll the keyboard-selected row into view; not smooth in compact.
   $effect(() => {
     const idx = $selectedRowIndex;
-    if (!$keyboardNavActive || idx < 0) return;
+    if (!$keyboardNavActive || idx < 0 || !ownsNav()) return;
     const el = rowEls[idx];
     if (el) el.scrollIntoView({ block: 'nearest', behavior: get(density) === 'compact' ? 'auto' : 'smooth' });
   });
@@ -148,6 +155,7 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
+    if (!ownsNav()) return;
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
     if (isTypingTarget(document.activeElement)) return;
 
@@ -188,12 +196,10 @@
 
   // Fresh selection per view. Done at init (not in onMount) so it runs
   // before the effects above publish totalRows.
-  const tableId = nextTableId++;
-  navOwner = tableId;
   resetNavigation();
 
   onMount(() => {
-    totalRows.set(untrack(() => sorted.length));
+    if (ownsNav()) totalRows.set(untrack(() => sorted.length));
     window.addEventListener('keydown', handleKeydown);
   });
 
@@ -240,9 +246,11 @@
 <svelte:window bind:innerWidth={viewportWidth} />
 
 <div class="relative flex-1 min-h-0 overflow-auto bg-app">
+  <!-- One tab stop for the whole table (spec 5.4): keyboard users can reach
+       and scroll it without Tab walking every row. Rows move with j/k. -->
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <table
     class="dt w-full table-fixed border-separate border-spacing-0"
-    role="grid"
     tabindex="0"
     aria-label={ariaLabel ?? itemLabel}
     aria-rowcount={sorted.length + 1}
@@ -303,11 +311,11 @@
         {/each}
       {:else if showRows}
         {#each sorted as row, i (rowKey(row))}
-          {@const selected = i === $selectedRowIndex}
+          {@const selected = ownsNav() && i === $selectedRowIndex}
           <tr
             bind:this={rowEls[i]}
             class="row h-(--row-h) cursor-pointer {selected ? 'selected bg-selected' : 'hover:bg-hover'}"
-            aria-selected={selected}
+            aria-current={selected ? 'true' : undefined}
             aria-rowindex={i + 2}
             data-key={rowKey(row)}
             onclick={() => clickRow(i, row)}

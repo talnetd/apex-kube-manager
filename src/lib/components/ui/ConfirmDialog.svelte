@@ -102,6 +102,9 @@
 
   async function confirm() {
     if (!canConfirm) return;
+    // `busy` disables the focused button, which would drop focus to <body>.
+    // Park focus on the dialog itself so Esc / Tab still land inside it.
+    dialogEl?.focus();
     busy = true;
     error = null;
     try {
@@ -113,8 +116,27 @@
     } catch (e) {
       busy = false;
       error = e instanceof Error ? e.message : String(e);
+      await tick();
+      (behavior.typeToConfirm !== null ? inputEl : cancelBtn)?.focus();
     }
   }
+
+  // While open the dialog is modal: any key that starts outside it (focus
+  // lost to <body>, a click on the scrim) is handled here in the capture
+  // phase and never reaches App or DataTable window listeners.
+  $effect(() => {
+    if (!open) return;
+    const onCapture = (e: KeyboardEvent) => {
+      if (dialogEl && e.target instanceof Node && dialogEl.contains(e.target)) return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      if (e.key === 'Escape') close();
+      else if (e.key === 'Tab') (focusables()[0] ?? dialogEl)?.focus();
+      else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) confirm();
+    };
+    window.addEventListener('keydown', onCapture, true);
+    return () => window.removeEventListener('keydown', onCapture, true);
+  });
 
   function focusables(): HTMLElement[] {
     if (!dialogEl) return [];

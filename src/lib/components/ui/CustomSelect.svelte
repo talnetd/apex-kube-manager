@@ -83,7 +83,7 @@
     type="button"
     onclick={toggle}
     {disabled}
-    class="w-full flex items-center justify-between px-3 py-2 bg-bg-primary border border-border-subtle rounded-lg text-sm text-left focus:outline-hidden focus:border-accent-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+    class="w-full flex items-center justify-between px-3 py-2 bg-bg-primary border border-border-subtle rounded-lg text-base text-left focus:outline-hidden focus:border-accent-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
     class:text-text-primary={value}
     class:text-text-muted={!value}
   >
@@ -115,7 +115,7 @@
           <button
             type="button"
             onclick={() => select('')}
-            class="w-full px-3 py-2 text-sm text-left text-text-muted hover:bg-bg-tertiary transition-colors"
+            class="w-full px-3 py-2 text-base text-left text-text-muted hover:bg-bg-tertiary transition-colors"
           >
             {placeholder}
           </button>
@@ -124,7 +124,7 @@
           <button
             type="button"
             onclick={() => select(option.value)}
-            class="w-full px-3 py-2 text-sm text-left transition-colors flex items-center justify-between {option.value === value ? 'bg-accent-primary/10 text-accent-primary' : 'text-text-primary hover:bg-bg-tertiary'}"
+            class="w-full px-3 py-2 text-base text-left transition-colors flex items-center justify-between {option.value === value ? 'bg-accent-primary/10 text-accent-text' : 'text-text-primary hover:bg-bg-tertiary'}"
           >
             <span class="truncate">{option.label}</span>
             {#if option.value === value}

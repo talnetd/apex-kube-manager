@@ -87,25 +87,25 @@
           {@const status = getReadyStatus(rs.ready, rs.desired)}
           <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer" onclick={() => openDetail(rs)}>
             <td class="py-3 pr-4">
-              <span class="text-accent-primary font-medium hover:underline">{rs.name}</span>
+              <span class="text-accent-text font-medium hover:underline">{rs.name}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{rs.namespace}</span>
+              <span class="text-text-secondary text-base">{rs.namespace}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{rs.desired}</span>
+              <span class="text-text-secondary text-base">{rs.desired}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{rs.current}</span>
+              <span class="text-text-secondary text-base">{rs.current}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-sm {status === 'healthy' ? 'text-accent-success' : status === 'degraded' ? 'text-accent-warning' : 'text-accent-error'}">{rs.ready}/{rs.desired}</span>
+              <span class="text-base {status === 'healthy' ? 'text-success' : status === 'degraded' ? 'text-warning' : 'text-danger'}">{rs.ready}/{rs.desired}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-muted text-sm">{rs.owner || '-'}</span>
+              <span class="text-text-muted text-base">{rs.owner || '-'}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{rs.age}</span>
+              <span class="text-text-secondary text-base">{rs.age}</span>
             </td>
           </tr>
         {/each}

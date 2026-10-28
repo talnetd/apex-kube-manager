@@ -107,7 +107,7 @@
       <div class="flex items-center gap-3">
         <button
           onclick={() => showCreator = true}
-          class="flex items-center gap-2 px-3 py-1.5 bg-accent-primary text-on-accent text-sm font-medium rounded-sm hover:bg-accent-primary/80 transition-colors"
+          class="flex items-center gap-2 px-3 py-1.5 bg-accent-primary text-on-accent text-base font-medium rounded-sm hover:bg-accent-primary/80 transition-colors"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -136,10 +136,10 @@
         {#each sortedData() as np}
           <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer" onclick={() => openDetail(np)}>
             <td class="py-3 pr-4">
-              <span class="text-accent-primary font-medium hover:underline">{np.name}</span>
+              <span class="text-accent-text font-medium hover:underline">{np.name}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{np.namespace}</span>
+              <span class="text-text-secondary text-base">{np.namespace}</span>
             </td>
             <td class="py-3 pr-4">
               <code class="text-xs bg-bg-tertiary px-2 py-0.5 rounded-sm text-text-secondary">{np.pod_selector || '<all>'}</code>
@@ -147,19 +147,19 @@
             <td class="py-3 pr-4">
               <div class="flex gap-1">
                 {#each np.policy_types as ptype}
-                  <span class="text-xs px-2 py-0.5 rounded-sm {ptype === 'Ingress' ? 'bg-accent-success/10 text-accent-success' : 'bg-accent-warning/10 text-accent-warning'}">{ptype}</span>
+                  <span class="text-xs px-2 py-0.5 rounded-sm {ptype === 'Ingress' ? 'bg-accent-success/10 text-success' : 'bg-accent-warning/10 text-warning'}">{ptype}</span>
                 {/each}
               </div>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{np.age}</span>
+              <span class="text-text-secondary text-base">{np.age}</span>
             </td>
             <td class="py-3 pr-4">
               <div class="flex items-center gap-1">
                 <button
                   onclick={(e) => handleEdit(e, np)}
                   disabled={loadingEdit === np.name}
-                  class="p-1.5 rounded-sm hover:bg-bg-tertiary transition-colors text-text-muted hover:text-accent-primary disabled:opacity-50"
+                  class="p-1.5 rounded-sm hover:bg-bg-tertiary transition-colors text-text-muted hover:text-accent-text disabled:opacity-50"
                   title="Edit policy"
                 >
                   {#if loadingEdit === np.name}
@@ -176,7 +176,7 @@
                 <button
                   onclick={(e) => confirmDelete(e, np)}
                   disabled={deletingPolicy === np.name}
-                  class="p-1.5 rounded-sm hover:bg-accent-error/10 transition-colors text-text-muted hover:text-accent-error disabled:opacity-50"
+                  class="p-1.5 rounded-sm hover:bg-accent-error/10 transition-colors text-text-muted hover:text-danger disabled:opacity-50"
                   title="Delete policy"
                 >
                   {#if deletingPolicy === np.name}
@@ -222,31 +222,31 @@
     >
       <div class="flex items-center gap-3 mb-4">
         <div class="p-2 rounded-full bg-accent-error/10">
-          <svg class="w-6 h-6 text-accent-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-6 h-6 text-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
         </div>
         <div>
-          <h3 class="text-lg font-semibold text-text-primary">Delete Network Policy</h3>
-          <p class="text-sm text-text-muted">This action cannot be undone</p>
+          <h3 class="text-[18px]/7 font-semibold text-text-primary">Delete Network Policy</h3>
+          <p class="text-base text-text-muted">This action cannot be undone</p>
         </div>
       </div>
 
-      <p class="text-sm text-text-secondary mb-6">
+      <p class="text-base text-text-secondary mb-6">
         Are you sure you want to delete <span class="font-medium text-text-primary">{showDeleteConfirm.name}</span> from namespace <span class="font-medium text-text-primary">{showDeleteConfirm.namespace}</span>?
       </p>
 
       <div class="flex justify-end gap-3">
         <button
           onclick={() => showDeleteConfirm = null}
-          class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+          class="px-4 py-2 text-base text-text-secondary hover:text-text-primary transition-colors"
         >
           Cancel
         </button>
         <button
           onclick={handleDelete}
           disabled={deletingPolicy !== null}
-          class="px-4 py-2 text-sm bg-accent-error text-white rounded-sm hover:bg-accent-error/80 transition-colors disabled:opacity-50"
+          class="px-4 py-2 text-base bg-accent-error text-white rounded-sm hover:bg-accent-error/80 transition-colors disabled:opacity-50"
         >
           {deletingPolicy ? 'Deleting...' : 'Delete'}
         </button>

@@ -73,25 +73,25 @@
         {#each sortedData() as hpa}
           <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer" onclick={() => openDetail(hpa)}>
             <td class="py-3 pr-4">
-              <span class="text-accent-primary font-medium hover:underline">{hpa.name}</span>
+              <span class="text-accent-text font-medium hover:underline">{hpa.name}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{hpa.namespace}</span>
+              <span class="text-text-secondary text-base">{hpa.namespace}</span>
             </td>
             <td class="py-3 pr-4">
-              <code class="text-xs bg-bg-tertiary px-2 py-0.5 rounded-sm text-accent-primary">{hpa.reference}</code>
+              <code class="text-xs bg-bg-tertiary px-2 py-0.5 rounded-sm text-accent-text">{hpa.reference}</code>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{hpa.targets}</span>
+              <span class="text-text-secondary text-base">{hpa.targets}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{hpa.min_pods}/{hpa.max_pods}</span>
+              <span class="text-text-secondary text-base">{hpa.min_pods}/{hpa.max_pods}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-accent-primary font-medium">{hpa.replicas}</span>
+              <span class="text-accent-text font-medium">{hpa.replicas}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{hpa.age}</span>
+              <span class="text-text-secondary text-base">{hpa.age}</span>
             </td>
           </tr>
         {/each}

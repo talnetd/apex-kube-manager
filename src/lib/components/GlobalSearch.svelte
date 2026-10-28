@@ -250,7 +250,7 @@
             bind:this={searchInput}
             type="text"
             placeholder="Search resources..."
-            class="w-full pl-9 pr-16 py-2 bg-transparent text-text-primary placeholder-text-muted focus:outline-hidden text-sm"
+            class="w-full pl-9 pr-16 py-2 bg-transparent text-text-primary placeholder-text-muted focus:outline-hidden text-base"
             bind:value={$searchQuery}
           />
           <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
@@ -276,15 +276,15 @@
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                   <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                <span class="text-sm">Loading resources...</span>
+                <span class="text-base">Loading resources...</span>
               </div>
             {:else}
-              <p class="text-sm">Type to search pods, deployments, services...</p>
+              <p class="text-base">Type to search pods, deployments, services...</p>
             {/if}
           </div>
         {:else if flatResults().length === 0}
           <div class="px-3 py-8 text-center text-text-muted">
-            <p class="text-sm">No results for "{$searchQuery}"</p>
+            <p class="text-base">No results for "{$searchQuery}"</p>
           </div>
         {:else}
           <div class="py-1">
@@ -299,7 +299,7 @@
                 <div class="w-1.5 h-1.5 rounded-full shrink-0 {getStatusColor(item)}"></div>
 
                 <!-- Name -->
-                <span class="flex-1 text-sm text-text-primary truncate">{item.name}</span>
+                <span class="flex-1 text-base text-text-primary truncate">{item.name}</span>
 
                 <!-- Namespace (if applicable) -->
                 {#if item.namespace}

@@ -177,10 +177,10 @@
             onclick={() => openServiceDetail(service)}
           >
             <td class="py-3 pr-4">
-              <span class="text-accent-primary font-medium hover:underline">{service.name}</span>
+              <span class="text-accent-text font-medium hover:underline">{service.name}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{service.namespace}</span>
+              <span class="text-text-secondary text-base">{service.namespace}</span>
             </td>
             <td class="py-3 pr-4">
               <Badge variant={getServiceTypeVariant(service.service_type)} size="sm">
@@ -188,10 +188,10 @@
               </Badge>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm font-mono">{service.cluster_ip || '-'}</span>
+              <span class="text-text-secondary text-base font-mono">{service.cluster_ip || '-'}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm font-mono">{service.external_ip || '-'}</span>
+              <span class="text-text-secondary text-base font-mono">{service.external_ip || '-'}</span>
             </td>
             <td class="py-3 pr-4">
               <div class="flex flex-wrap gap-1">
@@ -201,7 +201,7 @@
               </div>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{service.age}</span>
+              <span class="text-text-secondary text-base">{service.age}</span>
             </td>
           </tr>
         {/each}

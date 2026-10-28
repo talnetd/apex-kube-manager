@@ -184,9 +184,9 @@
         <div class="space-y-4">
           <!-- Name -->
           <div>
-            <label class="block text-sm font-medium text-text-secondary mb-1">Name *</label>
+            <label class="block text-base font-medium text-text-secondary mb-1">Name *</label>
             {#if isEditMode}
-              <div class="text-sm text-text-primary bg-bg-tertiary border border-border-subtle rounded-sm px-3 py-2 opacity-60">
+              <div class="text-base text-text-primary bg-bg-tertiary border border-border-subtle rounded-sm px-3 py-2 opacity-60">
                 {name}
               </div>
               <p class="text-xs text-text-muted mt-1">Name cannot be changed when editing</p>
@@ -195,16 +195,16 @@
                 type="text"
                 bind:value={name}
                 placeholder="my-secret"
-                class="w-full bg-bg-tertiary border border-border-subtle rounded-sm px-3 py-2 text-text-primary text-sm focus:outline-hidden focus:border-accent-primary"
+                class="w-full bg-bg-tertiary border border-border-subtle rounded-sm px-3 py-2 text-text-primary text-base focus:outline-hidden focus:border-accent-primary"
               />
             {/if}
           </div>
 
           <!-- Namespace -->
           <div>
-            <label class="block text-sm font-medium text-text-secondary mb-1">Namespace *</label>
+            <label class="block text-base font-medium text-text-secondary mb-1">Namespace *</label>
             {#if isEditMode}
-              <div class="text-sm text-text-primary bg-bg-tertiary border border-border-subtle rounded-sm px-3 py-2 opacity-60">
+              <div class="text-base text-text-primary bg-bg-tertiary border border-border-subtle rounded-sm px-3 py-2 opacity-60">
                 {editNamespace || 'default'}
               </div>
               <p class="text-xs text-text-muted mt-1">Namespace cannot be changed when editing</p>
@@ -220,7 +220,7 @@
 
           <!-- Secret Type -->
           <div>
-            <label class="block text-sm font-medium text-text-secondary mb-1">Type</label>
+            <label class="block text-base font-medium text-text-secondary mb-1">Type</label>
             <CustomSelect
               value={secretType}
               options={secretTypeOptions}
@@ -231,10 +231,10 @@
           <!-- Data Entries -->
           <div>
             <div class="flex items-center justify-between mb-2">
-              <label class="block text-sm font-medium text-text-secondary">Data</label>
+              <label class="block text-base font-medium text-text-secondary">Data</label>
               <button
                 onclick={addEntry}
-                class="text-xs px-2 py-1 bg-accent-primary/10 text-accent-primary rounded-sm hover:bg-accent-primary/20 transition-colors"
+                class="text-xs px-2 py-1 bg-accent-primary/10 text-accent-text rounded-sm hover:bg-accent-primary/20 transition-colors"
               >
                 + Add Entry
               </button>
@@ -245,7 +245,7 @@
                 <svg class="w-8 h-8 text-text-muted mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
-                <p class="text-sm text-text-muted">No secret data</p>
+                <p class="text-base text-text-muted">No secret data</p>
                 <p class="text-xs text-text-muted mt-1">Click "Add Entry" to add key-value pairs</p>
               </div>
             {:else}
@@ -257,7 +257,7 @@
                         type="text"
                         bind:value={entry.key}
                         placeholder="Key (e.g., password)"
-                        class="w-full bg-bg-secondary border border-border-subtle rounded-sm px-3 py-1.5 text-text-primary text-sm focus:outline-hidden focus:border-accent-primary"
+                        class="w-full bg-bg-secondary border border-border-subtle rounded-sm px-3 py-1.5 text-text-primary text-base focus:outline-hidden focus:border-accent-primary"
                       />
                       <div class="relative">
                         {#if entry.revealed}
@@ -265,14 +265,14 @@
                             bind:value={entry.value}
                             placeholder="Value"
                             rows="2"
-                            class="w-full bg-bg-secondary border border-border-subtle rounded-sm px-3 py-1.5 text-text-primary text-sm focus:outline-hidden focus:border-accent-primary font-mono resize-none"
+                            class="w-full bg-bg-secondary border border-border-subtle rounded-sm px-3 py-1.5 text-text-primary text-base focus:outline-hidden focus:border-accent-primary font-mono resize-none"
                           ></textarea>
                         {:else}
                           <input
                             type="password"
                             bind:value={entry.value}
                             placeholder="Value (hidden)"
-                            class="w-full bg-bg-secondary border border-border-subtle rounded-sm px-3 py-1.5 text-text-primary text-sm focus:outline-hidden focus:border-accent-primary font-mono"
+                            class="w-full bg-bg-secondary border border-border-subtle rounded-sm px-3 py-1.5 text-text-primary text-base focus:outline-hidden focus:border-accent-primary font-mono"
                           />
                         {/if}
                       </div>
@@ -296,7 +296,7 @@
                       </button>
                       <button
                         onclick={() => removeEntry(i)}
-                        class="p-1.5 rounded-sm hover:bg-accent-error/10 transition-colors text-text-muted hover:text-accent-error"
+                        class="p-1.5 rounded-sm hover:bg-accent-error/10 transition-colors text-text-muted hover:text-danger"
                         title="Remove entry"
                       >
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -319,21 +319,21 @@
       <!-- Footer -->
       <div class="flex items-center justify-between p-4 border-t border-border-subtle">
         {#if error}
-          <p class="text-sm text-accent-error">{error}</p>
+          <p class="text-base text-danger">{error}</p>
         {:else}
           <div></div>
         {/if}
         <div class="flex gap-3">
           <button
             onclick={handleClose}
-            class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+            class="px-4 py-2 text-base text-text-secondary hover:text-text-primary transition-colors"
           >
             Cancel
           </button>
           <button
             onclick={handleSave}
             disabled={isSaving}
-            class="px-4 py-2 text-sm bg-accent-primary text-on-accent rounded-sm hover:bg-accent-primary/80 transition-colors disabled:opacity-50"
+            class="px-4 py-2 text-base bg-accent-primary text-on-accent rounded-sm hover:bg-accent-primary/80 transition-colors disabled:opacity-50"
           >
             {isSaving ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Secret' : 'Create Secret')}
           </button>

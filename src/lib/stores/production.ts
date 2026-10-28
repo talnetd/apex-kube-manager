@@ -6,8 +6,13 @@ import { derived, get, type Readable } from "svelte/store";
 import { settings } from "./settings";
 import { currentContext } from "./kubernetes";
 
-/** Context names matching this (substring, case-insensitive) are auto-flagged. */
-export const AUTO_PROD_PATTERN = /prod|prd/i;
+/**
+ * Context names containing `prod`, `prd` or `production` as a token
+ * (bounded by a non-letter or the ends, case-insensitive) are auto-flagged.
+ * `eks-prod-eu`, `gke_PRD1`, `cluster/production` match; `product-dev` and
+ * `reproduce-bug` don't.
+ */
+export const AUTO_PROD_PATTERN = /(^|[^a-z])(prod|prd|production)([^a-z]|$)/i;
 
 export type ProdSource = "manual" | "auto" | "none";
 

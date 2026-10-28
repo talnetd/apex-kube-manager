@@ -10,17 +10,17 @@
 
   const variantColors = {
     default: 'text-text-primary',
-    success: 'text-accent-success',
-    warning: 'text-accent-warning',
-    error: 'text-accent-error',
+    success: 'text-success',
+    warning: 'text-warning',
+    error: 'text-danger',
   };
 </script>
 
 <div class="bg-bg-card border border-border-subtle rounded-lg p-4">
   <div class="flex items-start justify-between">
     <div>
-      <p class="text-sm text-text-muted uppercase tracking-wide mb-1">{label}</p>
-      <p class="text-xl font-semibold {variantColors[variant]}">{value}</p>
+      <p class="text-base text-text-muted uppercase tracking-wide mb-1">{label}</p>
+      <p class="text-[30px]/9 font-semibold {variantColors[variant]}">{value}</p>
     </div>
     {#if icon}
       <div class="p-2 bg-bg-tertiary rounded-lg">

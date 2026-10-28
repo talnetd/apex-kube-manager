@@ -21,7 +21,7 @@
     <span>{label}</span>
     <span class="w-3 h-3 flex items-center justify-center">
       {#if isActive}
-        <svg class="w-3 h-3 text-accent-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-3 h-3 text-accent-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           {#if sortDirection === 'asc'}
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
           {:else}

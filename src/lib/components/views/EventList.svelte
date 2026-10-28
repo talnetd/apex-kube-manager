@@ -55,8 +55,8 @@
 
   function getTypeColor(type: string): string {
     return type === 'Warning'
-      ? 'text-accent-warning bg-accent-warning/10'
-      : 'text-accent-success bg-accent-success/10';
+      ? 'text-warning bg-accent-warning/10'
+      : 'text-success bg-accent-success/10';
   }
 
   function getTypeDot(type: string): string {
@@ -124,9 +124,9 @@
         <div class="flex items-center gap-1">
           <button
             onclick={() => typeFilter = 'all'}
-            class="px-2.5 py-1 text-sm rounded-md transition-colors
+            class="px-2.5 py-1 text-base rounded-md transition-colors
               {typeFilter === 'all'
-                ? 'bg-accent-primary/20 text-accent-primary border border-accent-primary/30'
+                ? 'bg-accent-primary/20 text-accent-text border border-accent-primary/30'
                 : 'bg-bg-tertiary text-text-secondary hover:text-text-primary border border-transparent'}"
           >
             All
@@ -134,9 +134,9 @@
           </button>
           <button
             onclick={() => typeFilter = 'Normal'}
-            class="px-2.5 py-1 text-sm rounded-md transition-colors
+            class="px-2.5 py-1 text-base rounded-md transition-colors
               {typeFilter === 'Normal'
-                ? 'bg-accent-success/20 text-accent-success border border-accent-success/30'
+                ? 'bg-accent-success/20 text-success border border-accent-success/30'
                 : 'bg-bg-tertiary text-text-secondary hover:text-text-primary border border-transparent'}"
           >
             Normal
@@ -144,9 +144,9 @@
           </button>
           <button
             onclick={() => typeFilter = 'Warning'}
-            class="px-2.5 py-1 text-sm rounded-md transition-colors
+            class="px-2.5 py-1 text-base rounded-md transition-colors
               {typeFilter === 'Warning'
-                ? 'bg-accent-warning/20 text-accent-warning border border-accent-warning/30'
+                ? 'bg-accent-warning/20 text-warning border border-accent-warning/30'
                 : 'bg-bg-tertiary text-text-secondary hover:text-text-primary border border-transparent'}"
           >
             Warning
@@ -197,28 +197,28 @@
                 {#if isClickable(event.involved_kind)}
                   <button
                     onclick={() => openResourceDetail(event)}
-                    class="text-accent-primary text-sm hover:underline hover:text-accent-primary/80 transition-colors text-left"
+                    class="text-accent-text text-base hover:underline hover:text-accent-text/80 transition-colors text-left"
                   >
                     {event.involved_object}
                   </button>
                 {:else}
-                  <span class="text-text-secondary text-sm">{event.involved_object}</span>
+                  <span class="text-text-secondary text-base">{event.involved_object}</span>
                 {/if}
               </div>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{event.namespace || '-'}</span>
+              <span class="text-text-secondary text-base">{event.namespace || '-'}</span>
             </td>
             <td class="py-3 pr-4 max-w-md">
               <div class="flex items-start gap-2 group">
-                <span class="text-text-secondary text-sm line-clamp-2 flex-1" title={event.message}>{event.message}</span>
+                <span class="text-text-secondary text-base line-clamp-2 flex-1" title={event.message}>{event.message}</span>
                 <button
                   onclick={() => copyMessage(event)}
                   class="opacity-0 group-hover:opacity-100 p-1 rounded-sm hover:bg-bg-tertiary transition-all shrink-0"
                   title="Copy message"
                 >
                   {#if copiedName === event.name}
-                    <svg class="w-4 h-4 text-accent-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                     </svg>
                   {:else}
@@ -230,10 +230,10 @@
               </div>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{event.count}</span>
+              <span class="text-text-secondary text-base">{event.count}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{event.age}</span>
+              <span class="text-text-secondary text-base">{event.age}</span>
             </td>
           </tr>
         {/each}

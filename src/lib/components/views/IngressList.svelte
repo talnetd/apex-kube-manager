@@ -76,32 +76,32 @@
             onclick={() => openIngressDetail(ing)}
           >
             <td class="py-3 pr-4">
-              <span class="text-accent-primary font-medium hover:underline">{ing.name}</span>
+              <span class="text-accent-text font-medium hover:underline">{ing.name}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{ing.namespace}</span>
+              <span class="text-text-secondary text-base">{ing.namespace}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{ing.class || '-'}</span>
+              <span class="text-text-secondary text-base">{ing.class || '-'}</span>
             </td>
             <td class="py-3 pr-4">
               <div class="flex flex-wrap gap-1">
                 {#each ing.hosts as host}
-                  <span class="text-xs bg-bg-tertiary px-2 py-0.5 rounded-sm text-accent-primary">{host}</span>
+                  <span class="text-xs bg-bg-tertiary px-2 py-0.5 rounded-sm text-accent-text">{host}</span>
                 {/each}
                 {#if ing.hosts.length === 0}
-                  <span class="text-text-muted text-sm">*</span>
+                  <span class="text-text-muted text-base">*</span>
                 {/if}
               </div>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{ing.address || '-'}</span>
+              <span class="text-text-secondary text-base">{ing.address || '-'}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{ing.ports}</span>
+              <span class="text-text-secondary text-base">{ing.ports}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{ing.age}</span>
+              <span class="text-text-secondary text-base">{ing.age}</span>
             </td>
           </tr>
         {/each}

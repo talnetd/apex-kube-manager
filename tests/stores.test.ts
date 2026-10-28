@@ -49,17 +49,19 @@ describe('density', () => {
 });
 
 describe('production guard (spec 4.6)', () => {
-  it('auto-flags names matching /prod|prd/i', () => {
-    expect(resolveProd('eks-prod-eu', {})).toBe(true);
-    expect(resolveProd('gke-PRD-1', {})).toBe(true);
-    expect(resolveProd('staging', {})).toBe(false);
-    expect(resolveProd('', {})).toBe(false);
+  it('auto-flags prod / prd / production as a token', () => {
+    for (const name of ['eks-prod-eu', 'gke-PRD-1', 'prod', 'production', 'arn:aws:eks:eu-west-1:1:cluster/prod2', 'ctx_prd']) {
+      expect(resolveProd(name, {}), name).toBe(true);
+    }
+    for (const name of ['staging', '', 'product-dev', 'reproduce-bug', 'myprodcluster']) {
+      expect(resolveProd(name, {}), name).toBe(false);
+    }
   });
 
   it('manual overrides win and reset returns to auto', () => {
-    unmarkProd('products-dev');
-    expect(isProdContext('products-dev')).toBe(false);
-    expect(prodSource('products-dev')).toBe('manual');
+    unmarkProd('eks-prod-sandbox');
+    expect(isProdContext('eks-prod-sandbox')).toBe(false);
+    expect(prodSource('eks-prod-sandbox')).toBe('manual');
     markProd('staging');
     expect(isProdContext('staging')).toBe(true);
     resetProd('staging');

@@ -70,16 +70,16 @@
         {#each sortedData() as sa}
           <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer" onclick={() => openDetail(sa)}>
             <td class="py-3 pr-4">
-              <span class="text-accent-primary font-medium hover:underline">{sa.name}</span>
+              <span class="text-accent-text font-medium hover:underline">{sa.name}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{sa.namespace}</span>
+              <span class="text-text-secondary text-base">{sa.namespace}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{sa.secrets}</span>
+              <span class="text-text-secondary text-base">{sa.secrets}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{sa.age}</span>
+              <span class="text-text-secondary text-base">{sa.age}</span>
             </td>
           </tr>
         {/each}

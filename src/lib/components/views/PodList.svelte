@@ -223,9 +223,9 @@
           {#each filters as filter}
             <button
               onclick={() => activeFilter = filter.id}
-              class="px-2.5 py-1 text-sm rounded-md transition-colors
+              class="px-2.5 py-1 text-base rounded-md transition-colors
                 {activeFilter === filter.id
-                  ? 'bg-accent-primary/20 text-accent-primary border border-accent-primary/30'
+                  ? 'bg-accent-primary/20 text-accent-text border border-accent-primary/30'
                   : 'bg-bg-tertiary text-text-secondary hover:text-text-primary border border-transparent'}"
             >
               {filter.label}
@@ -261,30 +261,30 @@
             class="border-b border-border-subtle/50 cursor-pointer transition-colors {isSelected ? 'bg-accent-primary/20 ring-1 ring-accent-primary/50' : 'hover:bg-bg-secondary'}"
           >
             <td class="py-3 pr-4">
-              <span class="text-accent-primary font-medium hover:underline">{pod.name}</span>
+              <span class="text-accent-text font-medium hover:underline">{pod.name}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{pod.namespace}</span>
+              <span class="text-text-secondary text-base">{pod.namespace}</span>
             </td>
             <td class="py-3 pr-4">
               <StatusBadge status={pod.status} />
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{pod.ready}</span>
+              <span class="text-text-secondary text-base">{pod.ready}</span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-sm {pod.restarts > 0 ? 'text-accent-warning' : 'text-text-secondary'}">
+              <span class="text-base {pod.restarts > 0 ? 'text-warning' : 'text-text-secondary'}">
                 {pod.restarts}
               </span>
             </td>
             <td class="py-3 pr-4">
-              <span class="text-text-secondary text-sm">{pod.age}</span>
+              <span class="text-text-secondary text-base">{pod.age}</span>
             </td>
             <td class="py-3">
               <div class="flex items-center gap-1">
                 <button
                   onclick={(e) => { e.stopPropagation(); openTerminalWindow(pod.namespace, pod.name); }}
-                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-primary transition-colors"
+                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-text transition-colors"
                   title="Open Terminal"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -293,7 +293,7 @@
                 </button>
                 <button
                   onclick={(e) => { e.stopPropagation(); confirmDelete(pod); }}
-                  class="p-1.5 rounded-sm hover:bg-accent-error/20 text-text-muted hover:text-accent-error transition-colors"
+                  class="p-1.5 rounded-sm hover:bg-accent-error/20 text-text-muted hover:text-danger transition-colors"
                   title="Delete Pod"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -324,7 +324,7 @@
 {#if showDeleteConfirm && podToDelete}
   <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
     <div class="bg-bg-card border border-border-subtle rounded-lg p-6 max-w-md w-full mx-4">
-      <h3 class="text-lg font-semibold text-text-primary mb-2">Delete Pod</h3>
+      <h3 class="text-[18px]/7 font-semibold text-text-primary mb-2">Delete Pod</h3>
       <p class="text-text-secondary mb-4">
         Are you sure you want to delete <span class="text-text-primary font-medium">{podToDelete.name}</span>?
         This action cannot be undone.

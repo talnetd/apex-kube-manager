@@ -89,7 +89,7 @@ describe('DataTable selection anchoring', () => {
     keyboardNavActive.set(true);
     selectedRowIndex.set(1); // "b"
     flushSync();
-    expect(document.querySelector('tr[aria-selected="true"]')?.getAttribute('data-key')).toBe('b');
+    expect(document.querySelector('tr[aria-current="true"]')?.getAttribute('data-key')).toBe('b');
 
     // A poll reorders the rows: b is now the busiest, so it sorts first.
     rows.set([
@@ -99,7 +99,7 @@ describe('DataTable selection anchoring', () => {
     ]);
     flushSync();
     expect(get(selectedRowIndex)).toBe(0);
-    expect(document.querySelector('tr[aria-selected="true"]')?.getAttribute('data-key')).toBe('b');
+    expect(document.querySelector('tr[aria-current="true"]')?.getAttribute('data-key')).toBe('b');
 
     // Enter opens the anchored row, not whatever inherited the old index.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
@@ -114,7 +114,7 @@ describe('DataTable selection anchoring', () => {
     ]);
     flushSync();
     expect(get(totalRows)).toBe(4);
-    expect(document.querySelector('tr[aria-selected="true"]')?.getAttribute('data-key')).toBe('b');
+    expect(document.querySelector('tr[aria-current="true"]')?.getAttribute('data-key')).toBe('b');
     expect(get(selectedRowIndex)).toBe(2);
 
     // The selected row is deleted: selection stays at the same index, no jump to top.
@@ -125,7 +125,7 @@ describe('DataTable selection anchoring', () => {
     ]);
     flushSync();
     expect(get(selectedRowIndex)).toBe(2);
-    expect(document.querySelector('tr[aria-selected="true"]')?.getAttribute('data-key')).toBe('c');
+    expect(document.querySelector('tr[aria-current="true"]')?.getAttribute('data-key')).toBe('c');
   });
 
   it('d opens the detail instead of deleting', () => {

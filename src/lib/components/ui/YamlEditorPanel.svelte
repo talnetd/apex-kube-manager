@@ -94,9 +94,9 @@
 <div class="h-full flex flex-col">
   <div class="flex items-center justify-between px-4 py-2 bg-bg-secondary border-b border-border-subtle">
     <div class="flex items-center gap-2">
-      <span class="text-sm text-text-muted">{resourceType} YAML Manifest</span>
+      <span class="text-base text-text-muted">{resourceType} YAML Manifest</span>
       {#if isEditing}
-        <span class="text-xs px-2 py-0.5 rounded-sm bg-accent-warning/20 text-accent-warning">Editing</span>
+        <span class="text-xs px-2 py-0.5 rounded-sm bg-accent-warning/20 text-warning">Editing</span>
       {/if}
     </div>
     <div class="flex items-center gap-2">
@@ -133,7 +133,7 @@
         <button
           onclick={startEditing}
           disabled={isDeleted || !yaml}
-          class="text-xs px-3 py-1 bg-accent-primary/10 text-accent-primary rounded-sm hover:bg-accent-primary/20 transition-colors disabled:opacity-50"
+          class="text-xs px-3 py-1 bg-accent-primary/10 text-accent-text rounded-sm hover:bg-accent-primary/20 transition-colors disabled:opacity-50"
         >
           Edit
         </button>
@@ -148,7 +148,7 @@
     </div>
   </div>
   {#if saveMessage}
-    <div class="px-4 py-2 text-sm {saveMessage.type === 'success' ? 'bg-accent-success/10 text-accent-success' : 'bg-accent-error/10 text-accent-error'}">
+    <div class="px-4 py-2 text-base {saveMessage.type === 'success' ? 'bg-accent-success/10 text-success' : 'bg-accent-error/10 text-danger'}">
       {saveMessage.text}
     </div>
   {/if}
