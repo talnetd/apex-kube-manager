@@ -1,0 +1,76 @@
+name: iOS
+
+# Runs only for mobile iOS changes; desktop changes never trigger this workflow.
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'apps/ios/**'
+      - 'spec/**'
+      - '.github/workflows/ios.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'apps/ios/**'
+      - 'spec/**'
+      - '.github/workflows/ios.yml'
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  XCODE_VERSION: '16.4'
+  XCODEGEN_VERSION: '2.46.0'
+
+jobs:
+  build-test:
+    name: iOS (xcodegen, build, test)
+    runs-on: macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/ios
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode ${{ env.XCODE_VERSION }}
+        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
+
+      - name: Install XcodeGen ${{ env.XCODEGEN_VERSION }}
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" \
+            "https://github.com/yonaskolb/XcodeGen/releases/download/${XCODEGEN_VERSION}/xcodegen.zip"
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/xcodegen/bin" >> "$GITHUB_PATH"
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Core package tests (swift test, macOS host)
+        working-directory: apps/ios/Packages/ApexKubeCore
+        run: swift test
+
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          ios = sorted((r for r in devices if ".iOS-" in r), reverse=True)
+          print(next(d["udid"] for r in ios for d in devices[r] if d["name"].startswith("iPhone")))
+          ')
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      - name: Build and test (simulator, unsigned)
+        run: |
+          xcodebuild test \
+            -project ApexKube.xcodeproj \
+            -scheme ApexKube \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO

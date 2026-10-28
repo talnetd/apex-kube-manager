@@ -1,0 +1,52 @@
+# XcodeGen spec. The .xcodeproj is generated from this file and is not committed.
+# Regenerate with: xcodegen generate   (from apps/ios)
+name: ApexKube
+
+options:
+  bundleIdPrefix: com.apex.kubemanager
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Signing is configured later (PR8). CI builds for the simulator only.
+    CODE_SIGNING_ALLOWED: "NO"
+    CODE_SIGN_IDENTITY: ""
+
+packages:
+  ApexKubeCore:
+    path: Packages/ApexKubeCore
+
+targets:
+  ApexKube:
+    type: application
+    platform: iOS
+    sources:
+      - path: ApexKube
+    dependencies:
+      - package: ApexKubeCore
+        product: Triage
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.apex.kubemanager.mobile
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: "YES"
+        INFOPLIST_KEY_CFBundleDisplayName: Apex
+        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: "YES"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+
+schemes:
+  ApexKube:
+    build:
+      targets:
+        ApexKube: all
+    test:
+      gatherCoverageData: false
+      targets:
+        - package: ApexKubeCore/TriageTests
