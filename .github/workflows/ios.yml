@@ -25,6 +25,8 @@ permissions:
 env:
   XCODE_VERSION: '16.4'
   XCODEGEN_VERSION: '2.46.0'
+  # sha256 of xcodegen.zip for XCODEGEN_VERSION (matches the GitHub release asset digest)
+  XCODEGEN_SHA256: '4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806'
 
 jobs:
   build-test:
@@ -45,6 +47,7 @@ jobs:
         run: |
           curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" \
             "https://github.com/yonaskolb/XcodeGen/releases/download/${XCODEGEN_VERSION}/xcodegen.zip"
+          echo "${XCODEGEN_SHA256}  $RUNNER_TEMP/xcodegen.zip" | shasum -a 256 -c -
           unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/xcodegen/bin" >> "$GITHUB_PATH"
 
@@ -61,7 +64,9 @@ jobs:
           udid=$(xcrun simctl list devices available -j | python3 -c '
           import json, sys
           devices = json.load(sys.stdin)["devices"]
-          ios = sorted((r for r in devices if ".iOS-" in r), reverse=True)
+          def version(runtime):  # "...SimRuntime.iOS-18-4" -> (18, 4)
+              return tuple(int(p) for p in runtime.rsplit(".iOS-", 1)[1].split("-"))
+          ios = sorted((r for r in devices if ".iOS-" in r), key=version, reverse=True)
           print(next(d["udid"] for r in ios for d in devices[r] if d["name"].startswith("iPhone")))
           ')
           echo "udid=$udid" >> "$GITHUB_OUTPUT"

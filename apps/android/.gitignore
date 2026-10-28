@@ -6,6 +6,11 @@ build/
 # Local SDK path and machine settings
 local.properties
 
+# Signing material (release keys come from CI secrets, never the repo)
+*.jks
+*.keystore
+keystore.properties
+
 # Android Studio
 .idea/
 *.iml
