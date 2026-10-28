@@ -48,25 +48,53 @@ fn evaluate(input: Value, now: Timestamp, path: &Path) -> Verdict {
     match kind.as_str() {
         "Pod" => pod_verdict(&decode!(k8s_openapi::api::core::v1::Pod), now),
         "Deployment" => deployment_verdict(&decode!(k8s_openapi::api::apps::v1::Deployment), now),
-        "StatefulSet" => statefulset_verdict(&decode!(k8s_openapi::api::apps::v1::StatefulSet), now),
+        "StatefulSet" => {
+            statefulset_verdict(&decode!(k8s_openapi::api::apps::v1::StatefulSet), now)
+        }
         "DaemonSet" => daemonset_verdict(&decode!(k8s_openapi::api::apps::v1::DaemonSet), now),
         "ReplicaSet" => replicaset_verdict(&decode!(k8s_openapi::api::apps::v1::ReplicaSet), now),
         "Job" => job_verdict(&decode!(k8s_openapi::api::batch::v1::Job), now),
         "Node" => node_verdict(&decode!(k8s_openapi::api::core::v1::Node), now),
-        "PersistentVolumeClaim" => {
-            pvc_verdict(&decode!(k8s_openapi::api::core::v1::PersistentVolumeClaim), now)
-        }
+        "PersistentVolumeClaim" => pvc_verdict(
+            &decode!(k8s_openapi::api::core::v1::PersistentVolumeClaim),
+            now,
+        ),
         other => panic!("{}: no rules for kind {other}", path.display()),
     }
 }
 
 /// Rule ids the desktop implements; each must be exercised by a fixture.
 const IMPLEMENTED_RULES: &[&str] = &[
-    "TRI-POD-000", "TRI-POD-001", "TRI-POD-002", "TRI-POD-003", "TRI-POD-004", "TRI-POD-005",
-    "TRI-POD-006", "TRI-POD-007", "TRI-POD-008", "TRI-POD-009", "TRI-POD-010", "TRI-POD-011",
-    "TRI-POD-012", "TRI-WL-000", "TRI-WL-001", "TRI-WL-002", "TRI-WL-003", "TRI-WL-004",
-    "TRI-WL-005", "TRI-JOB-000", "TRI-JOB-001", "TRI-JOB-003", "TRI-NODE-000", "TRI-NODE-001",
-    "TRI-NODE-002", "TRI-NODE-003", "TRI-NODE-004", "TRI-PVC-000", "TRI-PVC-001", "TRI-PVC-002",
+    "TRI-POD-000",
+    "TRI-POD-001",
+    "TRI-POD-002",
+    "TRI-POD-003",
+    "TRI-POD-004",
+    "TRI-POD-005",
+    "TRI-POD-006",
+    "TRI-POD-007",
+    "TRI-POD-008",
+    "TRI-POD-009",
+    "TRI-POD-010",
+    "TRI-POD-011",
+    "TRI-POD-012",
+    "TRI-WL-000",
+    "TRI-WL-001",
+    "TRI-WL-002",
+    "TRI-WL-003",
+    "TRI-WL-004",
+    "TRI-WL-005",
+    "TRI-JOB-000",
+    "TRI-JOB-001",
+    "TRI-JOB-003",
+    "TRI-NODE-000",
+    "TRI-NODE-001",
+    "TRI-NODE-002",
+    "TRI-NODE-003",
+    "TRI-NODE-004",
+    "TRI-PVC-000",
+    "TRI-PVC-001",
+    "TRI-PVC-002",
 ];
 
 #[test]
@@ -86,9 +114,20 @@ fn golden_fixtures_match() {
     let mut failures = Vec::new();
     let mut seen_rules = BTreeSet::new();
     let mut count = 0;
-    for input in files.iter().filter(|p| p.to_string_lossy().ends_with(".input.json")) {
-        let expected_path = PathBuf::from(input.to_string_lossy().replace(".input.json", ".expected.json"));
-        assert!(expected_path.exists(), "{}: missing .expected.json", input.display());
+    for input in files
+        .iter()
+        .filter(|p| p.to_string_lossy().ends_with(".input.json"))
+    {
+        let expected_path = PathBuf::from(
+            input
+                .to_string_lossy()
+                .replace(".input.json", ".expected.json"),
+        );
+        assert!(
+            expected_path.exists(),
+            "{}: missing .expected.json",
+            input.display()
+        );
         let expected = read_json(&expected_path);
         let got = serde_json::to_value(evaluate(read_json(input), now, input)).unwrap();
         if let Some(r) = got.get("ruleId").and_then(|r| r.as_str()) {
@@ -104,15 +143,29 @@ fn golden_fixtures_match() {
     }
 
     // An expected file without an input would silently never run.
-    for exp in files.iter().filter(|p| p.to_string_lossy().ends_with(".expected.json")) {
-        let input = PathBuf::from(exp.to_string_lossy().replace(".expected.json", ".input.json"));
+    for exp in files
+        .iter()
+        .filter(|p| p.to_string_lossy().ends_with(".expected.json"))
+    {
+        let input = PathBuf::from(
+            exp.to_string_lossy()
+                .replace(".expected.json", ".input.json"),
+        );
         assert!(input.exists(), "{}: orphan expected file", exp.display());
     }
 
     assert!(count >= 25, "expected at least 25 fixtures, found {count}");
-    assert!(failures.is_empty(), "{} fixture(s) failed:\n{}", failures.len(), failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{} fixture(s) failed:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
 
-    let missing: Vec<_> = IMPLEMENTED_RULES.iter().filter(|r| !seen_rules.contains(**r)).collect();
+    let missing: Vec<_> = IMPLEMENTED_RULES
+        .iter()
+        .filter(|r| !seen_rules.contains(**r))
+        .collect();
     assert!(missing.is_empty(), "rules without a fixture: {missing:?}");
 }
 

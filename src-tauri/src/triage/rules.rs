@@ -78,7 +78,9 @@ pub fn pod_verdict(pod: &Pod, now: Timestamp) -> Verdict {
     // Phase-terminal outcomes first: these pods aren't coming back.
     match phase {
         "Failed" => {
-            let reason = status.and_then(|s| s.reason.clone()).filter(|r| !r.is_empty());
+            let reason = status
+                .and_then(|s| s.reason.clone())
+                .filter(|r| !r.is_empty());
             if reason.as_deref() == Some("Evicted") {
                 return Verdict::warn("TRI-POD-010", "Evicted").since(start_since);
             }
@@ -92,8 +94,12 @@ pub fn pod_verdict(pod: &Pod, now: Timestamp) -> Verdict {
                 return Verdict::neutral("TRI-POD-012", "Failed").since(start_since);
             }
             let since = start_since.or(ready_since);
-            return Verdict::fail("TRI-POD-001", Severity::Error, reason.unwrap_or_else(|| "Failed".into()))
-                .since(since);
+            return Verdict::fail(
+                "TRI-POD-001",
+                Severity::Error,
+                reason.unwrap_or_else(|| "Failed".into()),
+            )
+            .since(since);
         }
         "Succeeded" => return Verdict::neutral("TRI-POD-000", "Completed"),
         "Unknown" => {
@@ -109,7 +115,10 @@ pub fn pod_verdict(pod: &Pod, now: Timestamp) -> Verdict {
         .and_then(|s| s.container_statuses.as_deref())
         .unwrap_or(&[]);
     // Init containers get kubectl's `Init:` prefix on the label.
-    let all = init.iter().map(|c| (c, "Init:")).chain(main.iter().map(|c| (c, "")));
+    let all = init
+        .iter()
+        .map(|c| (c, "Init:"))
+        .chain(main.iter().map(|c| (c, "")));
 
     let mut found: Vec<Verdict> = Vec::new();
     let mut crashloop = false;
@@ -128,9 +137,11 @@ pub fn pod_verdict(pod: &Pod, now: Timestamp) -> Verdict {
                 if let Some(t) = last_term.and_then(|t| t.finished_at.as_ref()) {
                     crash_since = Some(crash_since.map_or(t.0, |c| c.min(t.0)));
                 }
-                found.push(
-                    Verdict::fail("TRI-POD-003", Severity::Error, format!("{prefix}{r}")),
-                );
+                found.push(Verdict::fail(
+                    "TRI-POD-003",
+                    Severity::Error,
+                    format!("{prefix}{r}"),
+                ));
             } else if IMAGE_REASONS.contains(&r) {
                 found.push(
                     Verdict::fail("TRI-POD-004", Severity::Error, format!("{prefix}{r}"))
@@ -168,20 +179,32 @@ pub fn pod_verdict(pod: &Pod, now: Timestamp) -> Verdict {
         let since = Some(t.to_string());
         if crashloop {
             // OOM is the cause of the crash loop: report the cause.
-            found.insert(0, Verdict::fail("TRI-POD-006", Severity::Error, "OOMKilled").since(since));
+            found.insert(
+                0,
+                Verdict::fail("TRI-POD-006", Severity::Error, "OOMKilled").since(since),
+            );
         } else {
             found.push(Verdict::warn("TRI-POD-006", "OOMKilled").since(since));
         }
     }
     // Fill in CrashLoopBackOff's since: earliest finish in the backoff, else Ready.
     for v in found.iter_mut().filter(|v| v.rule_id == "TRI-POD-003") {
-        v.since = crash_since.map(|t| t.to_string()).or_else(|| ready_since.clone());
+        v.since = crash_since
+            .map(|t| t.to_string())
+            .or_else(|| ready_since.clone());
     }
 
-    let restarts: i32 = main.iter().chain(init.iter()).map(|c| c.restart_count).sum();
+    let restarts: i32 = main
+        .iter()
+        .chain(init.iter())
+        .map(|c| c.restart_count)
+        .sum();
     if restarts >= RESTART_MIN {
         if let Some(t) = restart_since {
-            found.push(Verdict::warn("TRI-POD-009", format!("{restarts} restarts")).since(Some(t.to_string())));
+            found.push(
+                Verdict::warn("TRI-POD-009", format!("{restarts} restarts"))
+                    .since(Some(t.to_string())),
+            );
         }
     }
 
@@ -196,8 +219,10 @@ pub fn pod_verdict(pod: &Pod, now: Timestamp) -> Verdict {
             if ready < total {
                 let label = format!("{ready}/{total} ready");
                 let ready_cond = condition("Ready");
-                if age_or_max(ready_cond.and_then(|c| c.last_transition_time.as_ref()), now)
-                    > POD_NOT_READY_GRACE_S
+                if age_or_max(
+                    ready_cond.and_then(|c| c.last_transition_time.as_ref()),
+                    now,
+                ) > POD_NOT_READY_GRACE_S
                 {
                     found.push(Verdict::warn("TRI-POD-007", label).since(ready_since.clone()));
                 } else {
@@ -210,12 +235,14 @@ pub fn pod_verdict(pod: &Pod, now: Timestamp) -> Verdict {
         _ => {
             // Pending (or an unrecognised phase, treated as Pending).
             let created_since = created.map(fmt);
-            let unschedulable = condition("PodScheduled")
-                .is_some_and(|c| c.status == "False" && c.reason.as_deref() == Some("Unschedulable"));
+            let unschedulable = condition("PodScheduled").is_some_and(|c| {
+                c.status == "False" && c.reason.as_deref() == Some("Unschedulable")
+            });
             if age_or_max(created, now) > POD_PENDING_GRACE_S {
                 if unschedulable {
                     found.push(
-                        Verdict::fail("TRI-POD-008", Severity::Error, "Unschedulable").since(created_since),
+                        Verdict::fail("TRI-POD-008", Severity::Error, "Unschedulable")
+                            .since(created_since),
                     );
                 } else {
                     found.push(Verdict::warn("TRI-POD-008", "Pending").since(created_since));
@@ -256,9 +283,13 @@ fn replica_verdict(r: Replicas) -> Verdict {
     let label = format!("{}/{} {}", r.available, r.desired, r.count_word);
     if r.available == 0 {
         if r.unavailable_age > WL_UNAVAILABLE_GRACE_S {
-            return Verdict::fail("TRI-WL-001", Severity::Critical, "Unavailable").since(r.unavailable_since);
+            return Verdict::fail("TRI-WL-001", Severity::Critical, "Unavailable")
+                .since(r.unavailable_since);
         }
-        return Verdict::progressing("TRI-WL-005", if r.rolling { "Rolling out" } else { "Starting" });
+        return Verdict::progressing(
+            "TRI-WL-005",
+            if r.rolling { "Rolling out" } else { "Starting" },
+        );
     }
     if r.rolling || r.updated < r.desired {
         return Verdict::progressing("TRI-WL-005", "Rolling out");
@@ -326,9 +357,9 @@ pub fn statefulset_verdict(s: &StatefulSet, now: Timestamp) -> Verdict {
     let st = s.status.as_ref();
     let ready = st.and_then(|s| s.ready_replicas).unwrap_or(0);
     let updated = st.and_then(|s| s.updated_replicas).unwrap_or(0);
-    let rev_differs = st.is_some_and(|s| {
-        matches!((&s.current_revision, &s.update_revision), (Some(c), Some(u)) if c != u)
-    });
+    let rev_differs = st.is_some_and(
+        |s| matches!((&s.current_revision, &s.update_revision), (Some(c), Some(u)) if c != u),
+    );
     let generation = s.metadata.generation.unwrap_or(0);
     let observed = st.and_then(|s| s.observed_generation).unwrap_or(0);
     // StatefulSets carry no transition times; creation is the only anchor.
@@ -407,12 +438,15 @@ pub fn job_verdict(job: &Job, _now: Timestamp) -> Verdict {
     let spec = job.spec.as_ref();
     let st = job.status.as_ref();
     let conds = st.and_then(|s| s.conditions.as_ref());
-    let cond_true = |t: &str| {
-        conds.and_then(|c| c.iter().find(|c| c.type_ == t && c.status == "True"))
-    };
+    let cond_true =
+        |t: &str| conds.and_then(|c| c.iter().find(|c| c.type_ == t && c.status == "True"));
 
     if let Some(c) = cond_true("Failed") {
-        let reason = c.reason.clone().filter(|r| !r.is_empty()).unwrap_or_else(|| "Failed".into());
+        let reason = c
+            .reason
+            .clone()
+            .filter(|r| !r.is_empty())
+            .unwrap_or_else(|| "Failed".into());
         return Verdict::fail("TRI-JOB-001", Severity::Error, reason)
             .since(c.last_transition_time.as_ref().map(fmt));
     }
@@ -443,26 +477,35 @@ pub fn job_verdict(job: &Job, _now: Timestamp) -> Verdict {
 pub fn node_verdict(node: &Node, _now: Timestamp) -> Verdict {
     let conds = node.status.as_ref().and_then(|s| s.conditions.as_ref());
     let cond = |t: &str| conds.and_then(|c| c.iter().find(|c| c.type_ == t));
-    let since = |c: &k8s_openapi::api::core::v1::NodeCondition| c.last_transition_time.as_ref().map(fmt);
+    let since =
+        |c: &k8s_openapi::api::core::v1::NodeCondition| c.last_transition_time.as_ref().map(fmt);
 
     let mut found = Vec::new();
     match cond("Ready") {
         Some(c) if c.status == "True" => {}
-        Some(c) if c.status == "False" => {
-            found.push(Verdict::fail("TRI-NODE-001", Severity::Critical, "NotReady").since(since(c)))
+        Some(c) if c.status == "False" => found
+            .push(Verdict::fail("TRI-NODE-001", Severity::Critical, "NotReady").since(since(c))),
+        Some(c) => {
+            found.push(Verdict::fail("TRI-NODE-001", Severity::Critical, "Unknown").since(since(c)))
         }
-        Some(c) => found.push(Verdict::fail("TRI-NODE-001", Severity::Critical, "Unknown").since(since(c))),
         None => found.push(Verdict::fail("TRI-NODE-001", Severity::Critical, "Unknown")),
     }
     if let Some(c) = cond("NetworkUnavailable").filter(|c| c.status == "True") {
-        found.push(Verdict::fail("TRI-NODE-003", Severity::Critical, "NetworkUnavailable").since(since(c)));
+        found.push(
+            Verdict::fail("TRI-NODE-003", Severity::Critical, "NetworkUnavailable").since(since(c)),
+        );
     }
     for p in ["MemoryPressure", "DiskPressure", "PIDPressure"] {
         if let Some(c) = cond(p).filter(|c| c.status == "True") {
             found.push(Verdict::fail("TRI-NODE-002", Severity::Error, p).since(since(c)));
         }
     }
-    if node.spec.as_ref().and_then(|s| s.unschedulable).unwrap_or(false) {
+    if node
+        .spec
+        .as_ref()
+        .and_then(|s| s.unschedulable)
+        .unwrap_or(false)
+    {
         found.push(Verdict::warn("TRI-NODE-004", "Cordoned"));
     }
     found.push(Verdict::ok("TRI-NODE-000", "Ready"));
