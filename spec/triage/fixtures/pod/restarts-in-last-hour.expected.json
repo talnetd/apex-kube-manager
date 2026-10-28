@@ -1,0 +1,7 @@
+{
+  "status": "warn",
+  "reason": "4 restarts",
+  "ruleId": "TRI-POD-009",
+  "since": "2026-10-28T11:45:00Z",
+  "severity": "warning"
+}

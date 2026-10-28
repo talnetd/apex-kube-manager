@@ -14,6 +14,12 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 use crate::error::{AppError, Result};
+use crate::triage::{self, Verdict};
+
+/// Evaluation time for triage windows (Pending > 5 min, OOMKilled within 1h...).
+fn triage_now() -> k8s_openapi::jiff::Timestamp {
+    k8s_openapi::jiff::Timestamp::now()
+}
 
 /// k8s-openapi 0.25+ models `meta/v1.Time` as a `jiff::Timestamp` instead of a
 /// chrono `DateTime`. Everything here (and the string format the frontend
@@ -45,6 +51,9 @@ pub struct KubeContext {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PodInfo {
+    /// Shared triage verdict (spec/triage/rules.md). Health is computed here,
+    /// never re-derived in the frontend.
+    pub verdict: Verdict,
     pub name: String,
     pub namespace: String,
     pub status: String,
@@ -67,6 +76,9 @@ pub struct ContainerInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeploymentInfo {
+    /// Shared triage verdict (spec/triage/rules.md). Health is computed here,
+    /// never re-derived in the frontend.
+    pub verdict: Verdict,
     pub name: String,
     pub namespace: String,
     pub ready: String,
@@ -118,6 +130,9 @@ pub struct DeploymentEvent {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatefulSetInfo {
+    /// Shared triage verdict (spec/triage/rules.md). Health is computed here,
+    /// never re-derived in the frontend.
+    pub verdict: Verdict,
     pub name: String,
     pub namespace: String,
     pub ready: String,
@@ -169,6 +184,9 @@ pub struct StatefulSetEvent {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DaemonSetInfo {
+    /// Shared triage verdict (spec/triage/rules.md). Health is computed here,
+    /// never re-derived in the frontend.
+    pub verdict: Verdict,
     pub name: String,
     pub namespace: String,
     pub desired: i32,
@@ -182,6 +200,9 @@ pub struct DaemonSetInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReplicaSetInfo {
+    /// Shared triage verdict (spec/triage/rules.md). Health is computed here,
+    /// never re-derived in the frontend.
+    pub verdict: Verdict,
     pub name: String,
     pub namespace: String,
     pub desired: i32,
@@ -193,6 +214,9 @@ pub struct ReplicaSetInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobInfo {
+    /// Shared triage verdict (spec/triage/rules.md). Health is computed here,
+    /// never re-derived in the frontend.
+    pub verdict: Verdict,
     pub name: String,
     pub namespace: String,
     pub completions: String,
@@ -394,6 +418,9 @@ pub struct PersistentVolumeInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PersistentVolumeClaimInfo {
+    /// Shared triage verdict (spec/triage/rules.md). Health is computed here,
+    /// never re-derived in the frontend.
+    pub verdict: Verdict,
     pub name: String,
     pub namespace: String,
     pub status: String,
@@ -421,6 +448,9 @@ pub struct NodeTaintInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeInfo {
+    /// Shared triage verdict (spec/triage/rules.md). Health is computed here,
+    /// never re-derived in the frontend.
+    pub verdict: Verdict,
     pub name: String,
     pub status: String,
     pub roles: Vec<String>,
@@ -773,6 +803,7 @@ pub async fn list_pods(client: &Client, namespace: Option<&str>) -> Result<Vec<P
             let total_restarts: i32 = containers.iter().map(|c| c.restart_count).sum();
 
             PodInfo {
+                verdict: triage::pod_verdict(pod, triage_now()),
                 name: metadata.name.clone().unwrap_or_default(),
                 namespace: metadata.namespace.clone().unwrap_or_default(),
                 status: get_pod_phase(status),
@@ -825,6 +856,7 @@ pub fn pod_to_info(pod: &Pod) -> Option<PodInfo> {
     let total_restarts: i32 = containers.iter().map(|c| c.restart_count).sum();
 
     Some(PodInfo {
+        verdict: triage::pod_verdict(pod, triage_now()),
         name: metadata.name.clone()?,
         namespace: metadata.namespace.clone().unwrap_or_default(),
         status: get_pod_phase(status),
@@ -848,6 +880,7 @@ pub fn deployment_to_info(deploy: &Deployment) -> Option<DeploymentInfo> {
     let available = status.and_then(|s| s.available_replicas).unwrap_or(0);
 
     Some(DeploymentInfo {
+        verdict: triage::deployment_verdict(deploy, triage_now()),
         name: metadata.name.clone()?,
         namespace: metadata.namespace.clone().unwrap_or_default(),
         ready: format!("{}/{}", ready, replicas),
@@ -898,6 +931,7 @@ pub fn job_to_info(job: &Job) -> Option<JobInfo> {
         });
 
     Some(JobInfo {
+        verdict: triage::job_verdict(job, triage_now()),
         name: metadata.name.clone()?,
         namespace: metadata.namespace.clone().unwrap_or_default(),
         completions: format!("{}/{}", succeeded, completions_spec),
@@ -975,6 +1009,7 @@ pub fn node_to_info(node: &Node) -> Option<NodeInfo> {
     let (cpu_allocatable, memory_allocatable) = node_allocatable(status);
 
     Some(NodeInfo {
+        verdict: triage::node_verdict(node, triage_now()),
         name: metadata.name.clone()?,
         status: final_status,
         roles: if roles.is_empty() { vec!["<none>".to_string()] } else { roles },
@@ -1133,6 +1168,7 @@ pub async fn list_deployments(client: &Client, namespace: Option<&str>) -> Resul
             let available = status.and_then(|s| s.available_replicas).unwrap_or(0);
 
             DeploymentInfo {
+                verdict: triage::deployment_verdict(deploy, triage_now()),
                 name: metadata.name.clone().unwrap_or_default(),
                 namespace: metadata.namespace.clone().unwrap_or_default(),
                 ready: format!("{}/{}", ready, replicas),
@@ -1376,6 +1412,7 @@ pub async fn get_deployment_pods(client: &Client, namespace: &str, name: &str) -
                 .unwrap_or_default();
 
             PodInfo {
+                verdict: triage::pod_verdict(pod, triage_now()),
                 name: metadata.name.clone().unwrap_or_default(),
                 namespace: metadata.namespace.clone().unwrap_or_default(),
                 status: phase,
@@ -1413,6 +1450,7 @@ pub async fn list_statefulsets(client: &Client, namespace: Option<&str>) -> Resu
             let service_name = spec.and_then(|s| s.service_name.clone());
 
             StatefulSetInfo {
+                verdict: triage::statefulset_verdict(sts, triage_now()),
                 name: metadata.name.clone().unwrap_or_default(),
                 namespace: metadata.namespace.clone().unwrap_or_default(),
                 ready: format!("{}/{}", ready, replicas),
@@ -1654,6 +1692,7 @@ pub async fn get_statefulset_pods(client: &Client, namespace: &str, name: &str) 
                 .unwrap_or_default();
 
             PodInfo {
+                verdict: triage::pod_verdict(pod, triage_now()),
                 name: metadata.name.clone().unwrap_or_default(),
                 namespace: metadata.namespace.clone().unwrap_or_default(),
                 status: phase,
@@ -1697,6 +1736,7 @@ pub async fn list_daemonsets(client: &Client, namespace: Option<&str>) -> Result
                 });
 
             DaemonSetInfo {
+                verdict: triage::daemonset_verdict(ds, triage_now()),
                 name: metadata.name.clone().unwrap_or_default(),
                 namespace: metadata.namespace.clone().unwrap_or_default(),
                 desired: status.map(|s| s.desired_number_scheduled).unwrap_or(0),
@@ -1735,6 +1775,7 @@ pub async fn list_replicasets(client: &Client, namespace: Option<&str>) -> Resul
                 .map(|owner| format!("{}/{}", owner.kind, owner.name));
 
             ReplicaSetInfo {
+                verdict: triage::replicaset_verdict(rs, triage_now()),
                 name: metadata.name.clone().unwrap_or_default(),
                 namespace: metadata.namespace.clone().unwrap_or_default(),
                 desired: status.map(|s| s.replicas).unwrap_or(0),
@@ -1800,6 +1841,7 @@ pub async fn list_jobs(client: &Client, namespace: Option<&str>) -> Result<Vec<J
                 });
 
             JobInfo {
+                verdict: triage::job_verdict(job, triage_now()),
                 name: metadata.name.clone().unwrap_or_default(),
                 namespace: metadata.namespace.clone().unwrap_or_default(),
                 completions: format!("{}/{}", succeeded, completions_spec),
@@ -2470,6 +2512,7 @@ pub async fn list_pvcs(client: &Client, namespace: Option<&str>) -> Result<Vec<P
                 .map(|q| q.0.clone());
 
             PersistentVolumeClaimInfo {
+                verdict: triage::pvc_verdict(pvc, triage_now()),
                 name: metadata.name.clone().unwrap_or_default(),
                 namespace: metadata.namespace.clone().unwrap_or_default(),
                 status: status.and_then(|s| s.phase.clone()).unwrap_or_default(),
@@ -2582,6 +2625,7 @@ pub async fn list_nodes(client: &Client) -> Result<Vec<NodeInfo>> {
             let (cpu_allocatable, memory_allocatable) = node_allocatable(status);
 
             NodeInfo {
+                verdict: triage::node_verdict(node, triage_now()),
                 name: metadata.name.clone().unwrap_or_default(),
                 status: final_status,
                 roles: if roles.is_empty() { vec!["<none>".to_string()] } else { roles },
@@ -2876,63 +2920,19 @@ pub async fn get_pulse_metrics(client: &Client, namespace: Option<&str>) -> Resu
     // Try to get actual usage from metrics-server
     let node_metrics = get_node_metrics(client).await;
 
-    // Calculate OK/FAIL for pods
-    let pods_ok = pods.items.iter().filter(|p| {
-        p.status.as_ref()
-            .and_then(|s| s.phase.as_ref())
-            .map(|phase| phase == "Running" || phase == "Succeeded")
-            .unwrap_or(false)
-    }).count() as i32;
-    let pods_fail = pods.items.len() as i32 - pods_ok;
-
-    // Calculate OK/FAIL for deployments
-    let deployments_ok = deployments.items.iter().filter(|d| {
-        let status = d.status.as_ref();
-        let replicas = status.and_then(|s| s.replicas).unwrap_or(0);
-        let available = status.and_then(|s| s.available_replicas).unwrap_or(0);
-        replicas > 0 && available == replicas
-    }).count() as i32;
-    let deployments_fail = deployments.items.len() as i32 - deployments_ok;
-
-    // Calculate OK/FAIL for statefulsets
-    let statefulsets_ok = statefulsets.items.iter().filter(|s| {
-        let status = s.status.as_ref();
-        let replicas = status.map(|st| st.replicas).unwrap_or(0);
-        let ready = status.and_then(|st| st.ready_replicas).unwrap_or(0);
-        replicas > 0 && ready == replicas
-    }).count() as i32;
-    let statefulsets_fail = statefulsets.items.len() as i32 - statefulsets_ok;
-
-    // Calculate OK/FAIL for daemonsets
-    let daemonsets_ok = daemonsets.items.iter().filter(|d| {
-        let status = d.status.as_ref();
-        let desired = status.map(|s| s.desired_number_scheduled).unwrap_or(0);
-        let ready = status.map(|s| s.number_ready).unwrap_or(0);
-        desired > 0 && ready == desired
-    }).count() as i32;
-    let daemonsets_fail = daemonsets.items.len() as i32 - daemonsets_ok;
-
-    // Calculate OK/FAIL for replicasets
-    let replicasets_ok = replicasets.items.iter().filter(|r| {
-        let status = r.status.as_ref();
-        let replicas = status.map(|s| s.replicas).unwrap_or(0);
-        let ready = status.and_then(|s| s.ready_replicas).unwrap_or(0);
-        replicas == 0 || ready == replicas
-    }).count() as i32;
-    let replicasets_fail = replicasets.items.len() as i32 - replicasets_ok;
-
-    // Calculate OK/FAIL for jobs
-    let jobs_ok = jobs.items.iter().filter(|j| {
-        let status = j.status.as_ref();
-        let succeeded = status.and_then(|s| s.succeeded).unwrap_or(0);
-        let failed = status.and_then(|s| s.failed).unwrap_or(0);
-        let active = status.and_then(|s| s.active).unwrap_or(0);
-        (succeeded > 0 && failed == 0) || active > 0
-    }).count() as i32;
-    let jobs_fail = jobs.items.iter().filter(|j| {
-        let status = j.status.as_ref();
-        status.and_then(|s| s.failed).unwrap_or(0) > 0
-    }).count() as i32;
+    // OK/FAIL from the shared triage verdicts: only `fail` counts as failing.
+    // (Phase-based counting called a CrashLoopBackOff pod "Running" = OK.)
+    let now = triage_now();
+    fn ok_fail<T>(items: &[T], verdict: impl Fn(&T) -> Verdict) -> (i32, i32) {
+        let fail = items.iter().filter(|i| verdict(i).is_fail()).count() as i32;
+        (items.len() as i32 - fail, fail)
+    }
+    let (pods_ok, pods_fail) = ok_fail(&pods.items, |p| triage::pod_verdict(p, now));
+    let (deployments_ok, deployments_fail) = ok_fail(&deployments.items, |d| triage::deployment_verdict(d, now));
+    let (statefulsets_ok, statefulsets_fail) = ok_fail(&statefulsets.items, |s| triage::statefulset_verdict(s, now));
+    let (daemonsets_ok, daemonsets_fail) = ok_fail(&daemonsets.items, |d| triage::daemonset_verdict(d, now));
+    let (replicasets_ok, replicasets_fail) = ok_fail(&replicasets.items, |r| triage::replicaset_verdict(r, now));
+    let (jobs_ok, jobs_fail) = ok_fail(&jobs.items, |j| triage::job_verdict(j, now));
 
     Ok(PulseMetrics {
         context: current_context_name,
@@ -3370,6 +3370,7 @@ fn pod_to_pod_info(pod: &Pod) -> PodInfo {
     let total_restarts: i32 = containers.iter().map(|c| c.restart_count).sum();
 
     PodInfo {
+        verdict: triage::pod_verdict(pod, triage_now()),
         name: metadata.name.clone().unwrap_or_default(),
         namespace: metadata.namespace.clone().unwrap_or_default(),
         status: get_pod_phase(status),
@@ -6093,6 +6094,23 @@ pub async fn delete_secret(client: &Client, namespace: &str, name: &str) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Audit 1.1: a CrashLoopBackOff pod has phase Running and used to show
+    /// as a green "Running" and count as OK in Pulse. The phase is kept for
+    /// compatibility; the verdict now carries the real state.
+    #[test]
+    fn crashlooping_pod_is_failed_not_running() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../spec/triage/fixtures/pod/crashloop-backoff.input.json"
+        );
+        let pod: Pod = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        let info = pod_to_info(&pod).unwrap();
+        assert_eq!(info.status, "Running");
+        assert_eq!(info.verdict.status, triage::Status::Fail);
+        assert_eq!(info.verdict.reason, "CrashLoopBackOff");
+        assert!(info.verdict.is_fail());
+    }
 
     #[test]
     fn k8s_timestamps_keep_the_chrono_wire_format() {

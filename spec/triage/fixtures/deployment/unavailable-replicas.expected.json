@@ -1,0 +1,7 @@
+{
+  "status": "fail",
+  "reason": "Unavailable",
+  "ruleId": "TRI-WL-001",
+  "since": "2026-10-28T11:50:00Z",
+  "severity": "critical"
+}

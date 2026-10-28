@@ -1,0 +1,39 @@
+{
+  "apiVersion": "v1",
+  "kind": "Pod",
+  "metadata": {
+    "name": "migrate-1",
+    "namespace": "payments",
+    "uid": "uid-migrate-1",
+    "creationTimestamp": "2026-10-27T12:00:00Z"
+  },
+  "spec": {
+    "containers": [
+      {
+        "name": "app",
+        "image": "registry.example/app:1.0"
+      }
+    ]
+  },
+  "status": {
+    "phase": "Succeeded",
+    "startTime": "2026-10-28T11:20:00Z",
+    "containerStatuses": [
+      {
+        "name": "app",
+        "ready": false,
+        "restartCount": 0,
+        "image": "registry.example/app:1.0",
+        "imageID": "",
+        "state": {
+          "terminated": {
+            "reason": "Completed",
+            "exitCode": 0,
+            "finishedAt": "2026-10-28T11:30:00Z",
+            "startedAt": "2026-10-28T11:29:00Z"
+          }
+        }
+      }
+    ]
+  }
+}

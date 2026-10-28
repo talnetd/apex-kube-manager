@@ -1,0 +1,39 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "Deployment",
+  "metadata": {
+    "name": "legacy",
+    "namespace": "payments",
+    "generation": 2,
+    "creationTimestamp": "2026-10-27T12:00:00Z"
+  },
+  "spec": {
+    "replicas": 0,
+    "selector": {
+      "matchLabels": {
+        "app": "legacy"
+      }
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "app": "legacy"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "app",
+            "image": "x"
+          }
+        ]
+      }
+    }
+  },
+  "status": {
+    "replicas": 0,
+    "updatedReplicas": 0,
+    "observedGeneration": 2,
+    "conditions": []
+  }
+}

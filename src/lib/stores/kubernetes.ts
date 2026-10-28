@@ -1,5 +1,8 @@
 import { writable, derived, get } from 'svelte/store';
 import { settings } from './settings';
+import { verdictToHealth, type Verdict } from '../utils/health';
+
+export type { Verdict };
 
 // Lazy invoke helper to ensure Tauri is ready
 async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -20,6 +23,8 @@ export interface KubeContext {
 }
 
 export interface PodInfo {
+  /** Health from the shared triage rules (Rust, spec/triage/rules.md). Never re-derive it here. */
+  verdict: Verdict;
   name: string;
   namespace: string;
   status: string;
@@ -64,6 +69,8 @@ export interface NodeWatchEvent {
 }
 
 export interface DeploymentInfo {
+  /** Health from the shared triage rules (Rust, spec/triage/rules.md). Never re-derive it here. */
+  verdict: Verdict;
   name: string;
   namespace: string;
   ready: string;
@@ -73,6 +80,8 @@ export interface DeploymentInfo {
 }
 
 export interface StatefulSetInfo {
+  /** Health from the shared triage rules (Rust, spec/triage/rules.md). Never re-derive it here. */
+  verdict: Verdict;
   name: string;
   namespace: string;
   ready: string;
@@ -82,6 +91,8 @@ export interface StatefulSetInfo {
 }
 
 export interface DaemonSetInfo {
+  /** Health from the shared triage rules (Rust, spec/triage/rules.md). Never re-derive it here. */
+  verdict: Verdict;
   name: string;
   namespace: string;
   desired: number;
@@ -94,6 +105,8 @@ export interface DaemonSetInfo {
 }
 
 export interface ReplicaSetInfo {
+  /** Health from the shared triage rules (Rust, spec/triage/rules.md). Never re-derive it here. */
+  verdict: Verdict;
   name: string;
   namespace: string;
   desired: number;
@@ -104,6 +117,8 @@ export interface ReplicaSetInfo {
 }
 
 export interface JobInfo {
+  /** Health from the shared triage rules (Rust, spec/triage/rules.md). Never re-derive it here. */
+  verdict: Verdict;
   name: string;
   namespace: string;
   completions: string;
@@ -191,6 +206,8 @@ export interface PersistentVolumeInfo {
 }
 
 export interface PersistentVolumeClaimInfo {
+  /** Health from the shared triage rules (Rust, spec/triage/rules.md). Never re-derive it here. */
+  verdict: Verdict;
   name: string;
   namespace: string;
   status: string;
@@ -215,6 +232,8 @@ export interface NodeTaintInfo {
 }
 
 export interface NodeInfo {
+  /** Health from the shared triage rules (Rust, spec/triage/rules.md). Never re-derive it here. */
+  verdict: Verdict;
   name: string;
   status: string;
   roles: string[];
@@ -357,6 +376,54 @@ export const isLoading = writable<boolean>(false);
 export const isSwitchingContext = writable<boolean>(false);
 export const error = writable<string | null>(null);
 
+// ---- Per-resource load state (spec 5.4) ----
+// DataTable needs to tell "still connecting" from "empty" from "RBAC said no".
+export type ResourceStatus = 'idle' | 'loading' | 'ready' | 'error' | 'forbidden';
+export interface ResourceState {
+  status: ResourceStatus;
+  error?: string;
+  /** ms epoch of the last successful list or watch event. */
+  lastSyncedAt?: number;
+}
+
+const resourceStates = new Map<string, ReturnType<typeof writable<ResourceState>>>();
+
+/** Load state for one resource list (e.g. 'pods'). Created on first use. */
+export function resourceState(name: string) {
+  let s = resourceStates.get(name);
+  if (!s) {
+    s = writable<ResourceState>({ status: 'idle' });
+    resourceStates.set(name, s);
+  }
+  return s;
+}
+
+/** Last successful sync from any resource (status bar freshness, spec 4.4). */
+export const lastSyncedAt = writable<number | null>(null);
+
+export function markLoading(name: string) {
+  resourceState(name).update((s) => ({ ...s, status: 'loading', error: undefined }));
+}
+
+export function markSynced(name: string, at = Date.now()) {
+  resourceState(name).set({ status: 'ready', lastSyncedAt: at });
+  lastSyncedAt.set(at);
+}
+
+/** 403s come through as error text until the error type carries a code. */
+export function isForbiddenError(e: unknown): boolean {
+  const msg = String(e);
+  return /\b403\b|forbidden/i.test(msg);
+}
+
+export function markFailed(name: string, e: unknown) {
+  resourceState(name).update((s) => ({
+    ...s,
+    status: isForbiddenError(e) ? 'forbidden' : 'error',
+    error: String(e),
+  }));
+}
+
 // Connection status
 export const connectionStatus = writable<'connected' | 'disconnected' | 'connecting'>('disconnected');
 
@@ -364,6 +431,8 @@ export const connectionStatus = writable<'connected' | 'disconnected' | 'connect
 type UnlistenFn = () => void;
 let podWatchUnlisten: UnlistenFn | null = null;
 let currentPodWatchId: string | null = null;
+// Context the `pods` store currently holds.
+let podsContext: string | null = null;
 let deploymentWatchUnlisten: UnlistenFn | null = null;
 let currentDeploymentWatchId: string | null = null;
 let jobWatchUnlisten: UnlistenFn | null = null;
@@ -492,10 +561,21 @@ export async function startPodWatch(namespace?: string | null) {
 
   if (!isContextReady()) return;
 
+  // Pod names collide across clusters: never show the old context's pods
+  // under the new one while the first list is in flight.
+  const ctx = _currentContext;
+  if (podsContext !== ctx) {
+    pods.set([]);
+    podsContext = ctx;
+  }
+  markLoading('pods');
+
   try {
     // Get initial snapshot
     const initialPods = await tauriInvoke<PodInfo[]>('get_pods', { namespace });
+    if (_currentContext !== ctx) return; // switched while listing
     pods.set(initialPods);
+    markSynced('pods');
 
     // Start watch stream
     const watchId = await tauriInvoke<string>('watch_pods', { namespace });
@@ -524,11 +604,13 @@ export async function startPodWatch(namespace?: string | null) {
         }
         return current;
       });
+      markSynced('pods');
     });
 
     console.log(`Pod watch started: ${watchId}`);
   } catch (e) {
     error.set(String(e));
+    markFailed('pods', e);
     console.error('Failed to start pod watch:', e);
   }
 }
@@ -1213,12 +1295,38 @@ export const filteredPods = derived(
   }
 );
 
-export const podsByStatus = derived(pods, ($pods) => {
-  return {
-    all: $pods,
-    running: $pods.filter((p) => p.status === 'Running'),
-    pending: $pods.filter((p) => p.status === 'Pending'),
-    failed: $pods.filter((p) => p.status === 'Failed'),
-    succeeded: $pods.filter((p) => p.status === 'Succeeded'),
+export interface HealthBuckets<T> {
+  all: T[];
+  failed: T[];
+  warning: T[];
+  progressing: T[];
+  healthy: T[];
+  /** Neutral verdicts: Completed pods, Scaled to 0, Suspended. */
+  completed: T[];
+  /** No usable data; only reachable through `all`. */
+  unknown: T[];
+}
+
+/**
+ * Bucket rows by their Rust verdict (spec 5.1). A CrashLoopBackOff pod has
+ * phase Running but lands in `failed` here, which is the whole point.
+ */
+export function bucketByHealth<T extends { verdict: Verdict }>(items: T[]): HealthBuckets<T> {
+  const b: HealthBuckets<T> = {
+    all: items,
+    failed: [],
+    warning: [],
+    progressing: [],
+    healthy: [],
+    completed: [],
+    unknown: [],
   };
-});
+  for (const item of items) {
+    const h = verdictToHealth(item.verdict);
+    if (h === 'neutral') b.completed.push(item);
+    else b[h].push(item);
+  }
+  return b;
+}
+
+export const podsByStatus = derived(pods, ($pods) => bucketByHealth($pods));

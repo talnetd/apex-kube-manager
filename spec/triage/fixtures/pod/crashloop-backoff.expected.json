@@ -1,0 +1,7 @@
+{
+  "status": "fail",
+  "reason": "CrashLoopBackOff",
+  "ruleId": "TRI-POD-003",
+  "since": "2026-10-28T11:58:00Z",
+  "severity": "error"
+}

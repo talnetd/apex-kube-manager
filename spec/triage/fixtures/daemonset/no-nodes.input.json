@@ -1,0 +1,42 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "DaemonSet",
+  "metadata": {
+    "name": "gpu-plugin",
+    "namespace": "kube-system",
+    "generation": 1,
+    "creationTimestamp": "2026-10-27T12:00:00Z"
+  },
+  "spec": {
+    "selector": {
+      "matchLabels": {
+        "app": "gpu-plugin"
+      }
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "app": "gpu-plugin"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "agent",
+            "image": "x"
+          }
+        ]
+      }
+    }
+  },
+  "status": {
+    "desiredNumberScheduled": 0,
+    "currentNumberScheduled": 0,
+    "numberReady": 0,
+    "numberAvailable": 0,
+    "numberUnavailable": 0,
+    "numberMisscheduled": 0,
+    "updatedNumberScheduled": 0,
+    "observedGeneration": 1
+  }
+}

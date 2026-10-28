@@ -20,6 +20,7 @@ apex-kube-manager/
 │   │   ├── lib.rs               # App initialization & command registration
 │   │   ├── commands.rs          # Tauri IPC commands exposed to frontend
 │   │   ├── kubernetes.rs        # K8s client operations (all resources)
+│   │   ├── triage/              # Shared health rules (mod.rs Verdict, rules.rs, fixtures.rs runner)
 │   │   └── error.rs             # Error types and handling
 │   ├── Cargo.toml               # Rust dependencies
 │   └── tauri.conf.json          # Tauri window/build configuration
@@ -117,7 +118,7 @@ All resource views are fully functional with listing, namespace filtering (where
 ### Workloads
 | Resource | View File | Namespace Filter | Key Columns |
 |----------|-----------|------------------|-------------|
-| Pods | `PodList.svelte` | Yes | Name, Status, Ready, Restarts, Age, Node |
+| Pods | `PodList.svelte` | Yes | Name, Namespace, Status (verdict pill), Ready, Restarts, Age, Node. Reference view on `PageHeader` + `DataTable`; segments All / Failing / Warning / Pending / Running / Completed |
 | Deployments | `DeploymentList.svelte` | Yes | Name, Ready, Up-to-date, Available, Age |
 | StatefulSets | `StatefulSetList.svelte` | Yes | Name, Ready, Replicas, Service, Age |
 | DaemonSets | `DaemonSetList.svelte` | Yes | Name, Desired, Current, Ready, Up-to-date, Age |
@@ -156,9 +157,18 @@ All resource views are fully functional with listing, namespace filtering (where
 
 The Dashboard (`Dashboard.svelte`) shows:
 - **Cluster Info**: Context, Cluster name, User, K8s version
-- **Resource Status Cards**: Shows OK:FAIL counts for workloads (Pods, Deployments, StatefulSets, DaemonSets, ReplicaSets, Jobs)
+- **Resource Status Cards**: Shows OK:FAIL counts for workloads (Pods, Deployments, StatefulSets, DaemonSets, ReplicaSets, Jobs). FAIL = triage verdict `status: fail` (see Triage below), so a CrashLoopBackOff pod counts as FAIL even though its phase is Running
 - **Resource Count Cards**: Simple counts for other resources (CronJobs, Services, ConfigMaps, Secrets, etc.)
 - **CPU/Memory Gauges**: Animated ring gauges showing cluster resource capacity (allocatable vs capacity)
+
+## Triage verdicts (health)
+
+Health is computed **in Rust only** (`src-tauri/src/triage/`), never re-derived in TypeScript:
+- Rules and ids (`TRI-POD-003` ...) live in `spec/triage/rules.md`, shared with the iOS/Android apps. Schema: `spec/triage/schema/verdict.schema.json`
+- `PodInfo`, `DeploymentInfo`, `StatefulSetInfo`, `DaemonSetInfo`, `ReplicaSetInfo`, `JobInfo`, `NodeInfo`, `PersistentVolumeClaimInfo` carry `verdict: { status: ok|warn|fail|unknown, reason, ruleId, since?, severity?: critical|error|warning, tone?: progressing|neutral }`. Old fields (e.g. `PodInfo.status` = phase) stay for compatibility; **display the verdict, not the phase**
+- Frontend maps a verdict to display with `toDisplay()` in `src/lib/utils/health.ts`, renders it with `StatusPill`, and buckets with `bucketByHealth()` (`podsByStatus`: `all, failed, warning, progressing, healthy, completed`)
+- Golden fixtures: `spec/triage/fixtures/<kind>/<case>.{input,expected}.json`, evaluated at `fixtures/meta.json`'s `now`. `cargo test` runs all of them and fails on a mismatch, an orphan file, or an implemented rule id without a fixture. **A rule change edits `rules.md` and fixtures in the same PR**; `spec/**` changes run desktop CI too
+- Load state: `resourceState(name)` in `kubernetes.ts` (`idle | loading | ready | error | forbidden`, plus `lastSyncedAt`) lets `DataTable` tell connecting / empty / RBAC-denied apart. Pods wire it today; other views move over in redesign PR7
 
 ## Sidebar Navigation Structure
 
@@ -463,7 +473,8 @@ const events = await invoke(`get_${resourceType}_events`, getInvokeParams());
 - [x] CPU/Memory animated gauges
 - [x] Categorized sidebar navigation
 - [x] Pod logs viewer (with search, download, previous logs)
-- [x] Pod deletion
+- [x] Pod deletion (detail window only; no list-level delete)
+- [x] Shared triage verdicts in Rust (`spec/triage/`), Pods list on DataTable + StatusPill
 - [x] Status indicators (colored dots, badges)
 - [x] Auto-refresh (10s intervals)
 - [x] Resource detail panels for all 18 resource types
@@ -527,7 +538,7 @@ Press `?` anytime to show the keyboard shortcuts help modal.
 | `l` | View logs (Pods) |
 | `e` | Exec into pod (Pods) |
 | `s` | Scale (Deployments) |
-| `d` | Delete resource |
+| `d` | Open detail (lists never delete; delete lives in the detail view) |
 | `y` | Copy resource name |
 | `r` | Refresh view |
 
@@ -543,7 +554,7 @@ Press `?` anytime to show the keyboard shortcuts help modal.
 ### Implementation Details
 - Keyboard store: `src/lib/stores/keyboard.ts`
 - Help modal: `src/lib/components/ui/KeyboardHelp.svelte`
-- Global handlers in `App.svelte`, per-view handlers in each list component
+- Global handlers in `App.svelte`; list views on `DataTable` get Enter/y/r/d and view `shortcuts` from it (Pods), unmigrated views keep per-view handlers
 - Row selection uses `selectedRowIndex` store with teal highlight (`bg-accent-primary/20`)
 - Scrolls selected row into view automatically
 

@@ -1,0 +1,7 @@
+{
+  "status": "fail",
+  "reason": "BackoffLimitExceeded",
+  "ruleId": "TRI-JOB-001",
+  "since": "2026-10-28T11:10:00Z",
+  "severity": "error"
+}

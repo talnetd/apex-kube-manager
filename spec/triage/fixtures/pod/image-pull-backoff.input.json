@@ -1,0 +1,43 @@
+{
+  "apiVersion": "v1",
+  "kind": "Pod",
+  "metadata": {
+    "name": "checkout-1",
+    "namespace": "payments",
+    "uid": "uid-checkout-1",
+    "creationTimestamp": "2026-10-28T11:40:00Z"
+  },
+  "spec": {
+    "containers": [
+      {
+        "name": "app",
+        "image": "registry.example/app:1.0"
+      }
+    ]
+  },
+  "status": {
+    "phase": "Pending",
+    "startTime": "2026-10-28T11:40:00Z",
+    "conditions": [
+      {
+        "type": "Ready",
+        "status": "False",
+        "lastTransitionTime": "2026-10-28T11:40:00Z"
+      }
+    ],
+    "containerStatuses": [
+      {
+        "name": "app",
+        "ready": false,
+        "restartCount": 0,
+        "image": "registry.example/app:1.0",
+        "imageID": "",
+        "state": {
+          "waiting": {
+            "reason": "ImagePullBackOff"
+          }
+        }
+      }
+    ]
+  }
+}

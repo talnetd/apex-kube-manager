@@ -1,0 +1,6 @@
+{
+  "status": "warn",
+  "reason": "2 failed, retrying",
+  "ruleId": "TRI-JOB-003",
+  "severity": "warning"
+}

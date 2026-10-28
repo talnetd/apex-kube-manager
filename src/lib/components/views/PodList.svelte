@@ -1,348 +1,229 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  // Pods: the reference list view (redesign PR1b). PageHeader + DataTable +
+  // StatusPill, health from the Rust verdict only. DataTable owns keyboard
+  // nav, selection anchoring, Enter/y/r and `d` (opens detail: lists never
+  // delete, CLAUDE.md Architecture Note 7). Pod delete lives in PodDetail.
+  import { onDestroy } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
-  import StatusBadge from '../ui/StatusBadge.svelte';
-  import SortableHeader from '../ui/SortableHeader.svelte';
-  import { sortData, toggleSort, type SortState } from '../../utils/sort';
+  import PageHeader, { type Segment } from '../ui/PageHeader.svelte';
+  import DataTable from '../ui/DataTable.svelte';
+  import StatusPill from '../ui/StatusPill.svelte';
+  import StatusIcon from '../ui/StatusIcon.svelte';
+  import IconButton from '../ui/IconButton.svelte';
+  import Button from '../ui/Button.svelte';
+  import { HEALTH_SORT_ID, type Column, type TableState } from '../ui/data-table';
+  import { toDisplay, type HealthResult } from '../../utils/health';
   import {
-    pods,
     podsByStatus,
     selectedNamespace,
     currentContext,
     refreshTrigger,
     startPodWatch,
     stopPodWatch,
-    deletePod,
     openTerminalWindow,
+    resourceState,
+    type PodInfo,
   } from '../../stores/kubernetes';
-  import type { PodInfo } from '../../stores/kubernetes';
-  import { filterBySearch } from '../../stores/search';
-  import ViewFilter from '../ui/ViewFilter.svelte';
-  import {
-    selectedRowIndex,
-    keyboardNavActive,
-    totalRows,
-    resetNavigation,
-  } from '../../stores/keyboard';
 
-  let activeFilter = $state('all');
-  let showDeleteConfirm = $state(false);
-  let podToDelete = $state<PodInfo | null>(null);
-  let sort = $state<SortState>({ field: 'name', direction: 'asc' });
-  let filterQuery = $state('');
-  let tableBody: HTMLTableSectionElement;
-  let filterRef: ViewFilter;
+  type SegmentId = 'all' | 'failed' | 'warning' | 'progressing' | 'healthy' | 'completed';
 
-  const filters = $derived([
+  let activeSegment = $state<SegmentId>('all');
+  let filter = $state('');
+
+  const loadState = resourceState('pods');
+
+  const segments = $derived<Segment[]>([
     { id: 'all', label: 'All', count: $podsByStatus.all.length },
-    { id: 'running', label: 'Running', count: $podsByStatus.running.length },
-    { id: 'pending', label: 'Pending', count: $podsByStatus.pending.length },
-    { id: 'failed', label: 'Failed', count: $podsByStatus.failed.length },
+    { id: 'failed', label: 'Failing', count: $podsByStatus.failed.length, health: 'failed' },
+    { id: 'warning', label: 'Warning', count: $podsByStatus.warning.length, health: 'warning' },
+    { id: 'progressing', label: 'Pending', count: $podsByStatus.progressing.length, health: 'progressing' },
+    { id: 'healthy', label: 'Running', count: $podsByStatus.healthy.length, health: 'healthy' },
+    { id: 'completed', label: 'Completed', count: $podsByStatus.completed.length, health: 'neutral' },
   ]);
 
-  const filteredPods = $derived(() => {
-    let data: PodInfo[];
-    switch (activeFilter) {
-      case 'running':
-        data = $podsByStatus.running;
-        break;
-      case 'pending':
-        data = $podsByStatus.pending;
-        break;
-      case 'failed':
-        data = $podsByStatus.failed;
-        break;
+  // A segment that empties out (last failing pod recovered) falls back to All.
+  $effect(() => {
+    if (activeSegment !== 'all' && $podsByStatus[activeSegment].length === 0) activeSegment = 'all';
+  });
+
+  function matches(p: PodInfo, q: string): boolean {
+    return [p.name, p.namespace, p.node ?? '', p.status, p.verdict.reason].some((v) => v.toLowerCase().includes(q));
+  }
+
+  const rows = $derived.by(() => {
+    const base = $podsByStatus[activeSegment];
+    const q = filter.trim().toLowerCase();
+    return q ? base.filter((p) => matches(p, q)) : base;
+  });
+
+  const tableState = $derived.by<TableState>(() => {
+    switch ($loadState.status) {
+      case 'error':
+        return 'error';
+      case 'forbidden':
+        return 'forbidden';
+      case 'ready':
+        return 'ready';
       default:
-        data = $podsByStatus.all;
+        return 'loading';
     }
-    // Apply text search filter
-    const searched = filterBySearch(data, filterQuery, ['name', 'namespace', 'status', 'node']);
-    return sortData(searched, sort.field, sort.direction);
   });
 
-  function handleSort(field: string) {
-    sort = toggleSort(sort, field);
+  // Verdicts are recomputed only when a pod changes, so cache per object.
+  const healthCache = new WeakMap<PodInfo, HealthResult>();
+  function health(p: PodInfo): HealthResult {
+    let h = healthCache.get(p);
+    if (!h) {
+      h = toDisplay(p.verdict);
+      healthCache.set(p, h);
+    }
+    return h;
   }
 
-  // Get selected pod based on current index
-  const selectedPod = $derived(() => {
-    const pods = filteredPods();
-    const idx = $selectedRowIndex;
-    if (idx >= 0 && idx < pods.length) {
-      return pods[idx];
-    }
-    return null;
-  });
+  const rowKey = (p: PodInfo) => `${p.namespace}/${p.name}`;
 
-  // Update total rows when filtered data changes
+  const columns: Column<PodInfo>[] = [
+    { id: 'name', label: 'Name', sortKey: 'name', primary: true },
+    { id: 'namespace', label: 'Namespace', sortKey: 'namespace', width: '14%' },
+    {
+      id: 'status',
+      label: 'Status',
+      width: '18%',
+      sortKey: (p) => health(p).rank,
+      cell: statusCell,
+      title: (p) => `${p.verdict.reason} (${p.verdict.ruleId})`,
+    },
+    { id: 'ready', label: 'Ready', sortKey: 'ready', numeric: true, width: '72px' },
+    { id: 'restarts', label: 'Restarts', sortKey: 'restarts', numeric: true, width: '88px', cell: restartsCell },
+    { id: 'age', label: 'Age', sortKey: 'age', numeric: true, width: '64px' },
+    { id: 'node', label: 'Node', sortKey: 'node', width: '16%', hideBelow: 1100, mono: true },
+  ];
+
+  // ---- Failing-count live region (spec 8): debounced 5s, polite ----
+  let liveText = $state('');
+  let liveTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastAnnounced: number | null = null;
+  // A derived number only re-runs the effect when the count itself changes,
+  // so a busy watch stream can't keep pushing the announcement back.
+  const failingCount = $derived($podsByStatus.failed.length);
+  const loaded = $derived($loadState.status === 'ready');
   $effect(() => {
-    totalRows.set(filteredPods().length);
-  });
-
-  // Scroll selected row into view
-  $effect(() => {
-    if ($keyboardNavActive && $selectedRowIndex >= 0 && tableBody) {
-      const row = tableBody.children[$selectedRowIndex] as HTMLElement;
-      if (row) {
-        row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      }
-    }
-  });
-
-  // Keyboard shortcuts for actions
-  function handleKeydown(e: KeyboardEvent) {
-    const active = document.activeElement;
-    const isInput = active?.tagName.toLowerCase() === 'input';
-
-    // Cmd+F to focus filter (works even in input)
-    if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
-      e.preventDefault();
-      filterRef?.focus();
-      return;
-    }
-
-    // Skip other shortcuts if in input
-    if (isInput) return;
-
-    const pod = selectedPod();
-    if (!pod) return;
-
-    // Enter to open detail
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      openPodDetail(pod);
-      return;
-    }
-
-    // 'l' for logs - opens detail directly to logs tab
-    if (e.key === 'l') {
-      e.preventDefault();
-      openPodLogs(pod);
-      return;
-    }
-
-    // 'e' for exec
-    if (e.key === 'e') {
-      e.preventDefault();
-      openTerminalWindow(pod.namespace, pod.name);
-      return;
-    }
-
-    // 'd' for delete
-    if (e.key === 'd') {
-      e.preventDefault();
-      confirmDelete(pod);
-      return;
-    }
-
-    // 'y' to copy name
-    if (e.key === 'y') {
-      e.preventDefault();
-      navigator.clipboard.writeText(pod.name);
-      return;
-    }
-
-    // 'r' to refresh
-    if (e.key === 'r') {
-      e.preventDefault();
-      startPodWatch($selectedNamespace);
-      return;
-    }
-  }
-
-  onMount(() => {
-    startPodWatch($selectedNamespace);
-    resetNavigation();
-    window.addEventListener('keydown', handleKeydown);
+    const n = failingCount;
+    if (!loaded) return;
+    if (liveTimer) clearTimeout(liveTimer);
+    liveTimer = setTimeout(() => {
+      if (n === lastAnnounced) return;
+      lastAnnounced = n;
+      liveText = n === 0 ? 'No failing pods' : `${n} failing ${n === 1 ? 'pod' : 'pods'}`;
+    }, 5000);
   });
 
   onDestroy(() => {
+    if (liveTimer) clearTimeout(liveTimer);
     stopPodWatch();
-    resetNavigation();
-    window.removeEventListener('keydown', handleKeydown);
   });
 
-  // React to namespace, context, and manual refresh trigger
+  // Starts the watch on mount, and again on namespace, context or refresh.
   $effect(() => {
     const ctx = $currentContext;
-    const trigger = $refreshTrigger;
+    void $refreshTrigger;
     if (!ctx) return;
-    // Restart watch when namespace changes
     startPodWatch($selectedNamespace);
   });
 
-  async function openPodDetail(pod: PodInfo) {
-    try {
-      await invoke('open_resource_detail', {
-        resourceType: 'pod',
-        name: pod.name,
-        namespace: pod.namespace,
-        context: $currentContext,
-      });
-    } catch (e) {
-      console.error('Failed to open pod detail:', e);
-    }
+  function openDetail(pod: PodInfo, tab?: string) {
+    invoke('open_resource_detail', {
+      resourceType: 'pod',
+      name: pod.name,
+      namespace: pod.namespace,
+      context: $currentContext,
+      ...(tab ? { tab } : {}),
+    }).catch((e) => console.error('Failed to open pod detail:', e));
   }
 
-  async function openPodLogs(pod: PodInfo) {
-    try {
-      await invoke('open_resource_detail', {
-        resourceType: 'pod',
-        name: pod.name,
-        namespace: pod.namespace,
-        context: $currentContext,
-        tab: 'logs',
-      });
-    } catch (e) {
-      console.error('Failed to open pod logs:', e);
-    }
-  }
-
-  function confirmDelete(pod: PodInfo) {
-    podToDelete = pod;
-    showDeleteConfirm = true;
-  }
-
-  async function executeDelete() {
-    if (podToDelete) {
-      await deletePod(podToDelete.namespace, podToDelete.name);
-      showDeleteConfirm = false;
-      podToDelete = null;
-    }
-  }
+  const openLogs = (p: PodInfo) => openDetail(p, 'logs');
+  const exec = (p: PodInfo) => openTerminalWindow(p.namespace, p.name);
 </script>
 
+{#snippet statusCell(p: PodInfo)}
+  {@const h = health(p)}
+  <StatusPill health={h.health} label={h.label} />
+{/snippet}
+
+{#snippet restartsCell(p: PodInfo)}
+  {#if p.restarts >= 20}
+    <span class="inline-flex items-center gap-1 text-danger" title="{p.restarts} restarts">
+      <StatusIcon health="warning" colored={false} />{p.restarts}
+    </span>
+  {:else if p.restarts >= 5}
+    <span class="inline-flex items-center gap-1 text-warning" title="{p.restarts} restarts">
+      <StatusIcon health="warning" colored={false} />{p.restarts}
+    </span>
+  {:else}
+    {p.restarts}
+  {/if}
+{/snippet}
+
+{#snippet rowActions(p: PodInfo)}
+  <IconButton label="Logs" shortcut="L" size="sm" onclick={() => openLogs(p)}>
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
+      <path d="M3 4h10M3 8h10M3 12h6" />
+    </svg>
+  </IconButton>
+  <IconButton label="Exec" shortcut="E" size="sm" onclick={() => exec(p)}>
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M3 5l3 3-3 3M8 11h5" />
+    </svg>
+  </IconButton>
+{/snippet}
+
+{#snippet emptyActions()}
+  {#if $selectedNamespace}
+    <Button onclick={() => selectedNamespace.set(null)}>All namespaces</Button>
+  {/if}
+{/snippet}
+
 <div class="h-full flex flex-col overflow-hidden">
-  <!-- Toolbar -->
-  <div class="px-6 py-4 border-b border-border-subtle">
-    <div class="flex items-center justify-between">
-      <h1 class="text-lg font-semibold text-text-primary">Pods</h1>
-      <div class="flex items-center gap-3">
-        <!-- Filter Pills -->
-        <div class="flex items-center gap-1">
-          {#each filters as filter}
-            <button
-              onclick={() => activeFilter = filter.id}
-              class="px-2.5 py-1 text-base rounded-md transition-colors
-                {activeFilter === filter.id
-                  ? 'bg-accent-primary/20 text-accent-text border border-accent-primary/30'
-                  : 'bg-bg-tertiary text-text-secondary hover:text-text-primary border border-transparent'}"
-            >
-              {filter.label}
-              <span class="ml-1 text-xs opacity-70">({filter.count})</span>
-            </button>
-          {/each}
-        </div>
-        <!-- Text Filter -->
-        <ViewFilter bind:this={filterRef} value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter pods..." />
-      </div>
-    </div>
-  </div>
+  <PageHeader
+    title="Pods"
+    count={$podsByStatus.all.length}
+    {segments}
+    {activeSegment}
+    onSegment={(id) => (activeSegment = id as SegmentId)}
+    bind:filter
+    filterPlaceholder="Filter pods…"
+    viewId="pods"
+    loading={$loadState.status === 'loading' && $podsByStatus.all.length > 0}
+  />
 
-  <!-- Table -->
-  <div class="flex-1 overflow-auto p-6 pt-4">
-    <table class="w-full">
-      <thead>
-        <tr class="text-left border-b border-border-subtle">
-          <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Namespace" field="namespace" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Status" field="status" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Ready" field="ready" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Restarts" field="restarts" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Age" field="age" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-24">Actions</th>
-        </tr>
-      </thead>
-      <tbody bind:this={tableBody}>
-        {#each filteredPods() as pod, index}
-          {@const isSelected = $keyboardNavActive && $selectedRowIndex === index}
-          <tr
-            onclick={() => openPodDetail(pod)}
-            class="border-b border-border-subtle/50 cursor-pointer transition-colors {isSelected ? 'bg-accent-primary/20 ring-1 ring-accent-primary/50' : 'hover:bg-bg-secondary'}"
-          >
-            <td class="py-3 pr-4">
-              <span class="text-accent-text font-medium hover:underline">{pod.name}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{pod.namespace}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <StatusBadge status={pod.status} />
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{pod.ready}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-base {pod.restarts > 0 ? 'text-warning' : 'text-text-secondary'}">
-                {pod.restarts}
-              </span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{pod.age}</span>
-            </td>
-            <td class="py-3">
-              <div class="flex items-center gap-1">
-                <button
-                  onclick={(e) => { e.stopPropagation(); openTerminalWindow(pod.namespace, pod.name); }}
-                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-text transition-colors"
-                  title="Open Terminal"
-                >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </button>
-                <button
-                  onclick={(e) => { e.stopPropagation(); confirmDelete(pod); }}
-                  class="p-1.5 rounded-sm hover:bg-accent-error/20 text-text-muted hover:text-danger transition-colors"
-                  title="Delete Pod"
-                >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </div>
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+  <DataTable
+    {rows}
+    {columns}
+    {rowKey}
+    {health}
+    defaultSort={{ id: HEALTH_SORT_ID, dir: 'asc' }}
+    state={tableState}
+    error={$loadState.error}
+    filtered={rows.length === 0 && $podsByStatus.all.length > 0}
+    filterText={filter}
+    itemLabel="pods"
+    ariaLabel="Pods"
+    onOpen={(p) => openDetail(p)}
+    onClearFilter={() => {
+      filter = '';
+      activeSegment = 'all';
+    }}
+    onRetry={() => startPodWatch($selectedNamespace)}
+    onRefresh={() => startPodWatch($selectedNamespace)}
+    copyText={(p) => p.name}
+    emptyState={{
+      title: $selectedNamespace ? `No pods in ${$selectedNamespace}` : 'No pods',
+      hint: 'Switch namespace or check the context.',
+    }}
+    {emptyActions}
+    {rowActions}
+    shortcuts={{ l: openLogs, e: exec }}
+  />
 
-    {#if filteredPods().length === 0}
-      <div class="flex items-center justify-center h-48">
-        <div class="text-center">
-          <svg class="w-12 h-12 text-text-muted mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-          </svg>
-          <p class="text-text-muted">No pods found</p>
-        </div>
-      </div>
-    {/if}
-  </div>
+  <div class="sr-only" aria-live="polite" aria-atomic="true">{liveText}</div>
 </div>
-
-<!-- Delete Confirmation Modal -->
-{#if showDeleteConfirm && podToDelete}
-  <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-    <div class="bg-bg-card border border-border-subtle rounded-lg p-6 max-w-md w-full mx-4">
-      <h3 class="text-[18px]/7 font-semibold text-text-primary mb-2">Delete Pod</h3>
-      <p class="text-text-secondary mb-4">
-        Are you sure you want to delete <span class="text-text-primary font-medium">{podToDelete.name}</span>?
-        This action cannot be undone.
-      </p>
-      <div class="flex items-center justify-end gap-3">
-        <button
-          onclick={() => { showDeleteConfirm = false; podToDelete = null; }}
-          class="px-4 py-2 text-text-secondary hover:text-text-primary transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          onclick={executeDelete}
-          class="px-4 py-2 bg-accent-error text-white rounded-lg hover:bg-accent-error/80 transition-colors"
-        >
-          Delete
-        </button>
-      </div>
-    </div>
-  </div>
-{/if}

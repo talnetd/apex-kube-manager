@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/talnetd/apex-kube-manager/spec/triage/schema/verdict.schema.json",
+  "title": "Triage verdict",
+  "description": "The health verdict every platform (desktop Rust, iOS Swift, Android Kotlin) computes for one Kubernetes object. Field names are identical on all three. Display mapping: fail -> failed, warn -> warning, unknown -> unknown, ok + tone progressing -> progressing, ok + tone neutral -> neutral, ok -> healthy (redesign spec 11.1).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "reason", "ruleId"],
+  "properties": {
+    "status": {
+      "enum": ["ok", "warn", "fail", "unknown"]
+    },
+    "reason": {
+      "type": "string",
+      "description": "The label shown to the user: the most specific cause (CrashLoopBackOff, 2/3 available), never just the phase."
+    },
+    "ruleId": {
+      "type": "string",
+      "pattern": "^TRI-[A-Z]+-[0-9]{3}$",
+      "description": "The rule in rules.md that produced this verdict. -000 ids are the no-finding baseline for a kind."
+    },
+    "since": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 UTC (Z suffix, no fractional seconds when zero). When the condition started, if the API says so."
+    },
+    "severity": {
+      "enum": ["critical", "error", "warning"],
+      "description": "Present exactly when status is fail (critical or error) or warn (warning)."
+    },
+    "tone": {
+      "enum": ["progressing", "neutral"],
+      "description": "Only with status ok. Absent means healthy."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "fail" } } },
+      "then": {
+        "required": ["severity"],
+        "properties": { "severity": { "enum": ["critical", "error"] } },
+        "not": { "required": ["tone"] }
+      }
+    },
+    {
+      "if": { "properties": { "status": { "const": "warn" } } },
+      "then": {
+        "required": ["severity"],
+        "properties": { "severity": { "const": "warning" } },
+        "not": { "required": ["tone"] }
+      }
+    },
+    {
+      "if": { "properties": { "status": { "enum": ["ok", "unknown"] } } },
+      "then": { "not": { "required": ["severity"] } }
+    },
+    {
+      "if": { "properties": { "status": { "enum": ["warn", "fail", "unknown"] } } },
+      "then": { "not": { "required": ["tone"] } }
+    }
+  ]
+}

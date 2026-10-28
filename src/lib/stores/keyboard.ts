@@ -86,7 +86,9 @@ export const keyboardShortcuts: KeyboardShortcut[] = [
   // Actions (context-dependent)
   { key: 'l', description: 'View logs (Pods)', category: 'actions' },
   { key: 'e', description: 'Exec into pod (Pods)', category: 'actions' },
-  { key: 'd', description: 'Delete resource', category: 'actions' },
+  // Lists never delete (CLAUDE.md, Architecture Note 7): `d` opens the
+  // detail window, where delete lives behind a confirmation.
+  { key: 'd', description: 'Open detail (delete is there)', category: 'actions' },
   { key: 'y', description: 'Copy resource name', category: 'actions' },
   { key: 'r', description: 'Refresh view', category: 'actions' },
 

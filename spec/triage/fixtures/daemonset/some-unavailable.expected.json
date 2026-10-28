@@ -1,0 +1,6 @@
+{
+  "status": "warn",
+  "reason": "3/5 available",
+  "ruleId": "TRI-WL-004",
+  "severity": "warning"
+}

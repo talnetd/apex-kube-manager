@@ -1,0 +1,7 @@
+{
+  "status": "warn",
+  "reason": "OOMKilled",
+  "ruleId": "TRI-POD-006",
+  "since": "2026-10-28T11:20:00Z",
+  "severity": "warning"
+}

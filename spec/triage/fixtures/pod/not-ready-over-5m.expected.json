@@ -1,0 +1,7 @@
+{
+  "status": "warn",
+  "reason": "1/2 ready",
+  "ruleId": "TRI-POD-007",
+  "since": "2026-10-28T11:30:00Z",
+  "severity": "warning"
+}

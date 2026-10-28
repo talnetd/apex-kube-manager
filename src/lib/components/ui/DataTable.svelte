@@ -364,7 +364,7 @@
     {:else if tableState === 'forbidden'}
       <EmptyState
         variant="forbidden"
-        title={emptyState?.title ?? `No access to ${itemLabel}`}
+        title={`No access to ${itemLabel}`}
         hint="Your kube user can't list this resource."
       />
     {:else if filtered}

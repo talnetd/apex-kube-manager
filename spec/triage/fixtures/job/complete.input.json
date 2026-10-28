@@ -1,0 +1,33 @@
+{
+  "apiVersion": "batch/v1",
+  "kind": "Job",
+  "metadata": {
+    "name": "report-1",
+    "namespace": "batch",
+    "creationTimestamp": "2026-10-28T10:00:00Z"
+  },
+  "spec": {
+    "completions": 1,
+    "template": {
+      "spec": {
+        "restartPolicy": "Never",
+        "containers": [
+          {
+            "name": "job",
+            "image": "x"
+          }
+        ]
+      }
+    }
+  },
+  "status": {
+    "succeeded": 1,
+    "conditions": [
+      {
+        "type": "Complete",
+        "status": "True",
+        "lastTransitionTime": "2026-10-28T11:30:00Z"
+      }
+    ]
+  }
+}

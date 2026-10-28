@@ -1,0 +1,42 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "DaemonSet",
+  "metadata": {
+    "name": "csi",
+    "namespace": "kube-system",
+    "generation": 1,
+    "creationTimestamp": "2026-10-27T12:00:00Z"
+  },
+  "spec": {
+    "selector": {
+      "matchLabels": {
+        "app": "csi"
+      }
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "app": "csi"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "agent",
+            "image": "x"
+          }
+        ]
+      }
+    }
+  },
+  "status": {
+    "desiredNumberScheduled": 5,
+    "currentNumberScheduled": 5,
+    "numberReady": 5,
+    "numberAvailable": 5,
+    "numberUnavailable": 0,
+    "numberMisscheduled": 1,
+    "updatedNumberScheduled": 5,
+    "observedGeneration": 1
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "apiVersion": "batch/v1",
+  "kind": "Job",
+  "metadata": {
+    "name": "report-4",
+    "namespace": "batch",
+    "creationTimestamp": "2026-10-28T10:00:00Z"
+  },
+  "spec": {
+    "completions": 1,
+    "template": {
+      "spec": {
+        "restartPolicy": "Never",
+        "containers": [
+          {
+            "name": "job",
+            "image": "x"
+          }
+        ]
+      }
+    },
+    "suspend": true
+  },
+  "status": {}
+}

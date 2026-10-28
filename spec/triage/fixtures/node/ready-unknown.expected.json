@@ -1,0 +1,7 @@
+{
+  "status": "fail",
+  "reason": "Unknown",
+  "ruleId": "TRI-NODE-001",
+  "since": "2026-10-28T11:52:00Z",
+  "severity": "critical"
+}

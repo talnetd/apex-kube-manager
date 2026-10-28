@@ -1,0 +1,7 @@
+{
+  "status": "fail",
+  "reason": "ImagePullBackOff",
+  "ruleId": "TRI-POD-004",
+  "since": "2026-10-28T11:40:00Z",
+  "severity": "error"
+}

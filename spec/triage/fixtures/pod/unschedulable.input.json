@@ -1,0 +1,29 @@
+{
+  "apiVersion": "v1",
+  "kind": "Pod",
+  "metadata": {
+    "name": "big-1",
+    "namespace": "payments",
+    "uid": "uid-big-1",
+    "creationTimestamp": "2026-10-28T11:30:00Z"
+  },
+  "spec": {
+    "containers": [
+      {
+        "name": "app",
+        "image": "registry.example/app:1.0"
+      }
+    ]
+  },
+  "status": {
+    "phase": "Pending",
+    "conditions": [
+      {
+        "type": "PodScheduled",
+        "status": "False",
+        "lastTransitionTime": "2026-10-28T11:31:00Z",
+        "reason": "Unschedulable"
+      }
+    ]
+  }
+}

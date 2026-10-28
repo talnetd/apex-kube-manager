@@ -1,0 +1,20 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "ReplicaSet",
+  "metadata": {
+    "name": "web-6d4f",
+    "namespace": "payments",
+    "creationTimestamp": "2026-10-27T12:00:00Z"
+  },
+  "spec": {
+    "replicas": 0,
+    "selector": {
+      "matchLabels": {
+        "app": "web"
+      }
+    }
+  },
+  "status": {
+    "replicas": 0
+  }
+}

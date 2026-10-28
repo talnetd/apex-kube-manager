@@ -1,0 +1,7 @@
+{
+  "status": "fail",
+  "reason": "CreateContainerConfigError",
+  "ruleId": "TRI-POD-005",
+  "since": "2026-10-28T11:50:00Z",
+  "severity": "error"
+}
