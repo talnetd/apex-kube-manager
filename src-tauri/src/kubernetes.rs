@@ -720,6 +720,8 @@ pub async fn get_current_context_name() -> Result<String> {
 }
 
 pub async fn switch_to_context(context_name: &str) -> Result<()> {
+    // Unsettled clocks belong to the old cluster's objects.
+    triage::reset_unsettled();
     let config_path = get_kubeconfig_path();
     let mut kubeconfig = kube::config::Kubeconfig::read_from(&config_path)?;
 

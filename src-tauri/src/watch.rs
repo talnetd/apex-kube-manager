@@ -592,9 +592,41 @@ mod tests {
 
         let v = tr.eval("u1", t0, rule(t0));
         assert_eq!((v.reason.as_str(), v.tone), ("Scaling", Some(triage::Tone::Progressing)));
+        // Polled every 10s (a gap > 60s would start a fresh clock).
+        for s in (10..11 * 60).step_by(10) {
+            let t = t0 + Duration::from_secs(s);
+            tr.eval("u1", t, rule(t));
+        }
         let t11 = t0 + Duration::from_secs(11 * 60);
         let v = tr.eval("u1", t11, rule(t11));
         assert_eq!((v.reason.as_str(), v.status), ("3/5 ready", triage::Status::Warn));
         assert_eq!(v.since.as_deref(), Some("2026-10-28T12:00:00Z"));
+    }
+
+    /// Re-review: a clock from before a gap in sightings (view closed, app
+    /// asleep) or from before a context switch must not be reused.
+    #[test]
+    fn tracker_restarts_the_clock_after_a_gap_or_clear() {
+        let t0: Timestamp = "2026-10-28T12:00:00Z".parse().unwrap();
+        let unsettled = |seen: Option<Timestamp>| {
+            triage::Verdict::progressing("TRI-WL-005", "Scaling").since(seen.map(|t| t.to_string()))
+        };
+        let mut tr = triage::UnsettledTracker::default();
+
+        // Seen every 10s for a minute: the clock holds at t0.
+        for s in (0..=60).step_by(10) {
+            let v = tr.eval("u1", t0 + Duration::from_secs(s), unsettled);
+            assert_eq!(v.since.as_deref(), Some("2026-10-28T12:00:00Z"));
+        }
+        // Not looked at for 2 minutes: the next sighting is fresh.
+        let t3 = t0 + Duration::from_secs(60 + 120);
+        let v = tr.eval("u1", t3, unsettled);
+        assert_eq!(v.since.as_deref(), Some("2026-10-28T12:03:00Z"));
+
+        // A clear (context switch) also starts over.
+        tr.clear();
+        let t4 = t3 + Duration::from_secs(10);
+        let v = tr.eval("u1", t4, unsettled);
+        assert_eq!(v.since.as_deref(), Some("2026-10-28T12:03:10Z"));
     }
 }

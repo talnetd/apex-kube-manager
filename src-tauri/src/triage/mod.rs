@@ -28,40 +28,70 @@ use serde::{Deserialize, Serialize};
 /// neutral), per uid. StatefulSets, ReplicaSets and DaemonSets carry no
 /// transition timestamps, so without this a scale-up of a year-old object
 /// would look degraded "since creation" and fail instantly.
+///
+/// The clock only means something while Apex keeps looking: if an object
+/// wasn't evaluated for longer than `SIGHTING_GAP_S` (about two polls), the
+/// next unsettled sighting starts a fresh clock instead of reusing a stale
+/// one and jumping straight to warn.
 #[derive(Default)]
 pub struct UnsettledTracker {
-    first_seen: HashMap<String, Timestamp>,
+    /// uid -> (first seen unsettled, last seen unsettled)
+    seen: HashMap<String, (Timestamp, Timestamp)>,
 }
 
+/// Lists poll every 10s and Pulse every 5s, so 60s is a couple of missed polls.
+pub const SIGHTING_GAP_S: i64 = 60;
+
 impl UnsettledTracker {
-    /// Evaluate `rule(first_seen)`. The first unsettled observation starts
-    /// the clock at `now`; a settled verdict clears it.
+    /// Evaluate `rule(first_seen)`. The first unsettled observation (or the
+    /// first after a gap) starts the clock at `now`; a settled verdict clears it.
     pub fn eval(
         &mut self,
         uid: &str,
         now: Timestamp,
         rule: impl Fn(Option<Timestamp>) -> Verdict,
     ) -> Verdict {
-        let seen = self.first_seen.get(uid).copied();
-        let v = rule(seen);
+        let first = self
+            .seen
+            .get(uid)
+            .filter(|(_, last)| now.as_second() - last.as_second() <= SIGHTING_GAP_S)
+            .map(|(first, _)| *first);
+        let v = rule(first);
         if v.badness() >= 5 {
-            self.first_seen.remove(uid);
+            self.seen.remove(uid);
             return v;
         }
-        if seen.is_some() {
-            return v;
+        match first {
+            Some(f) => {
+                self.seen.insert(uid.to_string(), (f, now));
+                v
+            }
+            None => {
+                self.seen.insert(uid.to_string(), (now, now));
+                // Anything not looked at for a day is stale; bound the map.
+                if self.seen.len() > 10_000 {
+                    let cutoff = now.as_second() - 24 * 3600;
+                    self.seen.retain(|_, (_, last)| last.as_second() > cutoff);
+                }
+                rule(Some(now))
+            }
         }
-        self.first_seen.insert(uid.to_string(), now);
-        // Deleted objects never settle; bound the map.
-        if self.first_seen.len() > 10_000 {
-            let cutoff = now.as_second() - 24 * 3600;
-            self.first_seen.retain(|_, t| t.as_second() > cutoff);
-        }
-        rule(Some(now))
+    }
+
+    /// Context switch: uids belong to the old cluster.
+    pub fn clear(&mut self) {
+        self.seen.clear();
     }
 }
 
 static UNSETTLED: OnceLock<Mutex<UnsettledTracker>> = OnceLock::new();
+
+fn unsettled() -> std::sync::MutexGuard<'static, UnsettledTracker> {
+    UNSETTLED
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+}
 
 /// Process-wide tracker so lists, watches and Pulse agree on one clock.
 /// Objects without a uid are evaluated untracked (creation fallback).
@@ -71,11 +101,12 @@ pub fn tracked(
     rule: impl Fn(Option<Timestamp>) -> Verdict,
 ) -> Verdict {
     let Some(uid) = uid else { return rule(None) };
-    let mut t = UNSETTLED
-        .get_or_init(Default::default)
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-    t.eval(uid, now, rule)
+    unsettled().eval(uid, now, rule)
+}
+
+/// Drop every clock (context switch).
+pub fn reset_unsettled() {
+    unsettled().clear();
 }
 
 /// The tracked entry points desktop uses for kinds without transition times.
