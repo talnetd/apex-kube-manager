@@ -1826,7 +1826,7 @@ pub async fn list_cronjobs(client: &Client, namespace: Option<&str>) -> Result<V
         .iter()
         .map(|cj| {
             let metadata = &cj.metadata;
-            let spec = Some(&cj.spec);
+            let spec = &cj.spec;
             let status = cj.status.as_ref();
 
             let last_schedule = status
@@ -1836,8 +1836,8 @@ pub async fn list_cronjobs(client: &Client, namespace: Option<&str>) -> Result<V
             CronJobInfo {
                 name: metadata.name.clone().unwrap_or_default(),
                 namespace: metadata.namespace.clone().unwrap_or_default(),
-                schedule: spec.map(|s| s.schedule.clone()).unwrap_or_default(),
-                suspend: spec.and_then(|s| s.suspend).unwrap_or(false),
+                schedule: spec.schedule.clone(),
+                suspend: spec.suspend.unwrap_or(false),
                 active: status.and_then(|s| s.active.as_ref()).map(|a| a.len() as i32).unwrap_or(0),
                 last_schedule,
                 age: get_age(metadata.creation_timestamp.as_ref()),
@@ -2368,12 +2368,10 @@ pub async fn list_hpas(client: &Client, namespace: Option<&str>) -> Result<Vec<H
         .iter()
         .map(|hpa| {
             let metadata = &hpa.metadata;
-            let spec = Some(&hpa.spec);
+            let spec = &hpa.spec;
             let status = hpa.status.as_ref();
 
-            let reference = spec
-                .map(|s| format!("{}/{}", s.scale_target_ref.kind, s.scale_target_ref.name))
-                .unwrap_or_default();
+            let reference = format!("{}/{}", spec.scale_target_ref.kind, spec.scale_target_ref.name);
 
             let current_cpu = status
                 .and_then(|s| s.current_cpu_utilization_percentage)
@@ -2381,7 +2379,7 @@ pub async fn list_hpas(client: &Client, namespace: Option<&str>) -> Result<Vec<H
                 .unwrap_or_else(|| "<unknown>".to_string());
 
             let target_cpu = spec
-                .and_then(|s| s.target_cpu_utilization_percentage)
+                .target_cpu_utilization_percentage
                 .map(|p| format!("{}%", p))
                 .unwrap_or_else(|| "-".to_string());
 
@@ -2392,8 +2390,8 @@ pub async fn list_hpas(client: &Client, namespace: Option<&str>) -> Result<Vec<H
                 namespace: metadata.namespace.clone().unwrap_or_default(),
                 reference,
                 targets,
-                min_pods: spec.and_then(|s| s.min_replicas).unwrap_or(1),
-                max_pods: spec.map(|s| s.max_replicas).unwrap_or(0),
+                min_pods: spec.min_replicas.unwrap_or(1),
+                max_pods: spec.max_replicas,
                 replicas: status.map(|s| s.current_replicas).unwrap_or(0),
                 age: get_age(metadata.creation_timestamp.as_ref()),
             }
