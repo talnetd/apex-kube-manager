@@ -5,8 +5,9 @@
   import { onMount } from 'svelte';
   import ResourceListView from '../ResourceListView.svelte';
   import CustomSelect from '../../ui/CustomSelect.svelte';
+  import Button from '../../ui/Button.svelte';
   import { crds, customResources, selectedCrdName, type CustomResourceInfo } from '../../../stores/resources';
-  import { currentContext } from '../../../stores/kubernetes';
+  import { currentContext, refreshTrigger } from '../../../stores/kubernetes';
   import { crdTarget, encodeCrType } from '../../../utils/resources';
   import type { Column } from '../../ui/data-table';
 
@@ -20,6 +21,27 @@
   $effect(() => {
     if ($currentContext && $crdState.status === 'idle') crds.load();
   });
+  // Refresh (r / header button) retries a failed definitions load too.
+  let lastTrigger = $refreshTrigger;
+  $effect(() => {
+    const t = $refreshTrigger;
+    if (t !== lastTrigger) {
+      lastTrigger = t;
+      if ($crdState.status === 'error' || $crdState.status === 'forbidden') crds.load();
+    }
+  });
+  const crdsFailed = $derived($crdState.status === 'error' || $crdState.status === 'forbidden');
+  const pickerHint = $derived(
+    $crdState.status === 'forbidden'
+      ? 'No access to CustomResourceDefinitions'
+      : $crdState.status === 'error'
+        ? "Couldn't load definitions"
+        : $crdState.status === 'ready'
+          ? $crdItems.length
+            ? 'Pick a resource type…'
+            : 'No CRDs in this cluster'
+          : 'Loading definitions…'
+  );
 
   const crd = $derived($crdItems.find((c) => c.name === $selectedCrdName) ?? null);
   const target = $derived(crd ? crdTarget(crd) : null);
@@ -55,15 +77,18 @@
 </script>
 
 {#snippet picker()}
-  <div class="w-[280px]">
+  <div class="w-[280px]" title={crdsFailed ? $crdState.error : undefined}>
     <CustomSelect
       value={$selectedCrdName ?? ''}
       {options}
-      placeholder={$crdState.status === 'ready' ? 'Pick a resource type…' : 'Loading definitions…'}
+      placeholder={pickerHint}
       disabled={!options.length}
       onchange={(v) => pick(v || null)}
     />
   </div>
+  {#if crdsFailed}
+    <Button size="sm" onclick={() => crds.load()}>Retry</Button>
+  {/if}
 {/snippet}
 
 {#key targetKey ?? 'none'}
@@ -78,8 +103,9 @@
     resourceType={target ? encodeCrType(target) : 'crd'}
     defaultSort={{ id: 'name', dir: 'asc' }}
     {extra}
+    namespaced={target ? target.namespaced : true}
     enabled={!!target}
     actions={picker}
-    emptyHint={target ? undefined : 'Pick a resource type above to list its objects.'}
+    emptyHint={target ? undefined : crdsFailed ? `${pickerHint}. ${$crdState.error ?? ''}` : 'Pick a resource type above to list its objects.'}
   />
 {/key}

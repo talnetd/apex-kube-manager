@@ -18,25 +18,40 @@ export interface ListState {
 export interface ListStore<T> {
   items: Readable<T[]>;
   state: Readable<ListState>;
-  /** Namespaced lists take the namespace filter; `extra` adds command args. */
-  load: (namespace?: string | null, extra?: Record<string, unknown>) => Promise<void>;
+  /**
+   * Namespaced lists take the namespace filter; `extra` adds command args.
+   * `poll: true` is a background tick: skipped while a load is in flight,
+   * so a slow cluster isn't hit again before it answers and the slow
+   * answer isn't thrown away. Other loads supersede an in-flight one.
+   */
+  load: (namespace?: string | null, extra?: Record<string, unknown>, opts?: LoadOptions) => Promise<void>;
   reset: () => void;
   namespaced: boolean;
+}
+
+export interface LoadOptions {
+  poll?: boolean;
+  /** Override the store's scope, e.g. a cluster-scoped CRD in the custom resource browser. */
+  namespaced?: boolean;
 }
 
 export function listStore<T>(command: string, namespaced: boolean): ListStore<T> {
   const items = writable<T[]>([]);
   const state = writable<ListState>({ status: 'idle' });
   let gen = 0;
+  let inFlight = false;
 
-  async function load(namespace?: string | null, extra: Record<string, unknown> = {}) {
+  async function load(namespace?: string | null, extra: Record<string, unknown> = {}, opts: LoadOptions = {}) {
     const ctx = get(currentContext);
     if (!ctx) return;
+    if (opts.poll && inFlight) return;
+    const scoped = opts.namespaced ?? namespaced;
     const g = ++gen;
+    inFlight = true;
     // Keep showing rows during a refresh; only the first load shows the skeleton.
     state.update((s) => (s.status === 'ready' ? s : { status: 'loading' }));
     try {
-      const args = namespaced ? { namespace: namespace ?? null, ...extra } : extra;
+      const args = scoped ? { namespace: namespace ?? null, ...extra } : extra;
       const rows = await invoke<T[]>(command, args);
       if (g !== gen || get(currentContext) !== ctx) return;
       items.set(rows);
@@ -44,11 +59,14 @@ export function listStore<T>(command: string, namespaced: boolean): ListStore<T>
     } catch (e) {
       if (g !== gen || get(currentContext) !== ctx) return;
       state.set({ status: isForbiddenError(e) ? 'forbidden' : 'error', error: String(e) });
+    } finally {
+      if (g === gen) inFlight = false;
     }
   }
 
   function reset() {
     gen++;
+    inFlight = false;
     items.set([]);
     state.set({ status: 'idle' });
   }

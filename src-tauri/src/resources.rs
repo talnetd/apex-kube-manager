@@ -713,6 +713,11 @@ pub struct CustomTarget {
 }
 
 impl CustomTarget {
+    /// `group/version`, or just `version` for the core group.
+    pub fn api_version(&self) -> String {
+        self.api_resource().api_version
+    }
+
     fn api_resource(&self) -> ApiResource {
         ApiResource {
             group: self.group.clone(),
@@ -748,9 +753,11 @@ pub async fn list_custom_resources(
     target: &CustomTarget,
     namespace: Option<&str>,
 ) -> Result<Vec<CustomResourceInfo>> {
+    // Rows only need name/namespace/age: fetch metadata, not whole objects
+    // (custom resources can be large, and there can be thousands).
     let list = target
         .api(client, namespace)
-        .list(&ListParams::default())
+        .list_metadata(&ListParams::default())
         .await?;
     Ok(list
         .items
@@ -1240,6 +1247,7 @@ pub async fn resource_yaml(
 pub async fn object_events(
     client: &Client,
     api_kind: &str,
+    api_version: Option<&str>,
     namespace: Option<&str>,
     name: &str,
 ) -> Result<Vec<GenericEvent>> {
@@ -1247,9 +1255,13 @@ pub async fn object_events(
         Some(ns) => Api::namespaced(client.clone(), ns),
         None => Api::all(client.clone()),
     };
-    let lp = ListParams::default().fields(&format!(
-        "involvedObject.name={name},involvedObject.kind={api_kind}"
-    ));
+    // Custom kinds can share a Kind name across groups (two `Certificate`
+    // CRDs), so pin the apiVersion when we know it.
+    let mut selector = format!("involvedObject.name={name},involvedObject.kind={api_kind}");
+    if let Some(v) = api_version {
+        selector.push_str(&format!(",involvedObject.apiVersion={v}"));
+    }
+    let lp = ListParams::default().fields(&selector);
     let list = api.list(&lp).await?;
     Ok(list
         .items
@@ -1280,6 +1292,7 @@ pub async fn resource_events(
     object_events(
         client,
         api_kind,
+        None,
         if namespaced { namespace } else { None },
         name,
     )

@@ -3,7 +3,7 @@
   import StatusPill from '../../ui/StatusPill.svelte';
   import { resourceQuotas, type ResourceQuotaInfo } from '../../../stores/resources';
   import { HEALTH_SORT_ID, type Column } from '../../ui/data-table';
-  import { quotaHealth, quotaUsage, type QuotaRow } from '../../../utils/resources';
+  import { formatQuotaPct, quotaHealth, quotaUsage, type QuotaRow } from '../../../utils/resources';
   import type { HealthResult } from '../../../utils/health';
 
   // Parsing quantities per render is cheap, but cache per row object anyway:
@@ -22,7 +22,7 @@
   const summary = (q: ResourceQuotaInfo) =>
     facts(q)
       .rows.slice(0, 3)
-      .map((r) => `${r.resource} ${r.pct === null ? `${r.used}/${r.hard}` : `${Math.round(r.pct)}%`}`)
+      .map((r) => `${r.resource} ${r.pct === null ? `${r.used || '?'}/${r.hard}` : formatQuotaPct(r.pct)}`)
       .join(' · ');
 
   const columns: Column<ResourceQuotaInfo>[] = [

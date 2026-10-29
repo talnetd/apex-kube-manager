@@ -4,6 +4,7 @@ import {
   parseQuantity,
   quotaUsage,
   quotaHealth,
+  formatQuotaPct,
   pdbHealth,
   encodeCrType,
   parseCrType,
@@ -42,10 +43,18 @@ describe('quotaUsage / quotaHealth', () => {
     ]);
     expect(quotaHealth(rows)).toMatchObject({ health: 'warning', label: 'pods 95%' });
   });
-  it('treats a missing used value as 0 and unparseable ones as unknown', () => {
-    const rows = quotaUsage({ secrets: '10', weird: 'lots' }, {});
-    expect(rows[0]).toMatchObject({ resource: 'secrets', used: '0', pct: 0 });
-    expect(rows[1].pct).toBeNull();
+  it('never shows a confident 0% for unreported or unparseable usage', () => {
+    const rows = quotaUsage({ secrets: '10', weird: 'lots' }, { weird: '3' });
+    expect(rows.every((r) => r.pct === null)).toBe(true);
+    expect(rows.find((r) => r.resource === 'secrets')?.used).toBe('');
+    expect(quotaHealth(rows)).toMatchObject({ health: 'neutral', label: 'Usage not reported' });
+    expect(formatQuotaPct(null)).toBe('?');
+  });
+  it('counts any use against a 0 limit as over (failed)', () => {
+    const rows = quotaUsage({ 'services.loadbalancers': '0', pods: '10' }, { 'services.loadbalancers': '1', pods: '1' });
+    expect(rows[0]).toMatchObject({ resource: 'services.loadbalancers', pct: Infinity });
+    expect(quotaHealth(rows)).toMatchObject({ health: 'failed', label: 'services.loadbalancers over' });
+    expect(quotaUsage({ pods: '0' }, { pods: '0' })[0].pct).toBe(0);
   });
   it('is failed at 100% and neutral without limits', () => {
     expect(quotaHealth(quotaUsage({ pods: '2' }, { pods: '2' })).health).toBe('failed');
@@ -102,6 +111,34 @@ describe('listStore', () => {
     expect(invoke).toHaveBeenNthCalledWith(2, 'get_cluster_roles', {});
     expect(get(ns.items)).toEqual([{ name: 'r' }]);
     expect(get(cl.state).status).toBe('forbidden');
+  });
+
+  it('skips poll ticks while a load is in flight, so a slow answer still lands', async () => {
+    const { currentContext } = await import('../src/lib/stores/kubernetes');
+    const { listStore } = await import('../src/lib/stores/resources');
+    currentContext.set('ctx-a');
+    const s = listStore<{ name: string }>('get_roles', true);
+    let resolveSlow!: (v: unknown) => void;
+    invoke.mockReturnValueOnce(new Promise((r) => (resolveSlow = r)));
+    const slow = s.load(null);
+    await s.load(null, {}, { poll: true }); // tick during the slow request: skipped
+    expect(invoke).toHaveBeenCalledTimes(1);
+    resolveSlow([{ name: 'slow' }]);
+    await slow;
+    expect(get(s.items)).toEqual([{ name: 'slow' }]);
+    invoke.mockResolvedValueOnce([{ name: 'next' }]);
+    await s.load(null, {}, { poll: true }); // idle again: the tick runs
+    expect(get(s.items)).toEqual([{ name: 'next' }]);
+  });
+
+  it('honours a scope override (cluster-scoped custom resources)', async () => {
+    const { currentContext } = await import('../src/lib/stores/kubernetes');
+    const { listStore } = await import('../src/lib/stores/resources');
+    currentContext.set('ctx-a');
+    const s = listStore<{ name: string }>('get_custom_resources', true);
+    invoke.mockResolvedValueOnce([]);
+    await s.load('team-a', { target: { kind: 'K' } }, { namespaced: false });
+    expect(invoke).toHaveBeenCalledWith('get_custom_resources', { target: { kind: 'K' } });
   });
 
   it('drops a stale answer after a newer load or a context switch, and clears on switch', async () => {

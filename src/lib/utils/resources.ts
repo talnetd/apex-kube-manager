@@ -26,20 +26,25 @@ export function parseQuantity(q: string | null | undefined): number | null {
 
 export interface QuotaRow {
   resource: string;
+  /** Empty when the quota controller hasn't reported usage yet. */
   used: string;
   hard: string;
-  /** used / hard * 100, or null when either side doesn't parse or hard is 0. */
+  /**
+   * used / hard * 100. Null when usage isn't reported or doesn't parse:
+   * never a confident 0%. A hard limit of 0 with any use is Infinity (over).
+   */
   pct: number | null;
 }
 
-/** One row per hard limit, fullest first (unparseable ones last). */
+/** One row per hard limit, fullest first (unknown ones last). */
 export function quotaUsage(hard: Record<string, string>, used: Record<string, string>): QuotaRow[] {
   const rows = Object.entries(hard).map(([resource, h]) => {
-    const u = used[resource] ?? '0';
+    const u = used[resource];
     const hn = parseQuantity(h);
-    const un = parseQuantity(u);
-    const pct = hn && un !== null ? (un / hn) * 100 : hn === 0 && un === 0 ? 0 : null;
-    return { resource, used: u, hard: h, pct };
+    const un = u === undefined ? null : parseQuantity(u);
+    let pct: number | null = null;
+    if (hn !== null && un !== null) pct = hn > 0 ? (un / hn) * 100 : un > 0 ? Infinity : 0;
+    return { resource, used: u ?? '', hard: h, pct };
   });
   return rows.sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1) || a.resource.localeCompare(b.resource));
 }
@@ -47,11 +52,18 @@ export function quotaUsage(hard: Record<string, string>, used: Record<string, st
 /** Quota health from its fullest resource: 100% is failed (new pods are refused), 90% a warning. */
 export function quotaHealth(rows: readonly QuotaRow[]): HealthResult {
   const worst = rows.find((r) => r.pct !== null);
-  if (!worst || worst.pct === null) return { health: 'neutral', label: rows.length ? 'No usage' : 'No limits', rank: HEALTH_RANK.neutral };
-  const label = `${worst.resource} ${Math.round(worst.pct)}%`;
+  if (!worst || worst.pct === null) return { health: 'neutral', label: rows.length ? 'Usage not reported' : 'No limits', rank: HEALTH_RANK.neutral };
+  const label = `${worst.resource} ${formatQuotaPct(worst.pct)}`;
   if (worst.pct >= 100) return { health: 'failed', label, rank: HEALTH_RANK.failed };
   if (worst.pct >= 90) return { health: 'warning', label, rank: HEALTH_RANK.warning };
   return { health: 'healthy', label, rank: HEALTH_RANK.healthy };
+}
+
+/** "45%", "over" (use against a 0 limit), or "?" when unknown. */
+export function formatQuotaPct(pct: number | null): string {
+  if (pct === null) return '?';
+  if (!Number.isFinite(pct)) return 'over';
+  return `${Math.round(pct)}%`;
 }
 
 export interface PdbLike {

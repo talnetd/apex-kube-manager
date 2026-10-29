@@ -495,9 +495,14 @@ pub async fn open_resource_detail(
         tab_param
     );
 
-    // Capitalize resource type for title
+    // Title: custom resources carry `cr|group|version|plural|Kind|scope`;
+    // show their Kind, not the raw id.
+    let type_label = resource_type
+        .strip_prefix("cr|")
+        .and_then(|rest| rest.split('|').nth(3))
+        .unwrap_or(&resource_type);
     let capitalized_type = {
-        let mut chars = resource_type.chars();
+        let mut chars = type_label.chars();
         match chars.next() {
             None => String::new(),
             Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
@@ -1317,5 +1322,6 @@ pub async fn get_custom_resource_events(
 ) -> Result<Vec<GenericEvent>> {
     let client = kubernetes::create_client_for_context(&context_name).await?;
     let ns = if target.namespaced { namespace } else { None };
-    resources::object_events(&client, &target.kind, ns.as_deref(), &name).await
+    let api_version = target.api_version();
+    resources::object_events(&client, &target.kind, Some(&api_version), ns.as_deref(), &name).await
 }

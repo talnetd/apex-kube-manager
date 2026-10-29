@@ -31,6 +31,7 @@
     emptyHint,
     rowActions,
     onOpen,
+    namespaced,
     enabled = true,
   }: {
     title: string;
@@ -53,6 +54,8 @@
     rowActions?: Snippet<[T]>;
     /** Override what Enter/click does (default: open the detail window). */
     onOpen?: (r: T) => void;
+    /** Override the store's scope (cluster-scoped custom resources). */
+    namespaced?: boolean;
     /** False skips loading (the CRD browser before a CRD is picked). */
     enabled?: boolean;
   } = $props();
@@ -61,22 +64,26 @@
   const loadState = $derived(store.state);
   let filter = $state('');
 
-  const reload = () => {
-    if (enabled) store.load(store.namespaced ? $selectedNamespace : null, extra);
+  const isNamespaced = $derived(namespaced ?? store.namespaced);
+
+  const reload = (poll = false) => {
+    if (!enabled) return;
+    store.load(isNamespaced ? $selectedNamespace : null, extra, { poll, namespaced: isNamespaced });
   };
 
-  // Mount, namespace, context, refresh or a new `extra` all reload.
+  // Mount, context, refresh, a new `extra`, and the namespace (only for
+  // namespaced lists) reload.
   $effect(() => {
     void $currentContext;
-    void $selectedNamespace;
     void $refreshTrigger;
     void extra;
     void enabled;
-    untrack(reload);
+    if (isNamespaced) void $selectedNamespace;
+    untrack(() => reload());
   });
 
   onMount(() => {
-    const id = setInterval(reload, 10000);
+    const id = setInterval(() => reload(true), 10000);
     return () => clearInterval(id);
   });
 
@@ -112,7 +119,7 @@
 </script>
 
 {#snippet emptyActions()}
-  {#if store.namespaced && $selectedNamespace}
+  {#if isNamespaced && $selectedNamespace}
     <Button onclick={() => selectedNamespace.set(null)}>All namespaces</Button>
   {/if}
 {/snippet}
@@ -143,11 +150,11 @@
     onOpen={onOpen ?? openDetail}
     {rowActions}
     onClearFilter={() => (filter = '')}
-    onRetry={reload}
-    onRefresh={reload}
+    onRetry={() => reload()}
+    onRefresh={() => reload()}
     copyText={(r) => (r as { name: string }).name}
     emptyState={{
-      title: store.namespaced && $selectedNamespace ? `No ${itemLabel} in ${$selectedNamespace}` : `No ${itemLabel}`,
+      title: isNamespaced && $selectedNamespace ? `No ${itemLabel} in ${$selectedNamespace}` : `No ${itemLabel}`,
       hint: emptyHint,
     }}
     {emptyActions}
