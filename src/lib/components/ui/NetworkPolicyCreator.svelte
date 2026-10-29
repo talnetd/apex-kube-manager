@@ -369,13 +369,13 @@
 </script>
 
 {#if show}
-  <div role="presentation" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onclick={(e) => e.target === e.currentTarget && handleClose()}>
-    <div role="dialog" aria-modal="true" tabindex="-1"
+  <div role="presentation" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onmousedown={(e) => e.target === e.currentTarget && handleClose()}>
+    <div role="dialog" aria-modal="true" aria-labelledby="np-title" tabindex="-1"
       class="bg-bg-secondary rounded-lg border border-border-subtle w-[800px] max-w-[calc(100vw-16px)] max-h-[85vh] flex flex-col"
     >
       <!-- Header -->
       <div class="flex items-center justify-between p-4 border-b border-border-subtle">
-        <h2 class="text-[18px]/7 font-semibold text-text-primary">{isEditMode ? 'Edit' : 'Create'} Network Policy</h2>
+        <h2 id="np-title" class="text-[18px]/7 font-semibold text-text-primary">{isEditMode ? 'Edit' : 'Create'} Network Policy</h2>
         <button aria-label="Close"
           onclick={handleClose}
           class="p-1 hover:bg-bg-tertiary rounded-sm transition-colors"
@@ -415,14 +415,14 @@
           <div class="space-y-4">
             <!-- Name -->
             <div>
-              <span class="block text-base font-medium text-text-secondary mb-1">Name *</span>
+              <label for="np-name" class="block text-base font-medium text-text-secondary mb-1">Name *</label>
               {#if isEditMode}
                 <div class="text-base text-text-primary bg-bg-tertiary border border-border-subtle rounded-sm px-3 py-2 opacity-60">
                   {name}
                 </div>
                 <p class="text-xs text-text-muted mt-1">Name cannot be changed when editing</p>
               {:else}
-                <input aria-label="Name"
+                <input id="np-name"
                   type="text"
                   bind:value={name}
                   placeholder="my-network-policy"
@@ -441,6 +441,7 @@
                 <p class="text-xs text-text-muted mt-1">Namespace cannot be changed when editing</p>
               {:else}
                 <CustomSelect
+                  ariaLabel="Namespace"
                   value={createNamespace}
                   options={namespaceOptions}
                   placeholder="Select namespace..."
@@ -505,7 +506,7 @@
                         placeholder="value"
                         class="flex-1 bg-bg-tertiary border border-border-subtle rounded-sm px-3 py-1.5 text-text-primary text-base focus:outline-hidden focus:border-accent-primary"
                       />
-                      <button aria-label="Remove"
+                      <button aria-label={`Remove selector label ${i + 1}`}
                         onclick={() => removePodSelectorLabel(i)}
                         class="p-1 text-danger hover:bg-accent-error/10 rounded-sm"
                       >
@@ -572,6 +573,7 @@
                         <div class="bg-bg-secondary rounded-sm p-3">
                           <div class="flex items-center justify-between mb-2">
                             <CustomSelect
+                              ariaLabel="Peer type"
                               value={peer.peerType}
                               options={[
                                 { value: 'pod', label: 'Pod Selector' },
@@ -580,7 +582,7 @@
                               ]}
                               onchange={(v) => peer.peerType = v as 'pod' | 'namespace' | 'ipBlock'}
                             />
-                            <button aria-label="Remove"
+                            <button aria-label={`Remove peer ${peerIndex + 1}`}
                               onclick={() => removePeer(ingressRules, ruleIndex, peerIndex, true)}
                               class="p-1 text-danger hover:bg-accent-error/10 rounded-sm"
                             >
@@ -627,7 +629,7 @@
                                         placeholder="value"
                                         class="flex-1 bg-bg-tertiary border border-border-subtle rounded-sm px-2 py-1 text-text-primary text-xs"
                                       />
-                                      <button aria-label="Remove"
+                                      <button aria-label={`Remove label ${li + 1}`}
                                         onclick={() => removePeerLabel(peer, peer.peerType === 'pod' ? 'pod' : 'namespace', li)}
                                         class="text-danger"
                                       >
@@ -681,7 +683,7 @@
                             placeholder="port"
                             class="w-16 bg-bg-tertiary border border-border-subtle rounded-sm px-2 py-0.5 text-text-primary text-xs"
                           />
-                          <button aria-label="Remove"
+                          <button aria-label={`Remove port ${portIndex + 1}`}
                             onclick={() => removePort(ingressRules, ruleIndex, portIndex, true)}
                             class="text-danger"
                           >
@@ -750,6 +752,7 @@
                         <div class="bg-bg-secondary rounded-sm p-3">
                           <div class="flex items-center justify-between mb-2">
                             <CustomSelect
+                              ariaLabel="Peer type"
                               value={peer.peerType}
                               options={[
                                 { value: 'pod', label: 'Pod Selector' },
@@ -758,7 +761,7 @@
                               ]}
                               onchange={(v) => peer.peerType = v as 'pod' | 'namespace' | 'ipBlock'}
                             />
-                            <button aria-label="Remove"
+                            <button aria-label={`Remove peer ${peerIndex + 1}`}
                               onclick={() => removePeer(egressRules, ruleIndex, peerIndex, false)}
                               class="p-1 text-danger hover:bg-accent-error/10 rounded-sm"
                             >
@@ -805,7 +808,7 @@
                                         placeholder="value"
                                         class="flex-1 bg-bg-tertiary border border-border-subtle rounded-sm px-2 py-1 text-text-primary text-xs"
                                       />
-                                      <button aria-label="Remove"
+                                      <button aria-label={`Remove label ${li + 1}`}
                                         onclick={() => removePeerLabel(peer, peer.peerType === 'pod' ? 'pod' : 'namespace', li)}
                                         class="text-danger"
                                       >
@@ -859,7 +862,7 @@
                             placeholder="port"
                             class="w-16 bg-bg-tertiary border border-border-subtle rounded-sm px-2 py-0.5 text-text-primary text-xs"
                           />
-                          <button aria-label="Remove"
+                          <button aria-label={`Remove port ${portIndex + 1}`}
                             onclick={() => removePort(egressRules, ruleIndex, portIndex, false)}
                             class="text-danger"
                           >
