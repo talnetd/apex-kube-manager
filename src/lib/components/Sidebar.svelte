@@ -54,7 +54,9 @@
       title: 'Network',
       items: [
         { id: 'services', label: 'Services', icon: 'svc' },
+        { id: 'endpointslices', label: 'Endpoints', icon: 'ep' },
         { id: 'ingresses', label: 'Ingresses', icon: 'ing' },
+        { id: 'ingressclasses', label: 'Ingress Classes', icon: 'ingc' },
         { id: 'network_policies', label: 'Network Policies', icon: 'netpol' },
       ],
     },
@@ -72,16 +74,45 @@
       items: [
         { id: 'pvs', label: 'Persistent Volumes', icon: 'pv' },
         { id: 'pvcs', label: 'PV Claims', icon: 'pvc' },
+        { id: 'storageclasses', label: 'Storage Classes', icon: 'sc' },
       ],
     },
-    { id: 'policy', title: 'Scaling & Policy', items: [{ id: 'hpas', label: 'HPAs', icon: 'hpa' }] },
-    { id: 'access', title: 'Access Control', items: [{ id: 'serviceaccounts', label: 'Service Accounts', icon: 'sa' }] },
+    {
+      id: 'policy',
+      title: 'Scaling & Policy',
+      items: [
+        { id: 'hpas', label: 'HPAs', icon: 'hpa' },
+        { id: 'pdbs', label: 'Pod Disruption Budgets', icon: 'pdb' },
+        { id: 'resourcequotas', label: 'Resource Quotas', icon: 'quota' },
+        { id: 'limitranges', label: 'Limit Ranges', icon: 'lr' },
+        { id: 'priorityclasses', label: 'Priority Classes', icon: 'pc' },
+      ],
+    },
+    {
+      id: 'access',
+      title: 'Access Control',
+      items: [
+        { id: 'serviceaccounts', label: 'Service Accounts', icon: 'sa' },
+        { id: 'roles', label: 'Roles', icon: 'role' },
+        { id: 'rolebindings', label: 'Role Bindings', icon: 'rb' },
+        { id: 'clusterroles', label: 'Cluster Roles', icon: 'role' },
+        { id: 'clusterrolebindings', label: 'Cluster Role Bindings', icon: 'rb' },
+      ],
+    },
     {
       id: 'cl',
       title: 'Cluster',
       items: [
         { id: 'nodes', label: 'Nodes', icon: 'node' },
         { id: 'namespaces', label: 'Namespaces', icon: 'ns' },
+      ],
+    },
+    {
+      id: 'crd',
+      title: 'Custom Resources',
+      items: [
+        { id: 'crds', label: 'Definitions', icon: 'crd' },
+        { id: 'customresources', label: 'Browse', icon: 'crd' },
       ],
     },
   ];
