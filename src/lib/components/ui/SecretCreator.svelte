@@ -97,23 +97,26 @@
   }
 
   // Watch for editData changes and populate form
-  $effect(() => {
-    if (show && editData) {
-      populateFromEditData(editData);
-    } else if (show && !editData) {
-      reset();
-      createNamespace = $selectedNamespace || $namespaces[0] || 'default';
-    }
-  });
 
-  // Unsaved-changes check: the form as it was when the editor opened.
+  // Unsaved-changes check against the form as it was when it was filled.
   const formKey = $derived(JSON.stringify({ name, editNamespace, createNamespace, secretType, entries: dataEntries.map((e) => [e.key, e.value]) }));
   let baseline = $state('');
+  // Fill the form when the editor opens (or is pointed at another object),
+  // then take the baseline from that. Runs on `show`/`editData` only, so a
+  // namespace list reload never resets typed input or re-baselines a
+  // dirty form as clean.
   $effect(() => {
-    if (show) {
-      void editData; void $selectedNamespace; void $namespaces; // same triggers as the populate effect above
-      baseline = untrack(() => formKey);
-    }
+    if (!show) return;
+    const data = editData;
+    untrack(() => {
+      if (data) {
+        populateFromEditData(data);
+      } else {
+        reset();
+        createNamespace = $selectedNamespace || $namespaces[0] || 'default';
+      }
+      baseline = formKey;
+    });
   });
   // One close rule for Escape, Cancel, × and the backdrop: unsaved edits
   // ask first, a clean form just closes.
@@ -125,7 +128,6 @@
     }
     handleClose();
   }
-
 
   function reset() {
     name = '';
@@ -210,6 +212,7 @@
   }
 
   function handleClose() {
+    confirmDiscard = false;
     reset();
     onclose();
   }
@@ -439,7 +442,7 @@
     body="Your edits to this secret haven't been saved."
     confirmLabel="Discard"
     tone="danger"
-    tier={1}
+    tier={2}
     prodEscalation={false}
     onConfirm={() => {
       confirmDiscard = false;
