@@ -1,40 +1,39 @@
 <script lang="ts">
-  import { onMount, onDestroy, untrack } from 'svelte';
-  import { get } from 'svelte/store';
-  import { invoke } from '@tauri-apps/api/core';
-  import SortableHeader from '../ui/SortableHeader.svelte';
-  import { sortData, toggleSort, type SortState } from '../../utils/sort';
-  import { nodes, nodeMetrics, currentContext, refreshTrigger, startNodeWatch, stopNodeWatch, loadNodeMetrics } from '../../stores/kubernetes';
-  import { filterBySearch } from '../../stores/search';
-  import ViewFilter from '../ui/ViewFilter.svelte';
+  // Nodes: watched rows + polled usage (CLAUDE.md, "Node metrics sources").
+  // The in-flight and context guards live in `loadNodeMetrics` (store), and
+  // DataTable anchors the selection by node name (rowKey) after every
+  // re-sort, so the sortable usage columns can change each poll without the
+  // highlight drifting onto another node. Cordon and taints stay in the
+  // node detail window.
+  import { onMount, onDestroy } from 'svelte';
+  import ListView from '../ui/ListView.svelte';
+  import StatusPill from '../ui/StatusPill.svelte';
   import UsageBar from '../ui/UsageBar.svelte';
+  import { BP, HEALTH_SORT_ID, type Column } from '../ui/data-table';
+  import { verdictHealth } from '../../utils/status-words';
   import {
-    selectedRowIndex,
-    keyboardNavActive,
-    totalRows,
-    resetNavigation,
-  } from '../../stores/keyboard';
-
-  let sort = $state<SortState>({ field: 'name', direction: 'asc' });
-  let filterQuery = $state('');
-  let tableBody: HTMLTableSectionElement;
-  let filterRef: ViewFilter;
-
-  async function openDetail(node: { name: string }) {
-    try {
-      await invoke('open_resource_detail', {
-        resourceType: 'node',
-        name: node.name,
-        namespace: '',
-        context: $currentContext
-      });
-    } catch (e) {
-      console.error('Failed to open detail:', e);
-    }
-  }
+    nodes,
+    nodeMetrics,
+    currentContext,
+    refreshTrigger,
+    startNodeWatch,
+    stopNodeWatch,
+    loadNodeMetrics,
+    resourceState,
+    type NodeInfo,
+  } from '../../stores/kubernetes';
 
   const METRICS_INTERVAL = 10000;
-  let metricsTimer: ReturnType<typeof setInterval> | null = null;
+  const loadState = resourceState('nodes');
+
+  type NodeRow = NodeInfo & {
+    cpu_pct: number | null;
+    memory_pct: number | null;
+    disk_pct: number | null;
+    cpu_detail: string;
+    memory_detail: string;
+    disk_detail: string;
+  };
 
   function percent(used: number | null | undefined, total: number | null | undefined): number | null {
     if (used == null || !total) return null;
@@ -52,9 +51,9 @@
     return `${(bytes / 1024 ** 2).toFixed(0)} Mi`;
   }
 
-  // Usage lives in a separate store (polled), so merge it onto the watched
-  // node rows — that also makes the percentages sortable via `sortData`.
-  const rows = $derived(() => {
+  // Usage lives in a separate (polled) store; merge it onto the watched rows
+  // so the percentages are sortable columns.
+  const rows = $derived.by<NodeRow[]>(() => {
     const metrics = $nodeMetrics;
     return $nodes.map((node) => {
       const m = metrics[node.name];
@@ -70,233 +69,93 @@
     });
   });
 
-  const sortedData = $derived(() => {
-    const filtered = filterBySearch(rows(), filterQuery, ['name', 'status', 'roles']);
-    return sortData(filtered, sort.field, sort.direction);
-  });
+  // Rows are rebuilt each metrics poll, so cache by the watched NodeInfo
+  // object (stable until the node itself changes), not by the merged row.
+  const nodeHealth = verdictHealth<NodeInfo>();
+  const byName = $derived(new Map($nodes.map((n) => [n.name, n])));
+  const health = (r: NodeRow) => nodeHealth(byName.get(r.name) ?? r);
 
-  function handleSort(field: string) {
-    sort = toggleSort(sort, field);
-  }
+  const taintText = (n: NodeRow) => n.taints.map((t) => `${t.key}${t.value ? `=${t.value}` : ''}:${t.effect}`).join(', ');
 
-  // Get selected node based on current index
-  const selectedItem = $derived(() => {
-    const items = sortedData();
-    const idx = $selectedRowIndex;
-    if (idx >= 0 && idx < items.length) {
-      return items[idx];
-    }
-    return null;
-  });
+  const columns: Column<NodeRow>[] = [
+    { id: 'name', label: 'Name', sortKey: 'name', primary: true },
+    {
+      id: 'status',
+      label: 'Status',
+      width: '15%',
+      sortKey: (n) => health(n).rank,
+      cell: statusCell,
+      title: (n) => `${n.status} · ${n.verdict.reason} (${n.verdict.ruleId})`,
+    },
+    { id: 'roles', label: 'Roles', sortKey: (n) => n.roles.join(','), width: '10%', hideBelow: BP.wide },
+    { id: 'cpu_pct', label: 'CPU', sortKey: 'cpu_pct', width: '108px', cell: cpuCell },
+    { id: 'memory_pct', label: 'Memory', sortKey: 'memory_pct', width: '108px', cell: memoryCell },
+    { id: 'disk_pct', label: 'Disk', sortKey: 'disk_pct', width: '108px', hideBelow: BP.wide, cell: diskCell },
+    { id: 'version', label: 'Version', sortKey: 'version', mono: true, width: '10%', hideBelow: BP.lg },
+    { id: 'internal_ip', label: 'Internal IP', sortKey: 'internal_ip', mono: true, width: '112px', hideBelow: BP.lg },
+    { id: 'os', label: 'OS / Runtime', sortKey: 'os_image', width: '14%', hideBelow: BP.lg, cell: osCell, title: (n) => `${n.os_image} · ${n.container_runtime}` },
+    { id: 'taints', label: 'Taints', sortKey: (n) => n.taints.length, numeric: true, width: '64px', hideBelow: BP.lg, title: (n) => taintText(n) || undefined, cell: taintsCell },
+    { id: 'age', label: 'Age', sortKey: 'age', numeric: true, width: '64px' },
+  ];
 
-  // Update total rows when filtered data changes
-  $effect(() => {
-    totalRows.set(sortedData().length);
-  });
+  // Metrics need the watched node names, so wait for the watch's first list.
+  const refresh = () => startNodeWatch().then(() => loadNodeMetrics());
 
-  // The usage columns are sortable and their values change on every poll, so
-  // rows move under a positional selection. Track the selected node by name and
-  // follow it, instead of letting the highlight land on whatever row inherits
-  // the index — otherwise Enter opens a node the user never picked.
-  let anchoredName: string | null = null;
-
-  $effect(() => {
-    const idx = $selectedRowIndex;
-    untrack(() => {
-      const items = sortedData();
-      anchoredName = idx >= 0 && idx < items.length ? items[idx].name : null;
-    });
-  });
-
-  $effect(() => {
-    const items = sortedData();
-    untrack(() => {
-      if (anchoredName === null) return;
-      const idx = items.findIndex((item) => item.name === anchoredName);
-      if (idx !== get(selectedRowIndex)) {
-        selectedRowIndex.set(idx);
-      }
-    });
-  });
-
-  // Scroll selected row into view
-  $effect(() => {
-    if ($keyboardNavActive && $selectedRowIndex >= 0 && tableBody) {
-      const row = tableBody.children[$selectedRowIndex] as HTMLElement;
-      if (row) {
-        row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      }
-    }
-  });
-
-  // Keyboard shortcuts for actions
-  function handleKeydown(e: KeyboardEvent) {
-    const active = document.activeElement;
-    const isInput = active?.tagName.toLowerCase() === 'input';
-
-    // Cmd+F to focus filter (works even in input)
-    if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
-      e.preventDefault();
-      filterRef?.focus();
-      return;
-    }
-
-    // Skip other shortcuts if in input
-    if (isInput) return;
-
-    const item = selectedItem();
-    if (!item) return;
-
-    // Enter to open detail
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      openDetail(item);
-      return;
-    }
-
-    // 'y' to copy name
-    if (e.key === 'y') {
-      e.preventDefault();
-      navigator.clipboard.writeText(item.name);
-      return;
-    }
-
-    // 'r' to refresh
-    if (e.key === 'r') {
-      e.preventDefault();
-      startNodeWatch().then(() => loadNodeMetrics());
-      return;
-    }
-  }
-
+  let metricsTimer: ReturnType<typeof setInterval> | null = null;
   onMount(() => {
-    // Initial load is left to the $effect below — it also runs on mount, and
-    // starting the watch twice concurrently leaks the first event stream.
+    // The initial load is left to the $effect below: it also runs on mount,
+    // and starting the watch twice concurrently leaks the first stream.
     metricsTimer = setInterval(loadNodeMetrics, METRICS_INTERVAL);
-    resetNavigation();
-    window.addEventListener('keydown', handleKeydown);
   });
 
   onDestroy(() => {
     stopNodeWatch();
     if (metricsTimer) clearInterval(metricsTimer);
-    resetNavigation();
-    window.removeEventListener('keydown', handleKeydown);
   });
 
   $effect(() => {
     const ctx = $currentContext;
-    const trigger = $refreshTrigger;
+    void $refreshTrigger;
     if (!ctx) return;
-    // Metrics need the watched node names, so wait for the watch's initial list.
-    startNodeWatch().then(() => loadNodeMetrics());
+    refresh();
   });
-
-  function getStatusColor(status: string): string {
-    if (status.includes('Ready') && !status.includes('NotReady')) {
-      return status.includes('SchedulingDisabled')
-        ? 'text-warning bg-accent-warning/10'
-        : 'text-success bg-accent-success/10';
-    }
-    return 'text-danger bg-accent-error/10';
-  }
 </script>
 
-<div class="h-full flex flex-col overflow-hidden">
-  <!-- Toolbar -->
-  <div class="px-6 py-4 border-b border-border-subtle">
-    <div class="flex items-center justify-between">
-      <h1 class="text-lg font-semibold text-text-primary">Nodes</h1>
-      <ViewFilter bind:this={filterRef} value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter nodes..." />
-    </div>
-  </div>
+{#snippet statusCell(n: NodeRow)}
+  {@const h = health(n)}
+  <StatusPill health={h.health} label={h.label} />
+{/snippet}
 
-  <!-- Table -->
-  <div class="flex-1 overflow-auto p-6 pt-4">
-    <table class="w-full">
-      <thead>
-        <tr class="text-left border-b border-border-subtle">
-          <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Status" field="status" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium">Roles</th>
-          <SortableHeader label="CPU" field="cpu_pct" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Memory" field="memory_pct" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Disk" field="disk_pct" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Version" field="version" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Internal IP" field="internal_ip" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="OS / Runtime" field="os_image" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium">Taints</th>
-          <SortableHeader label="Age" field="age" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-        </tr>
-      </thead>
-      <tbody bind:this={tableBody}>
-        {#each sortedData() as node, index (node.name)}
-          {@const isSelected = $keyboardNavActive && $selectedRowIndex === index}
-          <tr class="border-b border-border-subtle/50 cursor-pointer transition-colors {isSelected ? 'bg-accent-primary/20 ring-1 ring-accent-primary/50' : 'hover:bg-bg-secondary'}" onclick={() => openDetail(node)}>
-            <td class="py-3 pr-4">
-              <span class="text-accent-text font-medium hover:underline">{node.name}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-xs px-2 py-0.5 rounded-sm {getStatusColor(node.status)}">{node.status}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <div class="flex flex-wrap gap-1">
-                {#each node.roles as role}
-                  <span class="text-xs bg-accent-primary/10 text-accent-text px-2 py-0.5 rounded-sm">{role}</span>
-                {/each}
-              </div>
-            </td>
-            <td class="py-3 pr-4">
-              <UsageBar percent={node.cpu_pct} detail={node.cpu_detail} unavailableHint="No CPU usage — metrics-server not available" />
-            </td>
-            <td class="py-3 pr-4">
-              <UsageBar percent={node.memory_pct} detail={node.memory_detail} unavailableHint="No memory usage — metrics-server not available" />
-            </td>
-            <td class="py-3 pr-4">
-              <UsageBar percent={node.disk_pct} detail={node.disk_detail} unavailableHint="No disk usage — kubelet stats unreachable (needs nodes/proxy access)" />
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{node.version}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <code class="text-xs bg-bg-tertiary px-2 py-0.5 rounded-sm text-text-secondary">{node.internal_ip || '-'}</code>
-            </td>
-            <td class="py-3 pr-4">
-              <div class="text-text-secondary text-xs">
-                <div>{node.os_image}</div>
-                <div class="text-text-muted">{node.container_runtime}</div>
-              </div>
-            </td>
-            <td class="py-3 pr-4">
-              {#if node.taints && node.taints.length > 0}
-                <div class="flex flex-wrap gap-1">
-                  {#each node.taints as taint}
-                    <span class="text-xs px-1.5 py-0.5 rounded-sm {taint.effect === 'NoSchedule' ? 'bg-accent-error/10 text-danger' : taint.effect === 'PreferNoSchedule' ? 'bg-accent-warning/10 text-warning' : 'bg-accent-primary/10 text-accent-text'}" title="{taint.key}={taint.value || ''}:{taint.effect}">
-                      {taint.key}
-                    </span>
-                  {/each}
-                </div>
-              {:else}
-                <span class="text-text-muted text-xs">-</span>
-              {/if}
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{node.age}</span>
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+{#snippet cpuCell(n: NodeRow)}
+  <UsageBar percent={n.cpu_pct} detail={n.cpu_detail} unavailableHint="No CPU usage: metrics-server not available" />
+{/snippet}
 
-    {#if sortedData().length === 0}
-      <div class="flex items-center justify-center h-48">
-        <div class="text-center">
-          <svg class="w-12 h-12 text-text-muted mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-          </svg>
-          <p class="text-text-muted">No nodes found</p>
-        </div>
-      </div>
-    {/if}
-  </div>
-</div>
+{#snippet memoryCell(n: NodeRow)}
+  <UsageBar percent={n.memory_pct} detail={n.memory_detail} unavailableHint="No memory usage: metrics-server not available" />
+{/snippet}
+
+{#snippet diskCell(n: NodeRow)}
+  <UsageBar percent={n.disk_pct} detail={n.disk_detail} unavailableHint="No disk usage: kubelet stats unreachable (needs nodes/proxy access)" />
+{/snippet}
+
+{#snippet osCell(n: NodeRow)}{n.os_image}{/snippet}
+
+{#snippet taintsCell(n: NodeRow)}{n.taints.length || '–'}{/snippet}
+
+<ListView
+  title="Nodes"
+  viewId="nodes"
+  itemLabel="nodes"
+  subtitle="cluster-scoped"
+  items={rows}
+  loadState={$loadState}
+  {columns}
+  rowKey={(n) => n.name}
+  filterFields={['name', 'status', 'roles', 'version', 'internal_ip', (n) => n.verdict.reason]}
+  {health}
+  segmentLabels={{ failed: 'Not ready', warning: 'Warning', healthy: 'Ready' }}
+  defaultSort={{ id: HEALTH_SORT_ID, dir: 'asc' }}
+  resourceType="node"
+  namespaced={false}
+  onRefresh={refresh}
+/>
