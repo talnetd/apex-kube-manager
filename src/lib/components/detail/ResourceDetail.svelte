@@ -8,6 +8,8 @@
   import ConditionsTable from '../ui/ConditionsTable.svelte';
   import CustomSelect from '../ui/CustomSelect.svelte';
   import ConfirmDialog from '../ui/ConfirmDialog.svelte';
+  import { settings } from '../../stores/settings';
+  import { resolveProd } from '../../stores/production';
   import Button from '../ui/Button.svelte';
   import DetailToolbar from './kit/DetailToolbar.svelte';
   import DetailTabs from './kit/DetailTabs.svelte';
@@ -102,6 +104,7 @@
   let taintActionLoading = $state<boolean>(false);
   let taintActionError = $state<string | null>(null);
   let confirmRemoveTaint = $state<{ key: string; effect: string } | null>(null);
+  let confirmAddTaint = $state<{ key: string; value: string; effect: string } | null>(null);
 
   // Cordon state (for nodes)
   let cordonLoading = $state<boolean>(false);
@@ -340,6 +343,17 @@
       return;
     }
 
+    // NoExecute evicts every pod without a matching toleration: confirm it
+    // (danger). Other effects only confirm on a production context.
+    if (newTaintEffect === 'NoExecute' || resolveProd(context, $settings.prodOverrides)) {
+      taintActionError = null;
+      confirmAddTaint = { key: newTaintKey.trim(), value: newTaintValue.trim(), effect: newTaintEffect };
+      return;
+    }
+    await runAddTaint();
+  }
+
+  async function runAddTaint() {
     try {
       taintActionLoading = true;
       taintActionError = null;
@@ -385,9 +399,10 @@
     }
   }
 
+  // Removing a taint only re-allows scheduling (it never evicts), so it is a
+  // plain action; on production it still confirms.
   function handleRemoveTaintClick(key: string, effect: string) {
-    if (effect === 'NoExecute') {
-      // Show confirmation for NoExecute since it evicts pods
+    if (resolveProd(context, $settings.prodOverrides)) {
       confirmRemoveTaint = { key, effect };
     } else {
       removeTaint(key, effect);
@@ -409,6 +424,20 @@
     await invoke('cordon_node', { contextName: context, name });
     await loadDetail();
   }
+  // From the ConfirmDialog: re-guard (the app may have switched) and throw so
+  // the dialog shows the error.
+  async function doAddTaint() {
+    if (!guard('taint')) throw new Error('Switch back to this context to change taints');
+    const t = confirmAddTaint;
+    if (!t) return;
+    await invoke('add_node_taint', { contextName: context, name, key: t.key, value: t.value || null, effect: t.effect });
+    await loadDetail();
+    showAddTaintModal = false;
+    newTaintKey = '';
+    newTaintValue = '';
+    newTaintEffect = 'NoSchedule';
+  }
+
   async function doRemoveTaint(key: string, effect: string) {
     if (!guard('taint')) throw new Error('Switch back to this context to change taints');
     await invoke('remove_node_taint', { contextName: context, name, key, effect });
@@ -1404,15 +1433,31 @@
       </div>
     {/if}
 
+    {#if confirmAddTaint}
+      {@const t = confirmAddTaint}
+      <ConfirmDialog
+        open={true}
+        title={t.effect === 'NoExecute' ? 'Add a NoExecute taint?' : `Add taint ${t.key}?`}
+        resource={{ kind: 'Node', name, context }}
+        confirmLabel="Add taint"
+        tone={t.effect === 'NoExecute' ? 'danger' : 'default'}
+        body={t.effect === 'NoExecute'
+          ? `${t.key}${t.value ? '=' + t.value : ''}:NoExecute evicts every pod on this node that doesn't tolerate it, right away.`
+          : `${t.key}${t.value ? '=' + t.value : ''}:${t.effect}. New pods without a matching toleration won't be scheduled here.`}
+        successMessage={`Added ${t.key}:${t.effect}`}
+        onConfirm={doAddTaint}
+        onClose={() => (confirmAddTaint = null)}
+      />
+    {/if}
+
     {#if confirmRemoveTaint}
       {@const t = confirmRemoveTaint}
       <ConfirmDialog
         open={true}
-        title="Remove the NoExecute taint?"
+        title={`Remove taint ${t.key}?`}
         resource={{ kind: 'Node', name, context }}
         confirmLabel="Remove taint"
-        tone="danger"
-        body={`${t.key}:${t.effect}. Pods it evicted may be scheduled back onto this node.`}
+        body={`${t.key}:${t.effect}. Pods without a matching toleration may be scheduled on this node again.`}
         successMessage={`Removed ${t.key}:${t.effect}`}
         onConfirm={() => doRemoveTaint(t.key, t.effect)}
         onClose={() => (confirmRemoveTaint = null)}
@@ -1447,6 +1492,8 @@
       <YamlEditorPanel
         yaml={yaml}
         context={context}
+        name={name}
+        namespace={config.clusterScoped ? undefined : namespace}
         resourceType={config.displayName}
         isDeleted={isDeleted}
         onRefresh={loadYaml}

@@ -12,12 +12,13 @@
   } = $props();
 </script>
 
-<div class="tabs" role="tablist">
+<!-- Plain toggle buttons (aria-pressed): a full tablist would need roving
+     tabindex, arrow keys and tabpanels. -->
+<div class="tabs">
   {#each tabs as t (t.id)}
     <button
       type="button"
-      role="tab"
-      aria-selected={t.id === active}
+      aria-pressed={t.id === active}
       class:on={t.id === active}
       onclick={() => onchange(t.id)}
     >
