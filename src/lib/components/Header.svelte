@@ -355,6 +355,11 @@
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 180px;
+    /* Shrinks last: the PROD tag and window marker never push it to zero. */
+    min-width: 6ch;
+  }
+  .ctl > :global(*:not(.nm)) {
+    flex-shrink: 0;
   }
   .dot {
     width: 8px;
@@ -492,8 +497,10 @@
     }
     .ctl .nm {
       max-width: 78px;
+      min-width: 3ch;
     }
-    .lw {
+    /* No room for the window marker in a side panel; the menu still says "Applies to all windows (N)". */
+    .lnk {
       display: none;
     }
     .search {
