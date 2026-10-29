@@ -718,6 +718,8 @@ function listWatch<T, E extends { event_type: 'applied' | 'deleted' }>(opts: {
   store: Writable<T[]>;
   key: (x: T) => string;
   item: (e: E) => T;
+  /** resourceState name (e.g. 'deployments') for the list's DataTable. */
+  state: string;
 }) {
   let gen = 0;
   let unlisten: UnlistenFn | null = null;
@@ -750,10 +752,12 @@ function listWatch<T, E extends { event_type: 'applied' | 'deleted' }>(opts: {
       stopRemote(id);
     };
 
+    markLoading(opts.state);
     try {
       const initial = await tauriInvoke<T[]>(opts.list, args);
       if (superseded()) return;
       opts.store.set(initial);
+      markSynced(opts.state);
 
       const id = await tauriInvoke<string>(opts.watch, args);
       if (superseded()) return void stopRemote(id);
@@ -786,6 +790,7 @@ function listWatch<T, E extends { event_type: 'applied' | 'deleted' }>(opts: {
     } catch (e) {
       if (superseded()) return;
       error.set(String(e));
+      markFailed(opts.state, e);
       console.error(`Failed to start ${opts.label} watch:`, e);
     }
   }
@@ -806,6 +811,7 @@ const deploymentWatch = listWatch<DeploymentInfo, DeploymentWatchEvent>({
   store: deployments,
   key: (d) => `${d.namespace}/${d.name}`,
   item: (e) => e.deployment,
+  state: 'deployments',
 });
 
 const jobWatch = listWatch<JobInfo, JobWatchEvent>({
@@ -816,6 +822,7 @@ const jobWatch = listWatch<JobInfo, JobWatchEvent>({
   store: jobs,
   key: (j) => `${j.namespace}/${j.name}`,
   item: (e) => e.job,
+  state: 'jobs',
 });
 
 // Cluster-scoped, no namespace
@@ -827,6 +834,7 @@ const nodeWatch = listWatch<NodeInfo, NodeWatchEvent>({
   store: nodes,
   key: (n) => n.name,
   item: (e) => e.node,
+  state: 'nodes',
 });
 
 export const startDeploymentWatch = (namespace?: string | null) => deploymentWatch.start({ namespace });
@@ -864,10 +872,12 @@ export async function startEventWatch(namespace?: string | null) {
 
   if (!isContextReady()) return;
 
+  markLoading('events');
   try {
     // Get initial snapshot - track event names to avoid notifying for existing events
     const initialEvents = await tauriInvoke<ClusterEventInfo[]>('get_events', { namespace });
     clusterEvents.set(initialEvents);
+    markSynced('events');
 
     // Track existing event names to avoid notifying on initial sync
     const existingEventKeys = new Set(
@@ -912,6 +922,7 @@ export async function startEventWatch(namespace?: string | null) {
     console.log(`Event watch started: ${watchId}`);
   } catch (e) {
     error.set(String(e));
+    markFailed('events', e);
     console.error('Failed to start event watch:', e);
   }
 }
@@ -933,6 +944,48 @@ export async function stopEventWatch() {
   }
 }
 
+// ---- Polled lists (spec 5.4) ----
+// One loader for every polled list: tracks resourceState so DataTable can
+// tell loading from empty from forbidden, and drops answers that no longer
+// apply. A response is dropped when the context or the scope (namespace)
+// changed since it was requested, or when a newer response already landed;
+// overlapping polls still apply in order, so a slow API keeps updating.
+const listScope = new Map<string, string>();
+const listShownSeq = new Map<string, number>();
+let listSeq = 0;
+
+export async function loadList<T>(
+  name: string,
+  command: string,
+  store: Writable<T[]>,
+  args?: Record<string, unknown>
+): Promise<void> {
+  if (!isContextReady()) return;
+  const context = _currentContext;
+  const scope = `${context}|${JSON.stringify(args ?? {})}`;
+  const seq = ++listSeq;
+  // A new scope shows the loading bar over the old rows; plain polls don't.
+  if (listScope.get(name) !== scope || get(resourceState(name)).status !== 'ready') markLoading(name);
+  listScope.set(name, scope);
+  const stale = () =>
+    _currentContext !== context || listScope.get(name) !== scope || (listShownSeq.get(name) ?? 0) > seq;
+  try {
+    isLoading.set(true);
+    const list = await tauriInvoke<T[]>(command, args);
+    if (stale()) return;
+    listShownSeq.set(name, seq);
+    store.set(list);
+    markSynced(name);
+  } catch (e) {
+    if (stale()) return;
+    listShownSeq.set(name, seq);
+    error.set(String(e));
+    markFailed(name, e);
+  } finally {
+    isLoading.set(false);
+  }
+}
+
 export async function loadEvents(namespace?: string | null) {
   if (!isContextReady()) return;
   try {
@@ -947,32 +1000,11 @@ export async function loadEvents(namespace?: string | null) {
 }
 
 export async function loadDeployments(namespace?: string | null) {
-  if (!isContextReady()) return;
-  try {
-    isLoading.set(true);
-    const deployList = await tauriInvoke<DeploymentInfo[]>('get_deployments', { namespace });
-    deployments.set(deployList);
-  } catch (e) {
-    error.set(String(e));
-  } finally {
-    isLoading.set(false);
-  }
+  return loadList<DeploymentInfo>('deployments', 'get_deployments', deployments, { namespace });
 }
 
 export async function loadStatefulSets(namespace?: string | null) {
-  if (!isContextReady()) return;
-  // A late answer from the previous cluster must not land on the new one.
-  const context = _currentContext;
-  try {
-    isLoading.set(true);
-    const stsList = await tauriInvoke<StatefulSetInfo[]>('get_statefulsets', { namespace });
-    if (_currentContext !== context) return;
-    statefulsets.set(stsList);
-  } catch (e) {
-    error.set(String(e));
-  } finally {
-    isLoading.set(false);
-  }
+  return loadList<StatefulSetInfo>('statefulsets', 'get_statefulsets', statefulsets, { namespace });
 }
 
 export async function scaleStatefulSet(namespace: string, name: string, replicas: number) {
@@ -986,195 +1018,63 @@ export async function restartStatefulSet(namespace: string, name: string) {
 }
 
 export async function loadDaemonSets(namespace?: string | null) {
-  if (!isContextReady()) return;
-  // A late answer from the previous cluster must not land on the new one.
-  const context = _currentContext;
-  try {
-    isLoading.set(true);
-    const dsList = await tauriInvoke<DaemonSetInfo[]>('get_daemonsets', { namespace });
-    if (_currentContext !== context) return;
-    daemonsets.set(dsList);
-  } catch (e) {
-    error.set(String(e));
-  } finally {
-    isLoading.set(false);
-  }
+  return loadList<DaemonSetInfo>('daemonsets', 'get_daemonsets', daemonsets, { namespace });
 }
 
 export async function loadReplicaSets(namespace?: string | null) {
-  if (!isContextReady()) return;
-  // A late answer from the previous cluster must not land on the new one.
-  const context = _currentContext;
-  try {
-    isLoading.set(true);
-    const rsList = await tauriInvoke<ReplicaSetInfo[]>('get_replicasets', { namespace });
-    if (_currentContext !== context) return;
-    replicasets.set(rsList);
-  } catch (e) {
-    error.set(String(e));
-  } finally {
-    isLoading.set(false);
-  }
+  return loadList<ReplicaSetInfo>('replicasets', 'get_replicasets', replicasets, { namespace });
 }
 
 export async function loadJobs(namespace?: string | null) {
-  if (!isContextReady()) return;
-  try {
-    isLoading.set(true);
-    const jobList = await tauriInvoke<JobInfo[]>('get_jobs', { namespace });
-    jobs.set(jobList);
-  } catch (e) {
-    error.set(String(e));
-  } finally {
-    isLoading.set(false);
-  }
+  return loadList<JobInfo>('jobs', 'get_jobs', jobs, { namespace });
 }
 
 export async function loadCronJobs(namespace?: string | null) {
-  if (!isContextReady()) return;
-  try {
-    isLoading.set(true);
-    const cjList = await tauriInvoke<CronJobInfo[]>('get_cronjobs', { namespace });
-    cronjobs.set(cjList);
-  } catch (e) {
-    error.set(String(e));
-  } finally {
-    isLoading.set(false);
-  }
+  return loadList<CronJobInfo>('cronjobs', 'get_cronjobs', cronjobs, { namespace });
 }
 
 export async function loadServices(namespace?: string | null) {
-  if (!isContextReady()) return;
-  try {
-    isLoading.set(true);
-    const svcList = await tauriInvoke<ServiceInfo[]>('get_services', { namespace });
-    services.set(svcList);
-  } catch (e) {
-    error.set(String(e));
-  } finally {
-    isLoading.set(false);
-  }
+  return loadList<ServiceInfo>('services', 'get_services', services, { namespace });
 }
 
 // Network resources
 export async function loadIngresses(namespace?: string | null) {
-  if (!isContextReady()) return;
-  try {
-    isLoading.set(true);
-    const ingList = await tauriInvoke<IngressInfo[]>('get_ingresses', { namespace });
-    ingresses.set(ingList);
-  } catch (e) {
-    error.set(String(e));
-  } finally {
-    isLoading.set(false);
-  }
+  return loadList<IngressInfo>('ingresses', 'get_ingresses', ingresses, { namespace });
 }
 
 export async function loadNetworkPolicies(namespace?: string | null) {
-  if (!isContextReady()) return;
-  try {
-    isLoading.set(true);
-    const npList = await tauriInvoke<NetworkPolicyInfo[]>('get_network_policies', { namespace });
-    networkPolicies.set(npList);
-  } catch (e) {
-    error.set(String(e));
-  } finally {
-    isLoading.set(false);
-  }
+  return loadList<NetworkPolicyInfo>('networkpolicies', 'get_network_policies', networkPolicies, { namespace });
 }
 
 // Config resources
 export async function loadConfigMaps(namespace?: string | null) {
-  if (!isContextReady()) return;
-  try {
-    isLoading.set(true);
-    const cmList = await tauriInvoke<ConfigMapInfo[]>('get_configmaps', { namespace });
-    configmaps.set(cmList);
-  } catch (e) {
-    error.set(String(e));
-  } finally {
-    isLoading.set(false);
-  }
+  return loadList<ConfigMapInfo>('configmaps', 'get_configmaps', configmaps, { namespace });
 }
 
 export async function loadSecrets(namespace?: string | null) {
-  if (!isContextReady()) return;
-  try {
-    isLoading.set(true);
-    const secList = await tauriInvoke<SecretInfo[]>('get_secrets', { namespace });
-    secrets.set(secList);
-  } catch (e) {
-    error.set(String(e));
-  } finally {
-    isLoading.set(false);
-  }
+  return loadList<SecretInfo>('secrets', 'get_secrets', secrets, { namespace });
 }
 
 export async function loadHPAs(namespace?: string | null) {
-  if (!isContextReady()) return;
-  try {
-    isLoading.set(true);
-    const hpaList = await tauriInvoke<HPAInfo[]>('get_hpas', { namespace });
-    hpas.set(hpaList);
-  } catch (e) {
-    error.set(String(e));
-  } finally {
-    isLoading.set(false);
-  }
+  return loadList<HPAInfo>('hpas', 'get_hpas', hpas, { namespace });
 }
 
 // Storage resources
 export async function loadPVs() {
-  if (!isContextReady()) return;
-  try {
-    isLoading.set(true);
-    const pvList = await tauriInvoke<PersistentVolumeInfo[]>('get_pvs');
-    pvs.set(pvList);
-  } catch (e) {
-    error.set(String(e));
-  } finally {
-    isLoading.set(false);
-  }
+  return loadList<PersistentVolumeInfo>('pvs', 'get_pvs', pvs);
 }
 
 export async function loadPVCs(namespace?: string | null) {
-  if (!isContextReady()) return;
-  try {
-    isLoading.set(true);
-    const pvcList = await tauriInvoke<PersistentVolumeClaimInfo[]>('get_pvcs', { namespace });
-    pvcs.set(pvcList);
-  } catch (e) {
-    error.set(String(e));
-  } finally {
-    isLoading.set(false);
-  }
+  return loadList<PersistentVolumeClaimInfo>('pvcs', 'get_pvcs', pvcs, { namespace });
 }
 
 // Cluster resources
 export async function loadNamespacesInfo() {
-  if (!isContextReady()) return;
-  try {
-    isLoading.set(true);
-    const nsList = await tauriInvoke<NamespaceInfo[]>('get_namespaces_info');
-    namespacesInfo.set(nsList);
-  } catch (e) {
-    error.set(String(e));
-  } finally {
-    isLoading.set(false);
-  }
+  return loadList<NamespaceInfo>('namespaces', 'get_namespaces_info', namespacesInfo);
 }
 
 export async function loadNodes() {
-  if (!isContextReady()) return;
-  try {
-    isLoading.set(true);
-    const nodeList = await tauriInvoke<NodeInfo[]>('get_nodes');
-    nodes.set(nodeList);
-  } catch (e) {
-    error.set(String(e));
-  } finally {
-    isLoading.set(false);
-  }
+  return loadList<NodeInfo>('nodes', 'get_nodes', nodes);
 }
 
 // Polled separately from the node watch: usage changes constantly, and a
@@ -1210,16 +1110,7 @@ export async function loadNodeMetrics() {
 }
 
 export async function loadServiceAccounts(namespace?: string | null) {
-  if (!isContextReady()) return;
-  try {
-    isLoading.set(true);
-    const saList = await tauriInvoke<ServiceAccountInfo[]>('get_service_accounts', { namespace });
-    serviceAccounts.set(saList);
-  } catch (e) {
-    error.set(String(e));
-  } finally {
-    isLoading.set(false);
-  }
+  return loadList<ServiceAccountInfo>('serviceaccounts', 'get_service_accounts', serviceAccounts, { namespace });
 }
 
 export async function loadClusterMetrics() {

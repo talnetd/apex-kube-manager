@@ -60,6 +60,8 @@
     rowActions,
     shortcuts,
     ariaLabel,
+    minWidth = '760px',
+    keyboard = true,
   }: {
     rows: T[];
     columns: Column<T>[];
@@ -89,6 +91,14 @@
     /** View-specific keys, e.g. { l: openLogs, e: exec }. */
     shortcuts?: Record<string, (r: T) => void>;
     ariaLabel?: string;
+    /**
+     * Below this the table scrolls sideways instead of crushing columns.
+     * Views that hide columns with `hideBelow` pass a smaller value so a
+     * side-panel window (spec 13.2, sm) fits without horizontal scroll.
+     */
+    minWidth?: string;
+    /** False while the view shows its own modal (an editor), so row keys don't fire behind it. */
+    keyboard?: boolean;
   } = $props();
 
   // Claim the global keyboard selection: only the owner reads or writes it.
@@ -149,13 +159,13 @@
   function copy(r: T) {
     const text = copyText ? copyText(r) : rowKey(r);
     navigator.clipboard?.writeText(text).then(
-      () => toast(`Copied ${text}`),
+      () => toast(`Copied ${text.length > 60 ? `${text.slice(0, 60)}…` : text}`),
       () => toast("Couldn't copy to clipboard", { health: 'failed' })
     );
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (!ownsNav()) return;
+    if (!ownsNav() || !keyboard) return;
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
     if (isTypingTarget(document.activeElement)) return;
 
@@ -247,6 +257,7 @@
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <table
     class="dt w-full table-fixed border-separate border-spacing-0"
+    style:min-width={minWidth}
     tabindex="0"
     aria-label={ariaLabel ?? itemLabel}
     aria-rowcount={sorted.length + 1}
@@ -387,10 +398,6 @@
 <style>
   .dt:focus-visible {
     outline: none;
-  }
-  /* Narrow windows scroll sideways instead of crushing columns (preview). */
-  .dt {
-    min-width: 760px;
   }
   /* Mono name column (Geist): a touch smaller than the body text. */
   .name-cell {
