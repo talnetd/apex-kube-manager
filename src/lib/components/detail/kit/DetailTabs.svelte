@@ -20,7 +20,14 @@
 
   let buttons: HTMLButtonElement[] = $state([]);
 
+  // The one Tab stop: the active tab, or the first one when `active` names
+  // no tab (a bad URL param, a tab this kind doesn't have), so the bar is
+  // always reachable.
+  const stop = $derived(tabs.some((t) => t.id === active) ? active : tabs[0]?.id);
+
   async function onKeydown(e: KeyboardEvent, i: number) {
+    // Leave ⌥/⌘/Ctrl+arrows and Home/End to the OS and the app.
+    if (e.altKey || e.metaKey || e.ctrlKey) return;
     const next = nextTabIndex(i, e.key, tabs.length);
     if (next === null) return;
     e.preventDefault();
@@ -39,7 +46,8 @@
       role="tab"
       id={`tab-${t.id}`}
       aria-selected={t.id === active}
-      tabindex={t.id === active ? 0 : -1}
+      aria-controls={`panel-${t.id}`}
+      tabindex={t.id === stop ? 0 : -1}
       class:on={t.id === active}
       onclick={() => onchange(t.id)}
       onkeydown={(e) => onKeydown(e, i)}

@@ -200,7 +200,9 @@ struct QuitHold {
 
 static QUIT_HOLD: Mutex<Option<QuitHold>> = Mutex::new(None);
 const CLOSE_AGAIN: Duration = Duration::from_secs(3);
-const ACK_WITHIN: Duration = Duration::from_millis(1500);
+// Generous: a busy (not hung) webview can take a while to run the listener,
+// import invoke and answer. A second close within CLOSE_AGAIN still forces it.
+const ACK_WITHIN: Duration = Duration::from_secs(4);
 
 /// What to do with a close request, given a hold already pending (pure,
 /// unit-tested): `true` = hold it and ask.
