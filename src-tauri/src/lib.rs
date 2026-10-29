@@ -162,7 +162,10 @@ pub fn run() {
             let label = window.label().to_string();
             match event {
                 tauri::WindowEvent::Focused(false) if label == "tray" => tray::on_popover_blur(window.app_handle()),
-                tauri::WindowEvent::Destroyed if shell::is_main_label(&label) => shell::emit_window_count(window.app_handle()),
+                tauri::WindowEvent::Destroyed if shell::is_main_label(&label) => {
+                    eprintln!("[apex-kube-manager] window {label} closed");
+                    shell::emit_window_count(window.app_handle())
+                }
                 _ => {}
             }
         })
@@ -340,10 +343,17 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app, event| {
             // Closing the last window keeps Apex in the menu bar (spec 13.4).
-            if let tauri::RunEvent::ExitRequested { code: None, api, .. } = event {
-                if app.state::<tray::TrayState>().is_enabled() {
-                    api.prevent_exit();
+            match event {
+                tauri::RunEvent::ExitRequested { code, api, .. } => {
+                    let tray_on = app.state::<tray::TrayState>().is_enabled();
+                    // Logged so an unexpected exit shows its cause in the dev log.
+                    eprintln!("[apex-kube-manager] exit requested (code {code:?}, menu bar item {})", if tray_on { "on" } else { "off" });
+                    if code.is_none() && tray_on {
+                        api.prevent_exit();
+                    }
                 }
+                tauri::RunEvent::Exit => eprintln!("[apex-kube-manager] exiting"),
+                _ => {}
             }
         });
 }
