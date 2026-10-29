@@ -492,6 +492,8 @@ const yaml = await invoke(`get_${resourceType}_yaml`, getInvokeParams());
 const events = await invoke(`get_${resourceType}_events`, getInvokeParams());
 ```
 
+**Detail window chrome (Geist)**: `DetailWindow` draws the title bar (kind tag, mono name, namespace · context, PROD, read-only). Each detail view starts with `detail/kit/DetailToolbar.svelte` (the triage `verdict` as a StatusPill, short summary, actions: primary neutral, destructive `variant="danger"`) and `detail/kit/DetailTabs.svelte`. Overviews use `dl.d-props > div.d-prop > dt/dd` rows, sections `h2.d-sec-title`, tables `.d-frame > table.d-table` (all in `app.css`). Every mutating action goes through `ConfirmDialog` (never native `confirm()`/`alert()`); detail structs for pod/deployment/statefulset/daemonset/replicaset/job/node carry `verdict`.
+
 **Key patterns**:
 - `clusterScoped: true` flag omits namespace from invoke params
 - Conditional `{#if resourceType === 'xxx'}` blocks for resource-specific UI
@@ -551,7 +553,7 @@ const events = await invoke(`get_${resourceType}_events`, getInvokeParams());
 
 ### TODO (Next Features)
 - [ ] Command palette with actions (restart deploy, scale, logs, exec - all from keyboard)
-- [ ] Fix YAML editor - typing/editing not working in CodeMirror (YamlEditorPanel.svelte)
+- [x] Fix YAML editor typing (read-only and theme now live in CodeMirror compartments; theme-aware highlight style)
 - [ ] Search/filter within tables
 - [x] More resource types: RBAC, StorageClasses, EndpointSlices, IngressClasses, PDBs, ResourceQuotas, LimitRanges, PriorityClasses, CRDs + generic custom resource browser
 - [ ] Resource deletion (deployments, services, configmaps, etc.)

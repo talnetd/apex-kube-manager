@@ -1,11 +1,26 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { EditorView, basicSetup } from 'codemirror';
-  import { EditorState } from '@codemirror/state';
+  import { EditorState, Compartment, type Extension } from '@codemirror/state';
   import { yaml } from '@codemirror/lang-yaml';
   import { keymap } from '@codemirror/view';
   import { indentWithTab } from '@codemirror/commands';
   import { resolvedTheme } from "../../stores/theme";
+  // Transitive deps of `codemirror` (already in the lockfile).
+  import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+  import { tags as t } from '@lezer/highlight';
+
+  // Token colours from the theme, so YAML reads on black and white alike
+  // (the default highlight style is light-only: navy keys on black).
+  const yamlHighlight = HighlightStyle.define([
+    { tag: [t.propertyName, t.definition(t.propertyName)], color: 'var(--ui-accent-text)' },
+    { tag: [t.string, t.special(t.string)], color: 'var(--ui-success)' },
+    { tag: [t.number, t.bool, t.null, t.atom], color: 'var(--ui-warning)' },
+    { tag: [t.keyword, t.typeName, t.labelName], color: 'var(--ui-accent-text)' },
+    { tag: [t.comment, t.lineComment, t.blockComment], color: 'var(--ui-muted)', fontStyle: 'italic' },
+    { tag: [t.punctuation, t.separator, t.bracket, t.operator], color: 'var(--ui-muted)' },
+    { tag: t.meta, color: 'var(--ui-danger)' },
+  ]);
 
   interface Props {
     content: string;
@@ -19,7 +34,7 @@
   let editorView: EditorView | null = null;
 
   // Get CodeMirror theme based on current theme
-  function getEditorTheme(): EditorView.Theme {
+  function getEditorTheme(): Extension {
 	const isDark = $resolvedTheme !== "light";
 	return EditorView.theme({
     '&': {
@@ -90,29 +105,28 @@
   }, { dark: isDark });
   }
 
+  // Read-only and theme live in compartments so they change in place. The
+  // old version decided read-only once at mount (so Edit never allowed
+  // typing) and called a non-existent EditorView.reconfigure on theme change.
+  const readOnlyC = new Compartment();
+  const themeC = new Compartment();
+
   onMount(() => {
-    const extensions = [
-      basicSetup,
-      yaml(),
-      getEditorTheme(),
-      keymap.of([indentWithTab]),
-      EditorView.lineWrapping,
-    ];
-
-    if (readonly) {
-      extensions.push(EditorState.readOnly.of(true));
-    } else if (onchange) {
-      extensions.push(EditorView.updateListener.of((update) => {
-        if (update.docChanged) {
-          onchange(update.state.doc.toString());
-        }
-      }));
-    }
-
     editorView = new EditorView({
       state: EditorState.create({
         doc: content || '',
-        extensions,
+        extensions: [
+          basicSetup,
+          yaml(),
+          syntaxHighlighting(yamlHighlight),
+          keymap.of([indentWithTab]),
+          EditorView.lineWrapping,
+          themeC.of(getEditorTheme()),
+          readOnlyC.of(EditorState.readOnly.of(readonly)),
+          EditorView.updateListener.of((update) => {
+            if (update.docChanged) onchange?.(update.state.doc.toString());
+          }),
+        ],
       }),
       parent: editorContainer,
     });
@@ -122,32 +136,27 @@
     editorView?.destroy();
   });
 
-  // Update content when prop changes
+  // Edit / view toggles in place, keeping the text and cursor.
   $effect(() => {
-	const theme = $resolvedTheme;
-	if (editorView) {
-		// Reconfigure editor with new theme
-		editorView.dispatch({
-		effects: [
-			// Remove old theme and add new one
-			EditorView.reconfigure([
-			basicSetup,
-			yaml(),
-			getEditorTheme(),
-			keymap.of([indentWithTab]),
-			EditorView.lineWrapping,
-			...(readonly ? [EditorState.readOnly.of(true)] : []),
-			...(onchange ? [EditorView.updateListener.of((update) => {
-				if (update.docChanged) {
-				onchange(update.state.doc.toString());
-				}
-			})] : []),
-			])
-		]
-		});
-	}
-});
+    const ro = readonly;
+    editorView?.dispatch({ effects: readOnlyC.reconfigure(EditorState.readOnly.of(ro)) });
+    if (!ro) editorView?.focus();
+  });
 
+  // Theme follows light/dark.
+  $effect(() => {
+    void $resolvedTheme;
+    editorView?.dispatch({ effects: themeC.reconfigure(getEditorTheme()) });
+  });
+
+  // A refreshed `content` replaces the text only while viewing, never over
+  // the user's unsaved edits.
+  $effect(() => {
+    const next = content || '';
+    if (!editorView || !readonly) return;
+    const cur = editorView.state.doc.toString();
+    if (cur !== next) editorView.dispatch({ changes: { from: 0, to: cur.length, insert: next } });
+  });
 </script>
 
 <div bind:this={editorContainer} class="h-full w-full overflow-hidden"></div>
@@ -157,7 +166,7 @@
     height: 100%;
   }
   :global(.cm-scroller) {
-    font-family: Hack, Menlo, Monaco, 'Courier New', monospace !important;
+    font-family: var(--font-mono) !important;
   }
 </style>
 
