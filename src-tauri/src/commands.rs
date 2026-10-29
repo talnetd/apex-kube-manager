@@ -1392,3 +1392,9 @@ pub async fn set_tray_enabled(app: AppHandle, enabled: bool) -> Result<()> {
 pub fn hide_tray_popover(app: AppHandle) {
     crate::tray::hide_popover(&app);
 }
+
+/// Quit after the user confirmed (closing the last window with terminals open).
+#[tauri::command]
+pub fn quit_app(app: AppHandle) {
+    app.exit(0);
+}

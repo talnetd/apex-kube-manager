@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { detailAccess, canRun, blockedMessage, DETAIL_ACTIONS } from '../src/lib/utils/detail-access';
 import { traySummary, clusterNote, sinceLabel, type ClusterStatus } from '../src/lib/utils/tray';
-import { acceptContextEvent, nextContext } from '../src/lib/stores/kubernetes';
+import { acceptContextEvent, nextContext, effectiveContext } from '../src/lib/stores/kubernetes';
 
 describe('detail window read-only gating', () => {
   it('is writable on its own context and before the shared one is known', () => {
@@ -44,6 +44,23 @@ describe('shared context reconcile (seq-ordered)', () => {
     expect(nextContext({ lastSeq: 7, current: 'b' }, { context: 'b', seq: 7 })).toEqual({ apply: false, lastSeq: 7 });
     expect(nextContext({ lastSeq: 0, current: 'b' }, { context: 'b', seq: 3 })).toEqual({ apply: false, lastSeq: 3 });
     expect(nextContext({ lastSeq: 2, current: 'b' }, null)).toEqual({ apply: false, lastSeq: 2 });
+  });
+});
+
+describe('follow-ups: A -> B -> A and the first read', () => {
+  it('judges "already there" against the in-flight target, not the stale store', () => {
+    // On A; a switch to B is mid-apply (currentContext still A). Then back to A.
+    const current = effectiveContext('a', 'b');
+    expect(current).toBe('b');
+    expect(nextContext({ lastSeq: 1, current }, { context: 'a', seq: 2 })).toEqual({ apply: true, lastSeq: 2 });
+    // Without an apply in flight, the store is the truth.
+    expect(effectiveContext('a', null)).toBe('a');
+  });
+  it('accepts seq 0 on the initial read (no switch yet), but not as a later event', () => {
+    expect(acceptContextEvent(0, { context: 'a', seq: 0 }, true)).toBe(true);
+    expect(acceptContextEvent(0, { context: 'a', seq: 0 })).toBe(false);
+    expect(nextContext({ lastSeq: 0, current: '' }, { context: 'a', seq: 0 }, true)).toEqual({ apply: true, lastSeq: 0 });
+    expect(acceptContextEvent(4, { context: 'a', seq: 3 }, true)).toBe(false);
   });
 });
 

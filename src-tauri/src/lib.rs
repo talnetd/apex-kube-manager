@@ -162,6 +162,11 @@ pub fn run() {
             let label = window.label().to_string();
             match event {
                 tauri::WindowEvent::Focused(false) if label == "tray" => tray::on_popover_blur(window.app_handle()),
+                tauri::WindowEvent::CloseRequested { api, .. } if shell::is_main_label(&label) => {
+                    if shell::hold_close_for_terminals(window.app_handle(), &label) {
+                        api.prevent_close();
+                    }
+                }
                 tauri::WindowEvent::Destroyed => {
                     eprintln!("[apex-kube-manager] window {label} closed");
                     shell::on_window_destroyed(window.app_handle(), &label);
@@ -333,6 +338,7 @@ pub fn run() {
             // Multi-window + menu bar (shell.rs, tray.rs)
             commands::open_main_window,
             commands::get_shared_context,
+            commands::quit_app,
             commands::focus_main_window,
             commands::get_main_window_count,
             commands::get_tray_status,

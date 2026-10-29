@@ -29,7 +29,7 @@ export async function startDetailContextSync(locked: string) {
   try {
     // Seq-ordered like the events: if one already arrived, it's newer.
     const cur = await invoke<ContextChangedEvent | null>('get_shared_context');
-    if (cur && acceptContextEvent(lastSeq, cur)) {
+    if (cur && acceptContextEvent(lastSeq, cur, true)) {
       lastSeq = cur.seq;
       sharedContext.set(cur.context);
     } else if (!cur && lastSeq === 0) {

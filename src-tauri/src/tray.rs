@@ -260,9 +260,12 @@ fn save_enabled(app: &AppHandle, enabled: bool) {
 
 // ============ Polling ============
 
-async fn current_summary(context: &str) -> std::result::Result<(u32, u32), String> {
+async fn current_summary(
+    app: &AppHandle,
+    context: &str,
+) -> std::result::Result<(u32, u32), String> {
     let work = async {
-        let client = kubernetes::create_client_for_context(context).await?;
+        let client = cached_client(app, context).await?;
         let (d, s, ds, j, n) = tokio::try_join!(
             kubernetes::list_deployments(&client, None),
             kubernetes::list_statefulsets(&client, None),
@@ -286,26 +289,40 @@ async fn current_summary(context: &str) -> std::result::Result<(u32, u32), Strin
     }
 }
 
-async fn reachable(app: &AppHandle, context: &str) -> std::result::Result<(), String> {
+/// One client per context, reused across sweeps. kube refreshes an exec
+/// token only when it expires, so a cached client doesn't re-run the
+/// sign-in plugin every 60s. Cleared when the kubeconfig file changes.
+async fn cached_client(app: &AppHandle, context: &str) -> Result<kube::Client> {
     let cached = state(app)
         .clients
         .lock()
         .unwrap_or_else(|e| e.into_inner())
         .get(context)
         .cloned();
+    if let Some(c) = cached {
+        return Ok(c);
+    }
+    let c = kubernetes::create_client_for_context(context).await?;
+    state(app)
+        .clients
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(context.to_string(), c.clone());
+    Ok(c)
+}
+
+/// The kubeconfig changed (new credentials, edited cluster): drop clients.
+pub fn invalidate_clients(app: &AppHandle) {
+    state(app)
+        .clients
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clear();
+}
+
+async fn reachable(app: &AppHandle, context: &str) -> std::result::Result<(), String> {
     let probe = async {
-        let client = match cached {
-            Some(c) => c,
-            None => {
-                let c = kubernetes::create_client_for_context(context).await?;
-                state(app)
-                    .clients
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner())
-                    .insert(context.to_string(), c.clone());
-                c
-            }
-        };
+        let client = cached_client(app, context).await?;
         client.apiserver_version().await?;
         Ok::<_, AppError>(())
     };
@@ -338,7 +355,7 @@ async fn check_one(
         };
     }
     let (reachable, critical, warning, error) = if current {
-        match current_summary(&context).await {
+        match current_summary(&app, &context).await {
             Ok((c, w)) => (Some(true), c, w, None),
             Err(e) => (Some(false), 0, 0, Some(e)),
         }

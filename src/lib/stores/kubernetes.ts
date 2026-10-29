@@ -459,9 +459,14 @@ let contextUnlisten: UnlistenFn | null = null;
 /** Bumped per apply: a newer switch makes an older, still-loading one stop. */
 let applyGen = 0;
 
-/** Accept an event only if it's newer than the last one applied (pure, tested). */
-export function acceptContextEvent(lastSeq: number, ev: ContextChangedEvent): boolean {
-  return ev.seq > lastSeq && !!ev.context;
+/**
+ * Accept an event only if it's newer than the last one applied (pure,
+ * tested). The initial read after listening may equal it: before any switch
+ * Rust reports seq 0, and that report is still the truth.
+ */
+export function acceptContextEvent(lastSeq: number, ev: ContextChangedEvent, initial = false): boolean {
+  if (!ev.context) return false;
+  return initial ? ev.seq >= lastSeq : ev.seq > lastSeq;
 }
 
 /**
@@ -472,14 +477,28 @@ export function acceptContextEvent(lastSeq: number, ev: ContextChangedEvent): bo
  */
 export function nextContext(
   state: { lastSeq: number; current: string },
-  ev: ContextChangedEvent | null | undefined
+  ev: ContextChangedEvent | null | undefined,
+  initial = false
 ): { apply: boolean; lastSeq: number } {
-  if (!ev || !acceptContextEvent(state.lastSeq, ev)) return { apply: false, lastSeq: state.lastSeq };
+  if (!ev || !acceptContextEvent(state.lastSeq, ev, initial)) return { apply: false, lastSeq: state.lastSeq };
   return { apply: ev.context !== state.current, lastSeq: ev.seq };
 }
 
-function receiveContext(ev: ContextChangedEvent | null | undefined): Promise<void> {
-  const next = nextContext({ lastSeq: lastContextSeq, current: _currentContext }, ev);
+/** Target of the apply in progress, if any. */
+let applyTarget: string | null = null;
+
+/**
+ * Where this window is (or is about to be): the in-flight apply's target
+ * wins over `currentContext`, which only updates part-way through an apply.
+ * Without it A -> B -> A looks like "already on A" while B is still landing
+ * (pure, tested).
+ */
+export function effectiveContext(current: string, inFlightTarget: string | null): string {
+  return inFlightTarget ?? current;
+}
+
+function receiveContext(ev: ContextChangedEvent | null | undefined, initial = false): Promise<void> {
+  const next = nextContext({ lastSeq: lastContextSeq, current: effectiveContext(_currentContext, applyTarget) }, ev, initial);
   lastContextSeq = next.lastSeq;
   if (!next.apply || !ev) return Promise.resolve();
   return applyContextChange(ev.context).catch((e) => error.set(String(e)));
@@ -492,9 +511,15 @@ function receiveContext(ev: ContextChangedEvent | null | undefined): Promise<voi
  * supersedes this one at every await.
  */
 async function applyContextChange(contextName: string) {
-  if (!contextName || contextName === _currentContext) return;
+  if (!contextName) return;
+  // Always supersede an apply in progress, even when this one goes back to
+  // where the window already was: the older apply may have stopped watches
+  // or be about to move the stores.
+  const inFlight = applyTarget !== null;
   const gen = ++applyGen;
   const superseded = () => gen !== applyGen;
+  if (contextName === _currentContext && !inFlight) return;
+  applyTarget = contextName;
   isSwitchingContext.set(true);
   try {
     pulseMetrics.set(null);
@@ -520,7 +545,10 @@ async function applyContextChange(contextName: string) {
     if (superseded()) return;
     triggerRefresh();
   } finally {
-    if (!superseded()) isSwitchingContext.set(false);
+    if (!superseded()) {
+      applyTarget = null;
+      isSwitchingContext.set(false);
+    }
   }
 }
 
@@ -534,7 +562,7 @@ export async function startContextPolling() {
   const { listen } = await import('@tauri-apps/api/event');
   contextUnlisten = await listen<ContextChangedEvent>('context-changed', (event) => receiveContext(event.payload));
   try {
-    await receiveContext(await tauriInvoke<ContextChangedEvent | null>('get_shared_context'));
+    await receiveContext(await tauriInvoke<ContextChangedEvent | null>('get_shared_context'), true);
   } catch {
     /* older backend: events only */
   }
@@ -1078,15 +1106,7 @@ export const loadEvents = (namespace?: string | null) => eventList.load(namespac
 export const loadDeployments = (namespace?: string | null) => deploymentList.load(namespace);
 export const loadStatefulSets = (namespace?: string | null) => statefulSetList.load(namespace);
 
-export async function scaleStatefulSet(namespace: string, name: string, replicas: number) {
-  if (!isContextReady()) return;
-  await tauriInvoke('scale_statefulset', { contextName: _currentContext, namespace, name, replicas });
-}
 
-export async function restartStatefulSet(namespace: string, name: string) {
-  if (!isContextReady()) return;
-  await tauriInvoke('restart_statefulset', { contextName: _currentContext, namespace, name });
-}
 
 export const loadDaemonSets = (namespace?: string | null) => daemonSetList.load(namespace);
 export const loadReplicaSets = (namespace?: string | null) => replicaSetList.load(namespace);
@@ -1205,15 +1225,6 @@ export async function loadAllResources(namespace?: string | null) {
   ]);
 }
 
-export async function deletePod(namespace: string, podName: string) {
-  if (!isContextReady()) return;
-  try {
-    await tauriInvoke('delete_pod', { contextName: _currentContext, namespace, podName });
-    await loadPods(namespace);
-  } catch (e) {
-    error.set(String(e));
-  }
-}
 
 export async function getPodLogs(
   namespace: string,

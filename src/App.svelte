@@ -5,6 +5,20 @@
   import StatusBar from './lib/components/StatusBar.svelte';
   import { currentContextIsProd } from './lib/stores/production';
   import { trackWindowCount, openNewWindow } from './lib/stores/windows';
+  import ConfirmDialog from './lib/components/ui/ConfirmDialog.svelte';
+
+  // Closing the last window with the menu bar item off quits Apex; Rust
+  // holds the close and asks here when that would end terminal sessions.
+  let quitTerminals = $state(0);
+  async function listenConfirmQuit() {
+    if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
+    const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+    await getCurrentWebviewWindow().listen<number>('confirm-quit', (e) => (quitTerminals = e.payload));
+  }
+  async function quitNow() {
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('quit_app');
+  }
   import MainPanel from './lib/components/MainPanel.svelte';
   import StartupScreen from './lib/components/StartupScreen.svelte';
   import GlobalSearch from './lib/components/GlobalSearch.svelte';
@@ -163,6 +177,7 @@
 
   onMount(() => {
     trackWindowCount();
+    listenConfirmQuit();
     window.addEventListener('keydown', handleKeydown);
   });
 
@@ -197,6 +212,20 @@
 {/if}
 
 <Toaster />
+
+{#if quitTerminals > 0}
+  <ConfirmDialog
+    open={true}
+    title="Quit Apex?"
+    resource={{ kind: 'App', name: 'Apex', context: $currentContext }}
+    confirmLabel="Quit"
+    tone="danger"
+    prodEscalation={false}
+    body={`${quitTerminals} ${quitTerminals === 1 ? 'terminal is' : 'terminals are'} still open. Quitting ends ${quitTerminals === 1 ? 'its session' : 'their sessions'}. Turn on Show in Menu Bar to keep Apex running instead.`}
+    onConfirm={quitNow}
+    onClose={() => (quitTerminals = 0)}
+  />
+{/if}
 
 <style>
   .app-shell {
