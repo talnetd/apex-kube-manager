@@ -712,6 +712,8 @@
       <YamlEditorPanel
         yaml={podYaml}
         context={context}
+        name={name}
+        namespace={namespace}
         resourceType="Pod"
         isDeleted={isDeleted}
         onRefresh={loadPodYaml}
