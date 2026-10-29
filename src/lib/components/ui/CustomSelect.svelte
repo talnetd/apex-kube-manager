@@ -62,8 +62,11 @@
     }
   }
 
+  // Escape closes an open menu, whether focus is in the menu or still on the
+  // trigger (a click opens it without moving focus). Marked handled so an
+  // enclosing dialog stays open.
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
+    if (e.key === 'Escape' && isOpen) {
       e.preventDefault(); // handled: an enclosing dialog stays open
       isOpen = false;
       buttonRef?.focus();
@@ -85,6 +88,7 @@
     bind:this={buttonRef}
     type="button"
     onclick={toggle}
+    onkeydown={handleKeydown}
     aria-label={ariaLabel}
     {disabled}
     class="w-full flex items-center justify-between px-3 py-2 bg-bg-primary border border-border-subtle rounded-lg text-base text-left focus:outline-hidden focus:border-accent-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
