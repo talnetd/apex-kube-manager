@@ -469,9 +469,10 @@ pub async fn open_resource_detail(
     tab: Option<String>,
 ) -> Result<()> {
     // Create a unique window label
+    // Labels allow only a-zA-Z0-9-/:_ ; custom resource types carry dots and pipes.
     let window_label = format!(
         "detail-{}-{}-{}",
-        resource_type,
+        resource_type.replace(|c: char| !c.is_ascii_alphanumeric(), "-"),
         namespace.replace(['.', '/', '\\', ' '], "-"),
         name.replace(['.', '/', '\\', ' '], "-")
     );
@@ -494,9 +495,14 @@ pub async fn open_resource_detail(
         tab_param
     );
 
-    // Capitalize resource type for title
+    // Title: custom resources carry `cr|group|version|plural|Kind|scope`;
+    // show their Kind, not the raw id.
+    let type_label = resource_type
+        .strip_prefix("cr|")
+        .and_then(|rest| rest.split('|').nth(3))
+        .unwrap_or(&resource_type);
     let capitalized_type = {
-        let mut chars = resource_type.chars();
+        let mut chars = type_label.chars();
         match chars.next() {
             None => String::new(),
             Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
@@ -1167,4 +1173,155 @@ pub async fn stop_all_watches(
 #[tauri::command]
 pub async fn check_for_updates() -> std::result::Result<crate::updates::UpdateInfo, String> {
     crate::updates::check_for_updates().await
+}
+
+// ============ More resource types (src/resources.rs) ============
+
+use crate::resources::{
+    self, ClusterRoleBindingInfo, ClusterRoleInfo, CrdInfo, CustomResourceInfo, CustomTarget,
+    EndpointSliceInfo, GenericDetail, GenericEvent, IngressClassInfo, LimitRangeInfo, PdbInfo,
+    PriorityClassInfo, ResourceQuotaInfo, RoleBindingInfo, RoleInfo, StorageClassInfo,
+};
+
+#[tauri::command]
+pub async fn get_roles(namespace: Option<String>) -> Result<Vec<RoleInfo>> {
+    let client = kubernetes::create_client().await?;
+    resources::list_roles(&client, namespace.as_deref()).await
+}
+
+#[tauri::command]
+pub async fn get_cluster_roles() -> Result<Vec<ClusterRoleInfo>> {
+    let client = kubernetes::create_client().await?;
+    resources::list_cluster_roles(&client).await
+}
+
+#[tauri::command]
+pub async fn get_role_bindings(namespace: Option<String>) -> Result<Vec<RoleBindingInfo>> {
+    let client = kubernetes::create_client().await?;
+    resources::list_role_bindings(&client, namespace.as_deref()).await
+}
+
+#[tauri::command]
+pub async fn get_cluster_role_bindings() -> Result<Vec<ClusterRoleBindingInfo>> {
+    let client = kubernetes::create_client().await?;
+    resources::list_cluster_role_bindings(&client).await
+}
+
+#[tauri::command]
+pub async fn get_storage_classes() -> Result<Vec<StorageClassInfo>> {
+    let client = kubernetes::create_client().await?;
+    resources::list_storage_classes(&client).await
+}
+
+#[tauri::command]
+pub async fn get_endpoint_slices(namespace: Option<String>) -> Result<Vec<EndpointSliceInfo>> {
+    let client = kubernetes::create_client().await?;
+    resources::list_endpoint_slices(&client, namespace.as_deref()).await
+}
+
+#[tauri::command]
+pub async fn get_ingress_classes() -> Result<Vec<IngressClassInfo>> {
+    let client = kubernetes::create_client().await?;
+    resources::list_ingress_classes(&client).await
+}
+
+#[tauri::command]
+pub async fn get_pdbs(namespace: Option<String>) -> Result<Vec<PdbInfo>> {
+    let client = kubernetes::create_client().await?;
+    resources::list_pdbs(&client, namespace.as_deref()).await
+}
+
+#[tauri::command]
+pub async fn get_resource_quotas(namespace: Option<String>) -> Result<Vec<ResourceQuotaInfo>> {
+    let client = kubernetes::create_client().await?;
+    resources::list_resource_quotas(&client, namespace.as_deref()).await
+}
+
+#[tauri::command]
+pub async fn get_limit_ranges(namespace: Option<String>) -> Result<Vec<LimitRangeInfo>> {
+    let client = kubernetes::create_client().await?;
+    resources::list_limit_ranges(&client, namespace.as_deref()).await
+}
+
+#[tauri::command]
+pub async fn get_priority_classes() -> Result<Vec<PriorityClassInfo>> {
+    let client = kubernetes::create_client().await?;
+    resources::list_priority_classes(&client).await
+}
+
+#[tauri::command]
+pub async fn get_crds() -> Result<Vec<CrdInfo>> {
+    let client = kubernetes::create_client().await?;
+    resources::list_crds(&client).await
+}
+
+#[tauri::command]
+pub async fn get_custom_resources(target: CustomTarget, namespace: Option<String>) -> Result<Vec<CustomResourceInfo>> {
+    let client = kubernetes::create_client().await?;
+    resources::list_custom_resources(&client, &target, namespace.as_deref()).await
+}
+
+/// Detail/YAML/events for every kind in `resources.rs`, keyed by the
+/// frontend kind id (`role`, `pdb`, ...). Cluster-scoped kinds ignore `namespace`.
+#[tauri::command]
+pub async fn get_resource_detail(
+    context_name: String,
+    kind: String,
+    namespace: Option<String>,
+    name: String,
+) -> Result<GenericDetail> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    resources::resource_detail(&client, &kind, namespace.as_deref(), &name).await
+}
+
+#[tauri::command]
+pub async fn get_resource_yaml(context_name: String, kind: String, namespace: Option<String>, name: String) -> Result<String> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    resources::resource_yaml(&client, &kind, namespace.as_deref(), &name).await
+}
+
+#[tauri::command]
+pub async fn get_resource_events(
+    context_name: String,
+    kind: String,
+    namespace: Option<String>,
+    name: String,
+) -> Result<Vec<GenericEvent>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    resources::resource_events(&client, &kind, namespace.as_deref(), &name).await
+}
+
+#[tauri::command]
+pub async fn get_custom_resource_detail(
+    context_name: String,
+    target: CustomTarget,
+    namespace: Option<String>,
+    name: String,
+) -> Result<GenericDetail> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    resources::custom_resource_detail(&client, &target, namespace.as_deref(), &name).await
+}
+
+#[tauri::command]
+pub async fn get_custom_resource_yaml(
+    context_name: String,
+    target: CustomTarget,
+    namespace: Option<String>,
+    name: String,
+) -> Result<String> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    resources::custom_resource_yaml(&client, &target, namespace.as_deref(), &name).await
+}
+
+#[tauri::command]
+pub async fn get_custom_resource_events(
+    context_name: String,
+    target: CustomTarget,
+    namespace: Option<String>,
+    name: String,
+) -> Result<Vec<GenericEvent>> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
+    let ns = if target.namespaced { namespace } else { None };
+    let api_version = target.api_version();
+    resources::object_events(&client, &target.kind, Some(&api_version), ns.as_deref(), &name).await
 }

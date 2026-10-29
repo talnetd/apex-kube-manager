@@ -6,6 +6,7 @@
   import EventsTable from '../ui/EventsTable.svelte';
   import ConditionsTable from '../ui/ConditionsTable.svelte';
   import CustomSelect from '../ui/CustomSelect.svelte';
+  import { parseCrType } from '../../utils/resources';
 
   interface Props {
     resourceType: string;
@@ -17,7 +18,7 @@
   let { resourceType, context, namespace, name }: Props = $props();
 
   // Resource configuration - defines tabs and display names for each type
-  const resourceConfig: Record<string, { displayName: string; tabs: string[]; clusterScoped?: boolean }> = {
+  const resourceConfig: Record<string, { displayName: string; tabs: string[]; clusterScoped?: boolean; generic?: boolean }> = {
     pod: { displayName: 'Pod', tabs: ['overview', 'events', 'yaml'] },
     deployment: { displayName: 'Deployment', tabs: ['overview', 'pods', 'events', 'yaml'] },
     statefulset: { displayName: 'StatefulSet', tabs: ['overview', 'pods', 'events', 'yaml'] },
@@ -36,9 +37,37 @@
     namespace: { displayName: 'Namespace', tabs: ['overview', 'events', 'yaml'], clusterScoped: true },
     node: { displayName: 'Node', tabs: ['overview', 'pods', 'resources', 'events', 'yaml'], clusterScoped: true },
     serviceaccount: { displayName: 'ServiceAccount', tabs: ['overview', 'events', 'yaml'] },
+    // Generic kinds (src-tauri/src/resources.rs): one dispatch command set,
+    // one fields + tables overview.
+    role: { displayName: 'Role', tabs: ['overview', 'events', 'yaml'], generic: true },
+    clusterrole: { displayName: 'ClusterRole', tabs: ['overview', 'events', 'yaml'], clusterScoped: true, generic: true },
+    rolebinding: { displayName: 'RoleBinding', tabs: ['overview', 'events', 'yaml'], generic: true },
+    clusterrolebinding: { displayName: 'ClusterRoleBinding', tabs: ['overview', 'events', 'yaml'], clusterScoped: true, generic: true },
+    storageclass: { displayName: 'StorageClass', tabs: ['overview', 'events', 'yaml'], clusterScoped: true, generic: true },
+    endpointslice: { displayName: 'EndpointSlice', tabs: ['overview', 'events', 'yaml'], generic: true },
+    ingressclass: { displayName: 'IngressClass', tabs: ['overview', 'events', 'yaml'], clusterScoped: true, generic: true },
+    pdb: { displayName: 'PodDisruptionBudget', tabs: ['overview', 'events', 'yaml'], generic: true },
+    resourcequota: { displayName: 'ResourceQuota', tabs: ['overview', 'events', 'yaml'], generic: true },
+    limitrange: { displayName: 'LimitRange', tabs: ['overview', 'events', 'yaml'], generic: true },
+    priorityclass: { displayName: 'PriorityClass', tabs: ['overview', 'events', 'yaml'], clusterScoped: true, generic: true },
+    crd: { displayName: 'CustomResourceDefinition', tabs: ['overview', 'events', 'yaml'], clusterScoped: true, generic: true },
   };
 
-  const config = $derived(resourceConfig[resourceType] || { displayName: resourceType, tabs: ['overview', 'events', 'yaml'] });
+  // Custom resources carry their API coordinates in the type id.
+  const crTarget = $derived(parseCrType(resourceType));
+  const config = $derived(
+    crTarget
+      ? { displayName: crTarget.kind, tabs: ['yaml', 'overview', 'events'], clusterScoped: !crTarget.namespaced, generic: true }
+      : resourceConfig[resourceType] || { displayName: resourceType, tabs: ['overview', 'events', 'yaml'] }
+  );
+
+  /** Command and args for detail/yaml/events, per kind family. */
+  function call<T>(what: 'detail' | 'yaml' | 'events'): Promise<T> {
+    const ns = config.clusterScoped ? null : namespace;
+    if (crTarget) return invoke<T>(`get_custom_resource_${what}`, { contextName: context, target: crTarget, namespace: ns, name });
+    if (config.generic) return invoke<T>(`get_resource_${what}`, { contextName: context, kind: resourceType, namespace: ns, name });
+    return invoke<T>(`get_${resourceType}_${what}`, getInvokeParams());
+  }
 
   let activeTab = $state<string>('overview');
 
@@ -87,6 +116,8 @@
   }
 
   onMount(async () => {
+    // Custom resources have no typed overview: open on YAML.
+    if (crTarget) activeTab = 'yaml';
     await loadDetail();
     existenceInterval = setInterval(checkExists, 5000);
     return () => {
@@ -97,7 +128,7 @@
   async function checkExists() {
     if (isDeleted) return;
     try {
-      await invoke(`get_${resourceType}_detail`, getInvokeParams());
+      await call('detail');
       lastSeen = new Date().toLocaleTimeString();
     } catch (e) {
       const errorStr = String(e);
@@ -120,7 +151,9 @@
     try {
       isLoading = true;
       error = null;
-      detail = await invoke(`get_${resourceType}_detail`, getInvokeParams());
+      detail = await call<Record<string, any>>('detail');
+      // YAML-first types (custom resources) load their first tab now.
+      if (activeTab === 'yaml' && !yaml) loadYaml();
     } catch (e) {
       error = String(e);
     } finally {
@@ -130,7 +163,7 @@
 
   async function loadYaml() {
     try {
-      yaml = await invoke(`get_${resourceType}_yaml`, getInvokeParams());
+      yaml = await call<string>('yaml');
     } catch (e) {
       yaml = `Error loading YAML: ${e}`;
     }
@@ -138,7 +171,7 @@
 
   async function loadEvents() {
     try {
-      events = await invoke(`get_${resourceType}_events`, getInvokeParams());
+      events = await call<any[]>('events');
     } catch (e) {
       events = [];
     }
@@ -1080,6 +1113,42 @@
           </section>
 
         <!-- SERVICEACCOUNT -->
+        {:else if config.generic && detail.fields}
+          <!-- Generic kinds: key/value fields, then small tables -->
+          {#if detail.fields.length}
+            <section>
+              <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Details</h2>
+              <dl class="grid grid-cols-[minmax(140px,max-content)_minmax(0,1fr)] gap-x-6 gap-y-2 text-base">
+                {#each detail.fields as f (f.label)}
+                  <dt class="text-muted">{f.label}</dt>
+                  <dd class="m-0 text-primary break-words">{f.value}</dd>
+                {/each}
+              </dl>
+            </section>
+          {/if}
+          {#each detail.tables ?? [] as t (t.title)}
+            <section>
+              <h2 class="text-[18px]/7 font-semibold text-text-primary mb-3">{t.title} <span class="text-muted font-normal tabular-nums">{t.rows.length}</span></h2>
+              <div class="overflow-x-auto border border-line rounded-lg">
+                <table class="w-full text-sm border-separate border-spacing-0">
+                  <thead>
+                    <tr>
+                      {#each t.columns as c}<th class="text-left font-medium text-2xs uppercase tracking-[0.02em] text-muted px-3 h-8 border-b border-line whitespace-nowrap">{c}</th>{/each}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {#each t.rows as row, ri (ri)}
+                      <tr>
+                        {#each row as cell, ci (ci)}
+                          <td class="px-3 py-2 align-top text-secondary {ci === 0 ? 'font-mono text-primary' : ''} {ri < t.rows.length - 1 ? 'border-b border-line' : ''}">{cell || '–'}</td>
+                        {/each}
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          {/each}
         {:else if resourceType === 'serviceaccount'}
           <section>
             <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">ServiceAccount Info</h2>

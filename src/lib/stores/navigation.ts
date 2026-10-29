@@ -20,7 +20,20 @@ export type View =
   | 'serviceaccounts'
   | 'nodes'
   | 'namespaces'
-  | 'events';
+  | 'events'
+  | 'roles'
+  | 'clusterroles'
+  | 'rolebindings'
+  | 'clusterrolebindings'
+  | 'storageclasses'
+  | 'endpointslices'
+  | 'ingressclasses'
+  | 'pdbs'
+  | 'resourcequotas'
+  | 'limitranges'
+  | 'priorityclasses'
+  | 'crds'
+  | 'customresources';
 
 export const currentView = writable<View>('dashboard');
 export const sidebarCollapsed = writable<boolean>(false);

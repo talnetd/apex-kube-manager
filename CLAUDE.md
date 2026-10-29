@@ -132,6 +132,8 @@ All resource views are fully functional with listing, namespace filtering (where
 | Services | `ServiceList.svelte` | Yes | Name, Type, ClusterIP, ExternalIP, Ports, Age |
 | Ingresses | `IngressList.svelte` | Yes | Name, Class, Hosts, Address, Ports, Age |
 | NetworkPolicies | `NetworkPolicyList.svelte` | Yes | Name, Pod Selector, Policy Types, Age |
+| Endpoints (EndpointSlices) | `more/EndpointSliceList.svelte` | Yes | Name, Namespace, Service, Endpoints (ready/total, health), Type, Ports, Age |
+| IngressClasses | `more/IngressClassList.svelte` | No (cluster-scoped) | Name (+default), Controller, Parameters, Age |
 
 ### Config
 | Resource | View File | Namespace Filter | Key Columns |
@@ -145,6 +147,31 @@ All resource views are fully functional with listing, namespace filtering (where
 |----------|-----------|------------------|-------------|
 | PersistentVolumes | `PVList.svelte` | No (cluster-scoped) | Name, Capacity, Access Modes, Reclaim, Status, Claim, StorageClass, Age |
 | PersistentVolumeClaims | `PVCList.svelte` | Yes | Name, Status, Volume, Capacity, Access Modes, StorageClass, Age |
+| StorageClasses | `more/StorageClassList.svelte` | No (cluster-scoped) | Name (+default), Provisioner, Reclaim, Binding mode, Expansion, Age |
+
+### Scaling & Policy
+| Resource | View File | Namespace Filter | Key Columns |
+|----------|-----------|------------------|-------------|
+| PodDisruptionBudgets | `more/PdbList.svelte` | Yes | Name, Namespace, Status (`pdbHealth`), Min available, Max unavailable, Allowed, Age |
+| ResourceQuotas | `more/ResourceQuotaList.svelte` | Yes | Name, Namespace, Fullest (`quotaHealth`), Usage, Age |
+| LimitRanges | `more/LimitRangeList.svelte` | Yes | Name, Namespace, Applies to, Limits, Age |
+| PriorityClasses | `more/PriorityClassList.svelte` | No (cluster-scoped) | Name (+default), Value, Preemption, Description, Age |
+
+### Access Control
+| Resource | View File | Namespace Filter | Key Columns |
+|----------|-----------|------------------|-------------|
+| Roles | `more/RoleList.svelte` | Yes | Name, Namespace, Rules, Age |
+| RoleBindings | `more/RoleBindingList.svelte` | Yes | Name, Namespace, Role, Subjects, Age |
+| ClusterRoles | `more/ClusterRoleList.svelte` | No (cluster-scoped) | Name, Rules, Aggregated, Age |
+| ClusterRoleBindings | `more/ClusterRoleBindingList.svelte` | No (cluster-scoped) | Name, Role, Subjects, Age |
+
+### Custom Resources
+| Resource | View File | Namespace Filter | Key Columns |
+|----------|-----------|------------------|-------------|
+| CRDs ("Definitions") | `more/CrdList.svelte` | No (cluster-scoped) | Name, Kind, Group, Scope, Version, Age; row action Browse |
+| Custom resources ("Browse") | `more/CustomResourceBrowser.svelte` | Yes, for namespaced CRDs | Pick a CRD, then Name, Namespace, Age via the dynamic API |
+
+The views in `views/more/` share `ResourceListView.svelte` (PageHeader + DataTable, 10s poll, filter, open detail) and the list stores in `src/lib/stores/resources.ts` (`listStore(command, namespaced)`: generation counter + context guard, cleared on context switch). Pure helpers (quantities, quota usage, PDB health, custom resource type ids) live in `src/lib/utils/resources.ts`, covered by `tests/resources.test.ts`.
 
 ### Cluster
 | Resource | View File | Namespace Filter | Key Columns |
@@ -176,38 +203,19 @@ Health is computed **in Rust only** (`src-tauri/src/triage/`), never re-derived 
 
 ## Sidebar Navigation Structure
 
-Flat list with section headers (no nested accordions):
+Collapsible sentence-case sections (`Sidebar.svelte`); md shows an icon rail, sm an off-canvas drawer:
 
 ```
-Pulse (Dashboard)
-─────────────────
-WORKLOADS
-  Pods
-  Deployments
-  StatefulSets
-  DaemonSets
-  ReplicaSets
-  Jobs
-  CronJobs
-─────────────────
-NETWORK
-  Services
-  Ingresses
-  Network Policies
-─────────────────
-CONFIG
-  ConfigMaps
-  Secrets
-  HPAs
-─────────────────
-STORAGE
-  Persistent Volumes
-  Persistent Volume Claims
-─────────────────
-CLUSTER
-  Namespaces
-  Nodes
-  Service Accounts
+Pulse
+Events
+Workloads:        Pods, Deployments, StatefulSets, DaemonSets, ReplicaSets, Jobs, CronJobs
+Network:          Services, Endpoints, Ingresses, Ingress Classes, Network Policies
+Config:           ConfigMaps, Secrets
+Storage:          Persistent Volumes, PV Claims, Storage Classes
+Scaling & Policy: HPAs, Pod Disruption Budgets, Resource Quotas, Limit Ranges, Priority Classes
+Access Control:   Service Accounts, Roles, Role Bindings, Cluster Roles, Cluster Role Bindings
+Cluster:          Nodes, Namespaces
+Custom Resources: Definitions, Browse
 ```
 
 ## Tauri Commands (Rust → Frontend IPC)
@@ -302,6 +310,29 @@ Resources with related pods also have:
 
 **Cluster-scoped resources** (no namespace param): pv, namespace, node
 
+### More resource types (`src-tauri/src/resources.rs`)
+List commands (current context, like the other lists):
+
+| Command | Parameters | Returns |
+|---------|------------|---------|
+| `get_roles` / `get_role_bindings` | `namespace?` | `Vec<RoleInfo>` / `Vec<RoleBindingInfo>` |
+| `get_cluster_roles` / `get_cluster_role_bindings` | - | `Vec<ClusterRoleInfo>` / `Vec<ClusterRoleBindingInfo>` |
+| `get_storage_classes` / `get_ingress_classes` / `get_priority_classes` | - | `Vec<StorageClassInfo>` / `Vec<IngressClassInfo>` / `Vec<PriorityClassInfo>` |
+| `get_endpoint_slices` / `get_pdbs` / `get_resource_quotas` / `get_limit_ranges` | `namespace?` | `Vec<EndpointSliceInfo>` / `Vec<PdbInfo>` / `Vec<ResourceQuotaInfo>` / `Vec<LimitRangeInfo>` |
+| `get_crds` | - | `Vec<CrdInfo>` |
+| `get_custom_resources` | `target: CustomTarget, namespace?` | `Vec<CustomResourceInfo>` |
+
+Detail, YAML and events for these kinds don't follow the `get_{resource}_*` pattern. One dispatch serves them all and returns a generic `GenericDetail { fields: [{label, value}], tables: [{title, columns, rows}], labels, annotations, ... }`, rendered by one block in `ResourceDetail.svelte` (`generic: true` in `resourceConfig`):
+
+| Command | Parameters | Returns |
+|---------|------------|---------|
+| `get_resource_detail` / `get_resource_yaml` / `get_resource_events` | `context_name, kind, namespace?, name` | `GenericDetail` / `String` / `Vec<GenericEvent>` |
+| `get_custom_resource_detail` / `_yaml` / `_events` | `context_name, target: CustomTarget, namespace?, name` | same |
+
+`kind` ids: role, clusterrole, rolebinding, clusterrolebinding, storageclass, endpointslice, ingressclass, pdb, resourcequota, limitrange, priorityclass, crd. `CustomTarget` is `{ group, version, kind, plural, namespaced }`. A custom resource's detail window gets it packed into its type id: `cr|<group>|<version>|<plural>|<Kind>|<n|c>` (`encodeCrType` / `parseCrType`). The window opens on YAML.
+
+To add a kind here: a list fn + row struct, a detail builder, one arm in each dispatch `match` in `resources.rs`, a `listStore` in `stores/resources.ts`, a small view in `views/more/` and a `resourceConfig` entry with `generic: true`.
+
 **Additional commands**:
 | Command | Parameters | Returns |
 |---------|------------|---------|
@@ -341,7 +372,7 @@ deletePod(ns, name), getPodLogs(ns, name, container?, lines?)
 
 ### navigation.ts
 ```typescript
-currentView: View  // 'dashboard' | 'pods' | 'deployments' | ... (all 17 views)
+currentView: View  // 'dashboard' | 'pods' | ... | 'roles' | 'pdbs' | 'crds' | 'customresources' (33 views)
 sidebarCollapsed: boolean
 ```
 
@@ -498,6 +529,7 @@ const events = await invoke(`get_${resourceType}_events`, getInvokeParams());
 - [ ] Command palette with actions (restart deploy, scale, logs, exec - all from keyboard)
 - [ ] Fix YAML editor - typing/editing not working in CodeMirror (YamlEditorPanel.svelte)
 - [ ] Search/filter within tables
+- [x] More resource types: RBAC, StorageClasses, EndpointSlices, IngressClasses, PDBs, ResourceQuotas, LimitRanges, PriorityClasses, CRDs + generic custom resource browser
 - [ ] Resource deletion (deployments, services, configmaps, etc.)
 - [ ] Node drain (evict pods with options)
 - [ ] Application icons
