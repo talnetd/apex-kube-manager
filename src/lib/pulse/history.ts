@@ -69,8 +69,11 @@ export function delta(samples: readonly Sample[]): number | null {
 export class MetricHistory {
   private ring: RingBuffer<Sample>;
 
-  /** 1h at a 5s poll is 720 samples; sized with headroom for faster polls. */
-  constructor(capacity = 900) {
+  /**
+   * Samples are deduped to one per second, and several stores can trigger a
+   * poll, so the worst case is one a second: 3600 covers the full hour.
+   */
+  constructor(capacity = 3600) {
     this.ring = new RingBuffer<Sample>(capacity);
   }
 

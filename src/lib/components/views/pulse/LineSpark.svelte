@@ -1,31 +1,43 @@
 <script lang="ts" module>
+  import { HOUR_MS, type Sample } from '../../../pulse/history';
+
   /**
-   * Polyline points for a sparkline (preview `lineSpark`). `fixed` uses a
-   * 0-100 domain (percent metrics, with the dashed 90% line); otherwise the
-   * domain hugs the data. Nulls are skipped; gaps are rare at a 5s poll.
+   * Polyline points for a sparkline (preview `lineSpark`), placed by time
+   * across the window so a gap in sampling reads as a gap, not a squeeze.
+   * `fixed` uses a 0-100 domain (percent metrics, with the dashed 90% line);
+   * otherwise the domain hugs the data. Null samples are skipped.
    */
-  export function linePoints(values: readonly (number | null)[], w: number, h: number, fixed: boolean): string {
-    const pts = values.map((v, i) => [i, v] as const).filter((p): p is readonly [number, number] => p[1] !== null);
+  export function linePoints(
+    samples: readonly Sample[],
+    now: number,
+    w: number,
+    h: number,
+    fixed: boolean,
+    windowMs = HOUR_MS
+  ): string {
+    const pts = samples.filter((s): s is { t: number; v: number } => s.v !== null && s.t >= now - windowMs && s.t <= now);
     if (pts.length < 2) return '';
-    const vals = pts.map((p) => p[1]);
+    const vals = pts.map((p) => p.v);
     const mn = fixed ? 0 : Math.min(...vals) - 2;
     const mx = fixed ? 100 : Math.max(...vals) + 2;
-    const n = values.length;
+    const from = now - windowMs;
+    const x = (t: number) => ((t - from) / windowMs) * w;
     const y = (v: number) => h - 2 - ((v - mn) / (mx - mn || 1)) * (h - 4);
-    return pts.map(([i, v]) => `${((i * w) / (n - 1)).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    return pts.map((p) => `${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ');
   }
 </script>
 
 <script lang="ts">
   let {
-    values,
+    samples,
+    now,
     w = 300,
     h = 44,
     fixed = false,
-  }: { values: readonly (number | null)[]; w?: number; h?: number; fixed?: boolean } = $props();
+  }: { samples: readonly Sample[]; now: number; w?: number; h?: number; fixed?: boolean } = $props();
 
-  const points = $derived(linePoints(values, w, h, fixed));
-  const last = $derived([...values].reverse().find((v) => v !== null) ?? null);
+  const points = $derived(linePoints(samples, now, w, h, fixed));
+  const last = $derived([...samples].reverse().find((s) => s.v !== null)?.v ?? null);
   const stroke = $derived(
     !fixed
       ? 'var(--ui-muted)'

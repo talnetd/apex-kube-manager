@@ -4,6 +4,8 @@
   // a side sheet. Health is the Rust triage verdict on each object.
   import './pulse/pulse.css';
   import { onMount, onDestroy, untrack } from 'svelte';
+  import { get } from 'svelte/store';
+  import { anchorSelection } from '../../utils/selection';
   import { invoke } from '@tauri-apps/api/core';
   import {
     currentContext,
@@ -51,6 +53,7 @@
     historyTick,
     lastHour,
     firstSeen,
+    pruneFirstSeen,
     recordAction,
     worstDisk,
   } from '../../pulse/store';
@@ -133,9 +136,37 @@
   const issues = $derived(buildIssues(objects, firstSeen));
   const issueById = $derived(new Map(issues.map((i) => [i.id, i])));
 
-  const podsOf = (i: Issue) => podsFor(i, $pods).filter((p) => i.kind === 'node' || p.verdict.status !== 'ok');
-  const nodesOf = (i: Issue) => [...new Set(podsFor(i, $pods).map((p) => p.node).filter((n): n is string => !!n))];
-  const triggerOf = (i: Issue) => findTrigger(i, $activity, nodesOf(i));
+  // Per-issue facts, computed once per update instead of per template call.
+  // Pods are indexed by namespace and node so each issue scans only its slice.
+  const podIndex = $derived.by(() => {
+    const byNs = new Map<string, PodInfo[]>();
+    const byNode = new Map<string, PodInfo[]>();
+    for (const p of $pods) {
+      (byNs.get(p.namespace) ?? byNs.set(p.namespace, []).get(p.namespace)!).push(p);
+      if (p.node) (byNode.get(p.node) ?? byNode.set(p.node, []).get(p.node)!).push(p);
+    }
+    return { byNs, byNode };
+  });
+  const facts = $derived.by(() => {
+    const out = new Map<string, { pods: PodInfo[]; trigger: ReturnType<typeof findTrigger> }>();
+    for (const i of issues) {
+      const pool = i.kind === 'node' ? (podIndex.byNode.get(i.name) ?? []) : (podIndex.byNs.get(i.namespace ?? '') ?? []);
+      const mine = podsFor(i, pool);
+      const nodesOfIssue = [...new Set(mine.map((p) => p.node).filter((n): n is string => !!n))];
+      out.set(i.id, {
+        pods: i.kind === 'node' ? mine : mine.filter((p) => p.verdict.status !== 'ok'),
+        trigger: findTrigger(i, $activity, nodesOfIssue),
+      });
+    }
+    return out;
+  });
+  const podsOf = (i: Issue) => facts.get(i.id)?.pods ?? [];
+  const triggerOf = (i: Issue) => facts.get(i.id)?.trigger ?? null;
+
+  // 7: forget first-seen times of objects that recovered.
+  $effect(() => {
+    pruneFirstSeen(new Set(issues.map((i) => i.id)));
+  });
 
   function impactOf(i: Issue): string {
     const ps = podsOf(i);
@@ -165,7 +196,6 @@
       workloads: lastHour('workloads', at),
     };
   });
-  const vals = (s: { v: number | null }[]) => s.map((x) => x.v);
 
   const reach = $derived(reachabilityPct($apiProbes.ok, $apiProbes.total));
   const healthDelta = $derived(delta(series.health));
@@ -209,14 +239,35 @@
 
   // ---------- Selection, sheet, keyboard ----------
   let sheetOpen = $state(false);
-  const selected = $derived($selectedRowIndex >= 0 && $selectedRowIndex < issues.length ? issues[$selectedRowIndex] : null);
+  // The selection is anchored to an issue id. Issues re-sort on every
+  // update, so a row index alone could point Restart/Scale at a different
+  // workload than the one the sheet shows.
+  let selectedId = $state<string | null>(null);
+  let lastIndex = -1;
+  const selected = $derived(selectedId ? (issueById.get(selectedId) ?? null) : null);
 
   $effect(() => {
     totalRows.set(issues.length);
   });
-  // Sheet closes when its issue resolves.
+  // j/k (or a click) moved the index: anchor to the issue now under it.
   $effect(() => {
-    if (sheetOpen && !selected) sheetOpen = false;
+    const idx = $selectedRowIndex;
+    untrack(() => {
+      lastIndex = idx;
+      selectedId = idx >= 0 && idx < issues.length ? issues[idx].id : null;
+    });
+  });
+  // Issues changed: move the index to wherever the anchored issue went.
+  $effect(() => {
+    const keys = issues.map((i) => i.id);
+    untrack(() => {
+      const next = anchorSelection(selectedId, lastIndex, keys);
+      // The sheet's issue resolved: close it rather than show a neighbour.
+      if (sheetOpen && selectedId && !keys.includes(selectedId)) sheetOpen = false;
+      lastIndex = next;
+      selectedId = next >= 0 ? keys[next] : null;
+      if (next !== get(selectedRowIndex)) selectedRowIndex.set(next);
+    });
   });
 
   let rowEls: HTMLTableRowElement[] = $state([]);
@@ -226,7 +277,9 @@
   });
 
   function openIssue(i: Issue) {
+    selectedId = i.id;
     const idx = issues.findIndex((x) => x.id === i.id);
+    lastIndex = idx;
     if (idx >= 0) selectedRowIndex.set(idx);
     sheetOpen = true;
   }
@@ -279,14 +332,14 @@
 
   type ConfirmState = { mode: 'restart' | 'scale'; issue: Issue };
   let confirm = $state<ConfirmState | null>(null);
-  let replicas = $state(1);
+  let replicas = $state<number | null>(1);
+  const replicasValid = $derived(typeof replicas === 'number' && Number.isInteger(replicas) && replicas >= 0);
 
   function askRestart(i: Issue) {
     confirm = { mode: 'restart', issue: i };
   }
   function askScale(i: Issue) {
-    const desired = Number((i.ready ?? '').split('/')[1]);
-    replicas = Number.isFinite(desired) ? desired : 1;
+    replicas = i.desired ?? 1;
     confirm = { mode: 'scale', issue: i };
   }
 
@@ -294,6 +347,7 @@
     if (!confirm) return;
     const { mode, issue: i } = confirm;
     const cmd = `${mode}_${i.kind}`;
+    if (mode === 'scale' && !replicasValid) throw new Error('Replicas must be a whole number, 0 or more');
     if (mode === 'restart') {
       await invoke(cmd, { namespace: i.namespace, name: i.name });
     } else {
@@ -358,7 +412,7 @@
         <div class="kl">Health</div>
         <div class="kv2">{fmtPct($kpis.healthPct)}</div>
         <div class="kd">
-          {#if series.health.length > 1}<LineSpark values={vals(series.health)} w={64} h={18} />{/if}
+          {#if series.health.length > 1}<LineSpark samples={series.health} {now} w={64} h={18} />{/if}
           <span>{healthDelta === null ? 'healthy / total' : Math.abs(healthDelta) < 0.05 ? 'no change · 1h' : `${healthDelta > 0 ? '↑' : '↓'} ${Math.abs(healthDelta).toFixed(1)} pts · 1h`}</span>
         </div>
       </section>
@@ -459,7 +513,7 @@
                 {m.v === null ? '–' : `${Math.round(m.v)}%`}
                 {#if m.v !== null && m.v >= 90}<StatusIcon health="failed" size={14} colored={false} />{:else if m.v !== null && m.v >= 75}<StatusIcon health="warning" size={14} colored={false} />{/if}
               </div>
-              <LineSpark values={vals(m.s)} fixed />
+              <LineSpark samples={m.s} {now} fixed />
               <div class="ms">{m.sub}</div>
             </section>
           {/each}
@@ -516,7 +570,7 @@
             </thead>
             <tbody>
               {#each issues as i, idx (i.id)}
-                {@const sel = idx === $selectedRowIndex}
+                {@const sel = i.id === selectedId}
                 {@const hint = triggerShort(i)}
                 {@const logPod = logsTarget(i)}
                 <tr
@@ -589,6 +643,7 @@
     confirmLabel={c.mode === 'restart' ? 'Restart' : 'Scale'}
     body={c.mode === 'restart' ? 'Pods are replaced one by one (rolling restart). Running requests on old pods may be cut off.' : scaleBody}
     successMessage={c.mode === 'restart' ? `Restarting ${c.issue.name}` : `Scaling ${c.issue.name} to ${replicas}`}
+    confirmDisabled={c.mode === 'scale' && !replicasValid}
     onConfirm={runConfirm}
     onClose={() => (confirm = null)}
   />
@@ -600,7 +655,9 @@
     <input
       type="number"
       min="0"
+      step="1"
       bind:value={replicas}
+      aria-invalid={!replicasValid}
       class="mt-1.5 w-28 h-8 px-2.5 rounded-md bg-app border border-line-strong text-sm font-mono text-primary"
     />
   </label>

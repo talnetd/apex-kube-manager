@@ -6,6 +6,7 @@
 import { derived, get, writable, type Readable } from 'svelte/store';
 import {
   currentContext,
+  selectedNamespace,
   deployments,
   statefulsets,
   daemonsets,
@@ -34,8 +35,8 @@ import {
 export const workloads: Readable<PulseObject[]> = derived(
   [deployments, statefulsets, daemonsets, jobs],
   ([$d, $s, $ds, $j]) => [
-    ...$d.map((x) => ({ kind: 'deployment' as const, name: x.name, namespace: x.namespace, verdict: x.verdict, ready: x.ready })),
-    ...$s.map((x) => ({ kind: 'statefulset' as const, name: x.name, namespace: x.namespace, verdict: x.verdict, ready: x.ready })),
+    ...$d.map((x) => ({ kind: 'deployment' as const, name: x.name, namespace: x.namespace, verdict: x.verdict, ready: x.ready, desired: x.desired })),
+    ...$s.map((x) => ({ kind: 'statefulset' as const, name: x.name, namespace: x.namespace, verdict: x.verdict, ready: x.ready, desired: x.replicas })),
     ...$ds.map((x) => ({ kind: 'daemonset' as const, name: x.name, namespace: x.namespace, verdict: x.verdict, ready: `${x.ready}/${x.desired}` })),
     ...$j.map((x) => ({ kind: 'job' as const, name: x.name, namespace: x.namespace, verdict: x.verdict, ready: x.completions })),
   ]
@@ -98,6 +99,10 @@ export const activity = writable<ActivityItem[]>([]);
 
 /** Issue start fallback when a verdict has no `since`: first time Pulse saw it failing. */
 const firstSeenAt = new Map<string, number>();
+/** Forget first-seen times for objects that are no longer a problem. */
+export function pruneFirstSeen(current: ReadonlySet<string>) {
+  for (const k of firstSeenAt.keys()) if (!current.has(k)) firstSeenAt.delete(k);
+}
 export function firstSeen(key: string): number {
   let t = firstSeenAt.get(key);
   if (t === undefined) {
@@ -162,6 +167,19 @@ export function initPulse() {
     if (c !== ctx) {
       ctx = c;
       reset();
+    }
+  });
+
+  // Workload totals and health % describe the selected namespace, so a
+  // namespace change starts those series over (CPU/Memory/Disk are cluster-wide).
+  let ns = get(selectedNamespace);
+  selectedNamespace.subscribe((n) => {
+    if (n !== ns) {
+      ns = n;
+      history.health.clear();
+      history.workloads.clear();
+      loaded.clear();
+      historyTick.update((t) => t + 1);
     }
   });
 

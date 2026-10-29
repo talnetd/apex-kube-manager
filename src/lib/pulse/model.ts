@@ -23,6 +23,8 @@ export interface PulseObject {
   verdict: Verdict;
   /** e.g. "0/3" ready, for the impact line. */
   ready?: string;
+  /** spec.replicas, for Scale (Deployments and StatefulSets). */
+  desired?: number;
 }
 
 export const objectKey = (o: { kind: ObjectKind; name: string; namespace: string | null }) =>
@@ -75,6 +77,7 @@ export interface Issue {
   /** Epoch ms the problem started (verdict `since`, else first seen in-app). */
   startedAt: number;
   ready?: string;
+  desired?: number;
 }
 
 export function sevOf(v: Verdict): Sev | null {
@@ -106,6 +109,7 @@ export function buildIssues(objects: readonly PulseObject[], firstSeen: (key: st
       verdict: o.verdict,
       startedAt: Number.isFinite(parsed) ? parsed : firstSeen(key),
       ready: o.ready,
+      desired: o.desired,
     });
   }
   return out.sort((a, b) => SEV_RANK[a.sev] - SEV_RANK[b.sev] || b.startedAt - a.startedAt || a.id.localeCompare(b.id));

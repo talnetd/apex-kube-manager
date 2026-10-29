@@ -13,7 +13,8 @@ import {
   type ActivityItem,
   type PulseObject,
 } from '../src/lib/pulse/model';
-import { diffRollouts, diffScale, diffRestarts, diffNodes, mergeActivity, desiredOf, warningEvents } from '../src/lib/pulse/activity';
+import { diffRollouts, diffScale, diffRestarts, diffNodes, mergeActivity, warningEvents } from '../src/lib/pulse/activity';
+import { linePoints } from '../src/lib/components/views/pulse/LineSpark.svelte';
 import type { Verdict } from '../src/lib/utils/health';
 
 const ok: Verdict = { status: 'ok', reason: 'Available', ruleId: 'ok' };
@@ -153,21 +154,24 @@ describe('findTrigger', () => {
 describe('activity differs', () => {
   const now = 5_000_000;
   it('treat the first snapshot as a baseline', () => {
-    expect(diffScale(null, [{ name: 'a', namespace: 'x', ready: '1/3', verdict: ok }], now)).toEqual([]);
-    expect(diffRollouts(null, [{ name: 'a-1', namespace: 'x', owner: 'a', desired: 1 }], now)).toEqual([]);
+    expect(diffScale(null, [{ name: 'a', namespace: 'x', ready: '1/3', desired: 3, verdict: ok }], now)).toEqual([]);
+    expect(diffRollouts(null, [{ name: 'a-1', namespace: 'x', owner: 'a', desired: 1, age: '1m' }], now)).toEqual([]);
   });
-  it('detect scaling from the desired count', () => {
-    expect(desiredOf('2/5')).toBe(5);
-    const out = diffScale([{ name: 'a', namespace: 'x', ready: '3/3', verdict: ok }], [{ name: 'a', namespace: 'x', ready: '3/5', verdict: ok }], now);
+  it('detect scaling from spec.replicas, not the surge-inflated ready count', () => {
+    // A rollout surges status.replicas (3/3 -> 3/4) with the same desired count: not scaling.
+    expect(diffScale([{ name: 'a', namespace: 'x', ready: '3/3', desired: 3, verdict: ok }], [{ name: 'a', namespace: 'x', ready: '3/4', desired: 3, verdict: ok }], now)).toEqual([]);
+    const out = diffScale([{ name: 'a', namespace: 'x', ready: '3/3', desired: 3, verdict: ok }], [{ name: 'a', namespace: 'x', ready: '3/3', desired: 5, verdict: ok }], now);
     expect(out[0].text).toBe('Scaled deploy/a 3 → 5');
     expect(out[0].target).toEqual({ kind: 'deployment', name: 'a', namespace: 'x' });
   });
   it('detect a rollout as a new ReplicaSet under a known owner, not a new Deployment', () => {
-    const prev = [{ name: 'a-111', namespace: 'x', owner: 'a', desired: 3 }];
-    const next = [...prev, { name: 'a-222', namespace: 'x', owner: 'a', desired: 3 }, { name: 'b-333', namespace: 'x', owner: 'b', desired: 1 }];
+    const prev = [{ name: 'a-111', namespace: 'x', owner: 'a', desired: 3, age: '3d' }];
+    const next = [...prev, { name: 'a-222', namespace: 'x', owner: 'a', desired: 3, age: '25s' }, { name: 'b-333', namespace: 'x', owner: 'b', desired: 1, age: '5s' }];
     const out = diffRollouts(prev, next, now);
     expect(out).toHaveLength(1);
     expect(out[0].text).toBe('Rollout deploy/a → 222');
+    // Timed at the ReplicaSet's creation, not when the poll noticed it.
+    expect(out[0].t).toBe(now - 25_000);
   });
   it('detect restarts and node changes', () => {
     expect(diffRestarts([{ name: 'p', namespace: 'x', restarts: 1 }], [{ name: 'p', namespace: 'x', restarts: 3 }], now)[0].detail).toContain('3 restarts');
@@ -186,6 +190,26 @@ describe('activity differs', () => {
     const old = { ...a, id: 'old', t: now - HOUR_MS - 1 };
     const merged = mergeActivity([a, old], [{ ...a, t: now }, { ...a, id: 'b', t: now - 500 }], now);
     expect(merged.map((m) => [m.id, m.t])).toEqual([['a', now], ['b', now - 500]]);
+  });
+});
+
+describe('mergeActivity caps', () => {
+  it('caps causes and symptoms separately so warnings cannot push out a rollout', () => {
+    const now = 9_000_000;
+    const mk = (id: string, t: number, kind: ActivityItem['kind']) => ({ id, t, kind, tone: 'neutral', objectKind: 'deployment', target: null, text: id, detail: '' }) as ActivityItem;
+    const warnings = Array.from({ length: 10 }, (_, i) => mk(`w${i}`, now - i, 'warning'));
+    const merged = mergeActivity([], [mk('rollout', now - 1000, 'rollout'), ...warnings], now, 3);
+    expect(merged.map((m) => m.id)).toEqual(['w0', 'w1', 'w2', 'rollout']);
+  });
+});
+
+describe('linePoints', () => {
+  it('places samples by time across the hour, not by index', () => {
+    const now = HOUR_MS * 2;
+    const pts = linePoints([{ t: now - HOUR_MS / 2, v: 0 }, { t: now, v: 100 }], now, 100, 10, true).split(' ');
+    expect(pts[0]).toBe('50.0,8.0');
+    expect(pts[1]).toBe('100.0,2.0');
+    expect(linePoints([{ t: now, v: 1 }], now, 100, 10, true)).toBe('');
   });
 });
 

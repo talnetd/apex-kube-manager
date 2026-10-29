@@ -1,4 +1,4 @@
-import { writable, derived, get } from 'svelte/store';
+import { writable, derived, get, type Writable } from 'svelte/store';
 import { settings } from './settings';
 import { verdictToHealth, type Verdict } from '../utils/health';
 
@@ -74,6 +74,8 @@ export interface DeploymentInfo {
   name: string;
   namespace: string;
   ready: string;
+  /** spec.replicas (desired). `ready` counts surge pods during rollouts. */
+  desired: number;
   up_to_date: number;
   available: number;
   age: string;
@@ -433,12 +435,6 @@ let podWatchUnlisten: UnlistenFn | null = null;
 let currentPodWatchId: string | null = null;
 // Context the `pods` store currently holds.
 let podsContext: string | null = null;
-let deploymentWatchUnlisten: UnlistenFn | null = null;
-let currentDeploymentWatchId: string | null = null;
-let jobWatchUnlisten: UnlistenFn | null = null;
-let currentJobWatchId: string | null = null;
-let nodeWatchUnlisten: UnlistenFn | null = null;
-let currentNodeWatchId: string | null = null;
 let eventWatchUnlisten: UnlistenFn | null = null;
 let currentEventWatchId: string | null = null;
 
@@ -463,6 +459,7 @@ export function startContextPolling() {
         nodes.set([]);
         nodeMetrics.set({});
         pulseMetrics.set(null);
+        apiProbes.set({ ok: 0, total: 0, since: Date.now() });
         currentContext.set(current);
         selectedNamespace.set(null);
         await loadContexts();
@@ -707,184 +704,137 @@ export async function stopPodWatch() {
 }
 
 // Deployment Watch Stream Functions
-export async function startDeploymentWatch(namespace?: string | null) {
-  await stopDeploymentWatch();
+/**
+ * List + watch for one resource, with the same guards as the pod watch: a
+ * generation counter so a start/stop that finishes after a newer one undoes
+ * its own work, and a context check so a late response from the previous
+ * cluster is dropped instead of painted onto the new one.
+ */
+function listWatch<T, E extends { event_type: 'applied' | 'deleted' }>(opts: {
+  label: string;
+  list: string;
+  watch: string;
+  channel: string;
+  store: Writable<T[]>;
+  key: (x: T) => string;
+  item: (e: E) => T;
+}) {
+  let gen = 0;
+  let unlisten: UnlistenFn | null = null;
+  let watchId: string | null = null;
 
-  if (!isContextReady()) return;
+  const stopRemote = (id: string) =>
+    tauriInvoke('stop_watch', { watchId: id }).catch((e) => console.error(`Failed to stop ${opts.label} watch:`, e));
 
-  try {
-    // Get initial snapshot
-    const initialDeployments = await tauriInvoke<DeploymentInfo[]>('get_deployments', { namespace });
-    deployments.set(initialDeployments);
-
-    // Start watch stream
-    const watchId = await tauriInvoke<string>('watch_deployments', { namespace });
-    currentDeploymentWatchId = watchId;
-
-    const { listen } = await import('@tauri-apps/api/event');
-
-    deploymentWatchUnlisten = await listen<DeploymentWatchEvent>(`deployment-watch-${watchId}`, (event) => {
-      const { event_type, deployment } = event.payload;
-
-      deployments.update(current => {
-        if (event_type === 'applied') {
-          const idx = current.findIndex(d => d.name === deployment.name && d.namespace === deployment.namespace);
-          if (idx >= 0) {
-            current[idx] = deployment;
-            return [...current];
-          } else {
-            return [...current, deployment];
-          }
-        } else if (event_type === 'deleted') {
-          return current.filter(d => !(d.name === deployment.name && d.namespace === deployment.namespace));
-        }
-        return current;
-      });
-    });
-
-    console.log(`Deployment watch started: ${watchId}`);
-  } catch (e) {
-    error.set(String(e));
-    console.error('Failed to start deployment watch:', e);
-  }
-}
-
-export async function stopDeploymentWatch() {
-  if (deploymentWatchUnlisten) {
-    deploymentWatchUnlisten();
-    deploymentWatchUnlisten = null;
-  }
-
-  if (currentDeploymentWatchId) {
-    try {
-      await tauriInvoke('stop_watch', { watchId: currentDeploymentWatchId });
-      console.log(`Deployment watch stopped: ${currentDeploymentWatchId}`);
-    } catch (e) {
-      console.error('Failed to stop deployment watch:', e);
+  async function teardown() {
+    const u = unlisten;
+    const id = watchId;
+    unlisten = null;
+    watchId = null;
+    u?.();
+    if (id) {
+      await stopRemote(id);
+      console.log(`${opts.label} watch stopped: ${id}`);
     }
-    currentDeploymentWatchId = null;
-  }
-}
-
-// Job Watch Stream Functions
-export async function startJobWatch(namespace?: string | null) {
-  await stopJobWatch();
-
-  if (!isContextReady()) return;
-
-  try {
-    // Get initial snapshot
-    const initialJobs = await tauriInvoke<JobInfo[]>('get_jobs', { namespace });
-    jobs.set(initialJobs);
-
-    // Start watch stream
-    const watchId = await tauriInvoke<string>('watch_jobs', { namespace });
-    currentJobWatchId = watchId;
-
-    const { listen } = await import('@tauri-apps/api/event');
-
-    jobWatchUnlisten = await listen<JobWatchEvent>(`job-watch-${watchId}`, (event) => {
-      const { event_type, job } = event.payload;
-
-      jobs.update(current => {
-        if (event_type === 'applied') {
-          const idx = current.findIndex(j => j.name === job.name && j.namespace === job.namespace);
-          if (idx >= 0) {
-            current[idx] = job;
-            return [...current];
-          } else {
-            return [...current, job];
-          }
-        } else if (event_type === 'deleted') {
-          return current.filter(j => !(j.name === job.name && j.namespace === job.namespace));
-        }
-        return current;
-      });
-    });
-
-    console.log(`Job watch started: ${watchId}`);
-  } catch (e) {
-    error.set(String(e));
-    console.error('Failed to start job watch:', e);
-  }
-}
-
-export async function stopJobWatch() {
-  if (jobWatchUnlisten) {
-    jobWatchUnlisten();
-    jobWatchUnlisten = null;
   }
 
-  if (currentJobWatchId) {
+  async function start(args?: Record<string, unknown>) {
+    const g = ++gen;
+    await teardown();
+    if (g !== gen || !isContextReady()) return;
+    const ctx = _currentContext;
+    const superseded = () => g !== gen || _currentContext !== ctx;
+    // Undo a watch we created if someone else took over meanwhile.
+    const drop = (id: string) => {
+      if (watchId === id) watchId = null;
+      stopRemote(id);
+    };
+
     try {
-      await tauriInvoke('stop_watch', { watchId: currentJobWatchId });
-      console.log(`Job watch stopped: ${currentJobWatchId}`);
-    } catch (e) {
-      console.error('Failed to stop job watch:', e);
-    }
-    currentJobWatchId = null;
-  }
-}
+      const initial = await tauriInvoke<T[]>(opts.list, args);
+      if (superseded()) return;
+      opts.store.set(initial);
 
-// Node Watch Stream Functions (cluster-scoped, no namespace)
-export async function startNodeWatch() {
-  await stopNodeWatch();
+      const id = await tauriInvoke<string>(opts.watch, args);
+      if (superseded()) return void stopRemote(id);
+      watchId = id;
 
-  if (!isContextReady()) return;
+      const { listen } = await import('@tauri-apps/api/event');
+      if (superseded()) return drop(id);
 
-  try {
-    // Get initial snapshot
-    const initialNodes = await tauriInvoke<NodeInfo[]>('get_nodes');
-    nodes.set(initialNodes);
-
-    // Start watch stream
-    const watchId = await tauriInvoke<string>('watch_nodes');
-    currentNodeWatchId = watchId;
-
-    const { listen } = await import('@tauri-apps/api/event');
-
-    nodeWatchUnlisten = await listen<NodeWatchEvent>(`node-watch-${watchId}`, (event) => {
-      const { event_type, node } = event.payload;
-
-      nodes.update(current => {
-        if (event_type === 'applied') {
-          const idx = current.findIndex(n => n.name === node.name);
+      const u = await listen<E>(`${opts.channel}-${id}`, (event) => {
+        if (g !== gen) return; // superseded stream: ignore
+        const x = opts.item(event.payload);
+        const k = opts.key(x);
+        opts.store.update((current) => {
+          const idx = current.findIndex((c) => opts.key(c) === k);
+          if (event.payload.event_type === 'deleted') return idx >= 0 ? current.filter((_, i) => i !== idx) : current;
           if (idx >= 0) {
-            current[idx] = node;
-            return [...current];
-          } else {
-            return [...current, node];
+            const next = [...current];
+            next[idx] = x;
+            return next;
           }
-        } else if (event_type === 'deleted') {
-          return current.filter(n => n.name !== node.name);
-        }
-        return current;
+          return [...current, x];
+        });
       });
-    });
-
-    console.log(`Node watch started: ${watchId}`);
-  } catch (e) {
-    error.set(String(e));
-    console.error('Failed to start node watch:', e);
-  }
-}
-
-export async function stopNodeWatch() {
-  if (nodeWatchUnlisten) {
-    nodeWatchUnlisten();
-    nodeWatchUnlisten = null;
-  }
-
-  if (currentNodeWatchId) {
-    try {
-      await tauriInvoke('stop_watch', { watchId: currentNodeWatchId });
-      console.log(`Node watch stopped: ${currentNodeWatchId}`);
+      if (superseded()) {
+        u();
+        return drop(id);
+      }
+      unlisten = u;
+      console.log(`${opts.label} watch started: ${id}`);
     } catch (e) {
-      console.error('Failed to stop node watch:', e);
+      if (superseded()) return;
+      error.set(String(e));
+      console.error(`Failed to start ${opts.label} watch:`, e);
     }
-    currentNodeWatchId = null;
   }
+
+  async function stop() {
+    gen++;
+    await teardown();
+  }
+
+  return { start, stop };
 }
+
+const deploymentWatch = listWatch<DeploymentInfo, DeploymentWatchEvent>({
+  label: 'Deployment',
+  list: 'get_deployments',
+  watch: 'watch_deployments',
+  channel: 'deployment-watch',
+  store: deployments,
+  key: (d) => `${d.namespace}/${d.name}`,
+  item: (e) => e.deployment,
+});
+
+const jobWatch = listWatch<JobInfo, JobWatchEvent>({
+  label: 'Job',
+  list: 'get_jobs',
+  watch: 'watch_jobs',
+  channel: 'job-watch',
+  store: jobs,
+  key: (j) => `${j.namespace}/${j.name}`,
+  item: (e) => e.job,
+});
+
+// Cluster-scoped, no namespace
+const nodeWatch = listWatch<NodeInfo, NodeWatchEvent>({
+  label: 'Node',
+  list: 'get_nodes',
+  watch: 'watch_nodes',
+  channel: 'node-watch',
+  store: nodes,
+  key: (n) => n.name,
+  item: (e) => e.node,
+});
+
+export const startDeploymentWatch = (namespace?: string | null) => deploymentWatch.start({ namespace });
+export const stopDeploymentWatch = () => deploymentWatch.stop();
+export const startJobWatch = (namespace?: string | null) => jobWatch.start({ namespace });
+export const stopJobWatch = () => jobWatch.stop();
+export const startNodeWatch = () => nodeWatch.start();
+export const stopNodeWatch = () => nodeWatch.stop();
 
 // Helper to send native notification for Warning events
 async function sendEventNotification(event: ClusterEventInfo) {
@@ -1011,9 +961,12 @@ export async function loadDeployments(namespace?: string | null) {
 
 export async function loadStatefulSets(namespace?: string | null) {
   if (!isContextReady()) return;
+  // A late answer from the previous cluster must not land on the new one.
+  const context = _currentContext;
   try {
     isLoading.set(true);
     const stsList = await tauriInvoke<StatefulSetInfo[]>('get_statefulsets', { namespace });
+    if (_currentContext !== context) return;
     statefulsets.set(stsList);
   } catch (e) {
     error.set(String(e));
@@ -1034,9 +987,12 @@ export async function restartStatefulSet(namespace: string, name: string) {
 
 export async function loadDaemonSets(namespace?: string | null) {
   if (!isContextReady()) return;
+  // A late answer from the previous cluster must not land on the new one.
+  const context = _currentContext;
   try {
     isLoading.set(true);
     const dsList = await tauriInvoke<DaemonSetInfo[]>('get_daemonsets', { namespace });
+    if (_currentContext !== context) return;
     daemonsets.set(dsList);
   } catch (e) {
     error.set(String(e));
@@ -1047,9 +1003,12 @@ export async function loadDaemonSets(namespace?: string | null) {
 
 export async function loadReplicaSets(namespace?: string | null) {
   if (!isContextReady()) return;
+  // A late answer from the previous cluster must not land on the new one.
+  const context = _currentContext;
   try {
     isLoading.set(true);
     const rsList = await tauriInvoke<ReplicaSetInfo[]>('get_replicasets', { namespace });
+    if (_currentContext !== context) return;
     replicasets.set(rsList);
   } catch (e) {
     error.set(String(e));
@@ -1296,10 +1255,11 @@ export async function loadPulseMetrics(namespace?: string | null) {
     apiProbes.update((p) => ({ ...p, ok: p.ok + 1, total: p.total + 1 }));
   } catch (e) {
     error.set(String(e));
-    if (_currentContext === context) {
-      connectionStatus.set('disconnected');
-      apiProbes.update((p) => ({ ...p, total: p.total + 1 }));
-    }
+    // 401/403 means the server answered: not downtime, and still connected.
+    if (_currentContext !== context) return;
+    const answered = isForbiddenError(e) || /\b401\b|unauthorized/i.test(String(e));
+    if (!answered) connectionStatus.set('disconnected');
+    apiProbes.update((p) => ({ ...p, ok: p.ok + (answered ? 1 : 0), total: p.total + 1 }));
   }
 }
 

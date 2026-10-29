@@ -15,6 +15,8 @@ export interface DeploymentLike extends Verdicted {
   name: string;
   namespace: string;
   ready: string;
+  /** spec.replicas. `ready` counts surge pods, so a rollout would look like scaling. */
+  desired: number;
 }
 export interface StatefulSetLike extends Verdicted {
   name: string;
@@ -26,6 +28,7 @@ export interface ReplicaSetLike {
   namespace: string;
   owner: string | null;
   desired: number;
+  age: string;
 }
 export interface PodLike {
   name: string;
@@ -49,24 +52,18 @@ export interface EventLike {
   age: string;
 }
 
-/** Desired replicas from a "ready/desired" string. */
-export function desiredOf(ready: string): number | null {
-  const m = /^\s*\d+\s*\/\s*(\d+)\s*$/.exec(ready);
-  return m ? Number(m[1]) : null;
-}
-
 export function diffScale(
   prev: readonly DeploymentLike[] | null,
   next: readonly DeploymentLike[],
   now: number
 ): ActivityItem[] {
   if (!prev) return [];
-  const before = new Map(prev.map((d) => [`${d.namespace}/${d.name}`, desiredOf(d.ready)]));
+  const before = new Map(prev.map((d) => [`${d.namespace}/${d.name}`, d.desired]));
   const out: ActivityItem[] = [];
   for (const d of next) {
     const a = before.get(`${d.namespace}/${d.name}`);
-    const b = desiredOf(d.ready);
-    if (a == null || b == null || a === b) continue;
+    const b = d.desired;
+    if (a == null || a === b) continue;
     out.push({
       id: `scale/deployment/${d.namespace}/${d.name}/${now}`,
       t: now,
@@ -125,7 +122,9 @@ export function diffRollouts(
     const rev = r.name.startsWith(`${r.owner}-`) ? r.name.slice(r.owner.length + 1) : r.name;
     out.push({
       id: `rollout/${r.namespace}/${r.name}`,
-      t: now,
+      // When the ReplicaSet was created, not when the 30s poll noticed it,
+      // so it can still precede the issue it caused.
+      t: Math.min(now, now - parseAge(r.age) * 1000),
       kind: 'rollout',
       tone: 'neutral',
       objectKind: 'replicaset',
@@ -219,13 +218,19 @@ export function warningEvents(events: readonly EventLike[], now: number): Activi
   return out;
 }
 
-/** Merge new items into the feed: same id replaces, newest first, last hour only. */
-export function mergeActivity(feed: readonly ActivityItem[], items: readonly ActivityItem[], now: number, max = 200): ActivityItem[] {
-  if (!items.length) return feed.filter((a) => now - a.t <= HOUR_MS);
+const SYMPTOMS = new Set(['restart', 'warning']);
+
+/**
+ * Merge new items into the feed: same id replaces, newest first, last hour
+ * only. Causes (rollouts, scaling, node changes, actions) and symptoms
+ * (restarts, Warning events) are capped separately, so a noisy cluster's
+ * warnings can't push out the change that explains them.
+ */
+export function mergeActivity(feed: readonly ActivityItem[], items: readonly ActivityItem[], now: number, maxPerClass = 150): ActivityItem[] {
   const byId = new Map(feed.map((a) => [a.id, a]));
   for (const it of items) byId.set(it.id, it);
-  return [...byId.values()]
-    .filter((a) => now - a.t <= HOUR_MS)
-    .sort((a, b) => b.t - a.t)
-    .slice(0, max);
+  const all = [...byId.values()].filter((a) => now - a.t <= HOUR_MS).sort((a, b) => b.t - a.t);
+  let causes = 0;
+  let symptoms = 0;
+  return all.filter((a) => (SYMPTOMS.has(a.kind) ? ++symptoms : ++causes) <= maxPerClass);
 }
