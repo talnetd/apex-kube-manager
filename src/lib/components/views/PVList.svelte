@@ -3,24 +3,12 @@
   import StatusPill from '../ui/StatusPill.svelte';
   import { BP, HEALTH_SORT_ID, quantityValue, type Column } from '../ui/data-table';
   import { pvHealth } from '../../utils/status-words';
-  import { poll } from '../../utils/poll';
   import {
-    pvs,
-    currentContext,
-    refreshTrigger,
-    loadPVs,
-    resourceState,
+    pvList,
     type PersistentVolumeInfo,
   } from '../../stores/kubernetes';
 
-  const loadState = resourceState('pvs');
   const health = (pv: PersistentVolumeInfo) => pvHealth(pv.status);
-
-  $effect(() => {
-    if (!$currentContext) return;
-    void $refreshTrigger;
-    return poll(() => loadPVs());
-  });
 
   const columns: Column<PersistentVolumeInfo>[] = [
     { id: 'name', label: 'Name', sortKey: 'name', primary: true },
@@ -44,8 +32,7 @@
   viewId="pvs"
   itemLabel="persistent volumes"
   subtitle="cluster-scoped"
-  items={$pvs}
-  loadState={$loadState}
+  source={pvList}
   {columns}
   rowKey={(pv) => pv.name}
   filterFields={['name', 'status', 'claim', 'storage_class']}
@@ -54,5 +41,4 @@
   defaultSort={{ id: HEALTH_SORT_ID, dir: 'asc' }}
   resourceType="pv"
   namespaced={false}
-  onRefresh={() => loadPVs()}
 />

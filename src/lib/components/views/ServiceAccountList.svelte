@@ -1,25 +1,10 @@
 <script lang="ts">
   import ListView from '../ui/ListView.svelte';
   import { BP, type Column } from '../ui/data-table';
-  import { poll } from '../../utils/poll';
   import {
-    serviceAccounts,
-    selectedNamespace,
-    currentContext,
-    refreshTrigger,
-    loadServiceAccounts,
-    resourceState,
+    serviceAccountList,
     type ServiceAccountInfo,
   } from '../../stores/kubernetes';
-
-  const loadState = resourceState('serviceaccounts');
-
-  $effect(() => {
-    if (!$currentContext) return;
-    void $refreshTrigger;
-    const ns = $selectedNamespace;
-    return poll(() => loadServiceAccounts(ns));
-  });
 
   const columns: Column<ServiceAccountInfo>[] = [
     { id: 'name', label: 'Name', sortKey: 'name', primary: true },
@@ -33,12 +18,10 @@
   title="Service Accounts"
   viewId="serviceaccounts"
   itemLabel="service accounts"
-  items={$serviceAccounts}
-  loadState={$loadState}
+  source={serviceAccountList}
   {columns}
   rowKey={(s) => `${s.namespace}/${s.name}`}
   filterFields={['name', 'namespace']}
   defaultSort={{ id: 'name', dir: 'asc' }}
   resourceType="serviceaccount"
-  onRefresh={() => loadServiceAccounts($selectedNamespace)}
 />

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import ResourceListView from '../ResourceListView.svelte';
+  import ListView from '../../ui/ListView.svelte';
   import StatusPill from '../../ui/StatusPill.svelte';
   import { pdbs, type PdbInfo } from '../../../stores/resources';
   import { HEALTH_SORT_ID, type Column } from '../../ui/data-table';
@@ -21,11 +21,11 @@
   <StatusPill health={h.health} label={h.label} />
 {/snippet}
 
-<ResourceListView
+<ListView
   title="Pod Disruption Budgets"
   itemLabel="pod disruption budgets"
   viewId="pdbs"
-  store={pdbs}
+  source={pdbs}
   {columns}
   rowKey={(r) => `${r.namespace}/${r.name}`}
   resourceType="pdb"

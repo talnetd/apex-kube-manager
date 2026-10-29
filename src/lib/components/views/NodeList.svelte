@@ -19,12 +19,12 @@
     startNodeWatch,
     stopNodeWatch,
     loadNodeMetrics,
-    resourceState,
+    nodeList,
     type NodeInfo,
+    type ListSource,
   } from '../../stores/kubernetes';
 
   const METRICS_INTERVAL = 10000;
-  const loadState = resourceState('nodes');
 
   type NodeRow = NodeInfo & {
     cpu_pct: number | null;
@@ -75,6 +75,10 @@
   const byName = $derived(new Map($nodes.map((n) => [n.name, n])));
   const health = (r: NodeRow) => nodeHealth(byName.get(r.name) ?? r);
 
+  // The table shows `rows` (nodes merged with usage); the source still
+  // supplies load state and the context the nodes came from.
+  const nodeSource = nodeList as unknown as ListSource<NodeRow>;
+
   const taintText = (n: NodeRow) => n.taints.map((t) => `${t.key}${t.value ? `=${t.value}` : ''}:${t.effect}`).join(', ');
 
   const columns: Column<NodeRow>[] = [
@@ -103,8 +107,6 @@
 
   let metricsTimer: ReturnType<typeof setInterval> | null = null;
   onMount(() => {
-    // The initial load is left to the $effect below: it also runs on mount,
-    // and starting the watch twice concurrently leaks the first stream.
     metricsTimer = setInterval(loadNodeMetrics, METRICS_INTERVAL);
   });
 
@@ -147,8 +149,9 @@
   viewId="nodes"
   itemLabel="nodes"
   subtitle="cluster-scoped"
-  items={rows}
-  loadState={$loadState}
+  source={nodeSource}
+  autoload={false}
+  {rows}
   {columns}
   rowKey={(n) => n.name}
   filterFields={['name', 'status', 'roles', 'version', 'internal_ip', (n) => n.verdict.reason]}

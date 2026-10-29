@@ -3,26 +3,12 @@
   import StatusPill from '../ui/StatusPill.svelte';
   import { BP, HEALTH_SORT_ID, type Column } from '../ui/data-table';
   import { verdictHealth } from '../../utils/status-words';
-  import { poll } from '../../utils/poll';
   import {
-    replicasets,
-    selectedNamespace,
-    currentContext,
-    refreshTrigger,
-    loadReplicaSets,
-    resourceState,
+    replicaSetList,
     type ReplicaSetInfo,
   } from '../../stores/kubernetes';
 
-  const loadState = resourceState('replicasets');
   const health = verdictHealth<ReplicaSetInfo>();
-
-  $effect(() => {
-    if (!$currentContext) return;
-    void $refreshTrigger;
-    const ns = $selectedNamespace;
-    return poll(() => loadReplicaSets(ns));
-  });
 
   const columns: Column<ReplicaSetInfo>[] = [
     { id: 'name', label: 'Name', sortKey: 'name', primary: true },
@@ -52,8 +38,7 @@
   title="ReplicaSets"
   viewId="replicasets"
   itemLabel="replicasets"
-  items={$replicasets}
-  loadState={$loadState}
+  source={replicaSetList}
   {columns}
   rowKey={(r) => `${r.namespace}/${r.name}`}
   filterFields={['name', 'namespace', 'owner', (r) => r.verdict.reason]}
@@ -61,5 +46,4 @@
   segmentLabels={{ failed: 'Failing', warning: 'Degraded', progressing: 'Rolling out', healthy: 'Ready', neutral: 'Scaled to 0' }}
   defaultSort={{ id: HEALTH_SORT_ID, dir: 'asc' }}
   resourceType="replicaset"
-  onRefresh={() => loadReplicaSets($selectedNamespace)}
 />

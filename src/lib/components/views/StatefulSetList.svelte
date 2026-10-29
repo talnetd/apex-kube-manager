@@ -2,31 +2,19 @@
   // Scale and restart live in StatefulSetDetail (CLAUDE.md, Architecture
   // Note 7); `s` opens it so the old shortcut still lands somewhere useful.
   import { invoke } from '@tauri-apps/api/core';
+  import { get } from 'svelte/store';
   import ListView from '../ui/ListView.svelte';
   import StatusPill from '../ui/StatusPill.svelte';
   import { BP, HEALTH_SORT_ID, type Column } from '../ui/data-table';
   import { verdictHealth } from '../../utils/status-words';
-  import { poll } from '../../utils/poll';
   import { toast } from '../../stores/toast';
   import {
-    statefulsets,
-    selectedNamespace,
+    statefulSetList,
     currentContext,
-    refreshTrigger,
-    loadStatefulSets,
-    resourceState,
     type StatefulSetInfo,
   } from '../../stores/kubernetes';
 
-  const loadState = resourceState('statefulsets');
   const health = verdictHealth<StatefulSetInfo>();
-
-  $effect(() => {
-    if (!$currentContext) return;
-    void $refreshTrigger;
-    const ns = $selectedNamespace;
-    return poll(() => loadStatefulSets(ns));
-  });
 
   const columns: Column<StatefulSetInfo>[] = [
     { id: 'name', label: 'Name', sortKey: 'name', primary: true },
@@ -50,7 +38,8 @@
       resourceType: 'statefulset',
       name: s.name,
       namespace: s.namespace,
-      context: $currentContext,
+      // The context the rows came from (ListView refuses rows from another).
+      context: get(statefulSetList.context) || $currentContext,
     }).catch((e) => console.error('Failed to open statefulset detail:', e));
   }
 
@@ -69,8 +58,7 @@
   title="StatefulSets"
   viewId="statefulsets"
   itemLabel="statefulsets"
-  items={$statefulsets}
-  loadState={$loadState}
+  source={statefulSetList}
   {columns}
   rowKey={(s) => `${s.namespace}/${s.name}`}
   filterFields={['name', 'namespace', 'service_name', (s) => s.verdict.reason]}
@@ -78,6 +66,5 @@
   segmentLabels={{ failed: 'Failing', warning: 'Degraded', progressing: 'Rolling out', healthy: 'Ready', neutral: 'Scaled to 0' }}
   defaultSort={{ id: HEALTH_SORT_ID, dir: 'asc' }}
   onOpen={openDetail}
-  onRefresh={() => loadStatefulSets($selectedNamespace)}
   shortcuts={{ s: scale }}
 />

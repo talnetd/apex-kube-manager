@@ -1,5 +1,5 @@
 <script lang="ts">
-  import ResourceListView from '../ResourceListView.svelte';
+  import ListView from '../../ui/ListView.svelte';
   import { limitRanges, type LimitRangeInfo } from '../../../stores/resources';
   import type { Column } from '../../ui/data-table';
 
@@ -12,11 +12,11 @@
   ];
 </script>
 
-<ResourceListView
+<ListView
   title="Limit Ranges"
   itemLabel="limit ranges"
   viewId="limitranges"
-  store={limitRanges}
+  source={limitRanges}
   {columns}
   rowKey={(r) => `${r.namespace}/${r.name}`}
   resourceType="limitrange"

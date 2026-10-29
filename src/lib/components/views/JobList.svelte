@@ -6,17 +6,15 @@
   import { verdictHealth } from '../../utils/status-words';
   import { parseAge } from '../../utils/sort';
   import {
-    jobs,
     selectedNamespace,
     currentContext,
     refreshTrigger,
     startJobWatch,
     stopJobWatch,
-    resourceState,
+    jobList,
     type JobInfo,
   } from '../../stores/kubernetes';
 
-  const loadState = resourceState('jobs');
   const health = verdictHealth<JobInfo>();
 
   // Starts the watch on mount, and again on namespace, context or refresh.
@@ -54,8 +52,8 @@
   title="Jobs"
   viewId="jobs"
   itemLabel="jobs"
-  items={$jobs}
-  loadState={$loadState}
+  source={jobList}
+  autoload={false}
   {columns}
   rowKey={(j) => `${j.namespace}/${j.name}`}
   filterFields={['name', 'namespace', 'status', (j) => j.verdict.reason]}

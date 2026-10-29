@@ -1,5 +1,5 @@
 <script lang="ts">
-  import ResourceListView from '../ResourceListView.svelte';
+  import ListView from '../../ui/ListView.svelte';
   import { roleBindings, type RoleBindingInfo } from '../../../stores/resources';
   import type { Column } from '../../ui/data-table';
 
@@ -12,11 +12,11 @@
   ];
 </script>
 
-<ResourceListView
+<ListView
   title="Role Bindings"
   itemLabel="role bindings"
   viewId="rolebindings"
-  store={roleBindings}
+  source={roleBindings}
   {columns}
   rowKey={(r) => `${r.namespace}/${r.name}`}
   resourceType="rolebinding"

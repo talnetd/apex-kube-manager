@@ -2,6 +2,7 @@
   // Scale and restart live in DeploymentDetail (CLAUDE.md, Architecture
   // Note 7); `s` opens it so the old shortcut still lands somewhere useful.
   import { onDestroy } from 'svelte';
+  import { get } from 'svelte/store';
   import { invoke } from '@tauri-apps/api/core';
   import ListView from '../ui/ListView.svelte';
   import StatusPill from '../ui/StatusPill.svelte';
@@ -9,17 +10,15 @@
   import { verdictHealth } from '../../utils/status-words';
   import { toast } from '../../stores/toast';
   import {
-    deployments,
     selectedNamespace,
     currentContext,
     refreshTrigger,
     startDeploymentWatch,
     stopDeploymentWatch,
-    resourceState,
+    deploymentList,
     type DeploymentInfo,
   } from '../../stores/kubernetes';
 
-  const loadState = resourceState('deployments');
   const health = verdictHealth<DeploymentInfo>();
 
   // Starts the watch on mount, and again on namespace, context or refresh.
@@ -53,7 +52,8 @@
       resourceType: 'deployment',
       name: d.name,
       namespace: d.namespace,
-      context: $currentContext,
+      // The context the rows came from (ListView refuses rows from another).
+      context: get(deploymentList.context) || $currentContext,
     }).catch((e) => console.error('Failed to open deployment detail:', e));
   }
 
@@ -72,8 +72,8 @@
   title="Deployments"
   viewId="deployments"
   itemLabel="deployments"
-  items={$deployments}
-  loadState={$loadState}
+  source={deploymentList}
+  autoload={false}
   {columns}
   rowKey={(d) => `${d.namespace}/${d.name}`}
   filterFields={['name', 'namespace', (d) => d.verdict.reason]}

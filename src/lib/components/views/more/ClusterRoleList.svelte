@@ -1,5 +1,5 @@
 <script lang="ts">
-  import ResourceListView from '../ResourceListView.svelte';
+  import ListView from '../../ui/ListView.svelte';
   import { clusterRoles, type ClusterRoleInfo } from '../../../stores/resources';
   import type { Column } from '../../ui/data-table';
 
@@ -13,11 +13,11 @@
 
 {#snippet aggregatedCell(r: ClusterRoleInfo)}{r.aggregated ? 'Yes' : '–'}{/snippet}
 
-<ResourceListView
+<ListView
   title="Cluster Roles"
   itemLabel="cluster roles"
   viewId="clusterroles"
-  store={clusterRoles}
+  source={clusterRoles}
   {columns}
   rowKey={(r) => r.name}
   resourceType="clusterrole"

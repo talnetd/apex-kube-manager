@@ -1,5 +1,5 @@
 <script lang="ts">
-  import ResourceListView from '../ResourceListView.svelte';
+  import ListView from '../../ui/ListView.svelte';
   import StatusPill from '../../ui/StatusPill.svelte';
   import { endpointSlices, type EndpointSliceInfo } from '../../../stores/resources';
   import { HEALTH_SORT_ID, type Column } from '../../ui/data-table';
@@ -30,12 +30,12 @@
   <StatusPill health={h.health} label={h.label} />
 {/snippet}
 
-<ResourceListView
+<ListView
   title="Endpoints"
   subtitle="EndpointSlices"
   itemLabel="endpoint slices"
   viewId="endpointslices"
-  store={endpointSlices}
+  source={endpointSlices}
   {columns}
   rowKey={(r) => `${r.namespace}/${r.name}`}
   resourceType="endpointslice"

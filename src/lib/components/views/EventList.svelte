@@ -4,6 +4,7 @@
   // Warning notifications fire from any view; this view only reads the
   // shared store. Click / Enter opens the involved object's detail window.
   import { invoke } from '@tauri-apps/api/core';
+  import { get } from 'svelte/store';
   import ListView from '../ui/ListView.svelte';
   import StatusPill from '../ui/StatusPill.svelte';
   import CustomSelect from '../ui/CustomSelect.svelte';
@@ -16,11 +17,10 @@
     currentContext,
     selectedNamespace,
     startEventWatch,
-    resourceState,
+    eventList,
     type ClusterEventInfo,
   } from '../../stores/kubernetes';
 
-  const loadState = resourceState('events');
   const health = (e: ClusterEventInfo) => eventHealth(e.type);
 
   let reasonFilter = $state('all');
@@ -91,7 +91,8 @@
       resourceType,
       name: e.involved_object,
       namespace: e.namespace || '',
-      context: $currentContext,
+      // The context the rows came from (ListView refuses rows from another).
+      context: get(eventList.context) || $currentContext,
     }).catch((err) => console.error('Failed to open resource detail:', err));
   }
 </script>
@@ -113,8 +114,8 @@
   title="Events"
   viewId="events"
   itemLabel="events"
-  items={$clusterEvents}
-  loadState={$loadState}
+  source={eventList}
+  autoload={false}
   {columns}
   rowKey={(e) => `${e.namespace}/${e.name}`}
   filterFields={['reason', 'message', 'involved_object', 'involved_kind', 'namespace']}

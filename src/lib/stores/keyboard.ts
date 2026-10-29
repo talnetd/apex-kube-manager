@@ -1,4 +1,4 @@
-import { writable, derived, get } from 'svelte/store';
+import { writable, get } from 'svelte/store';
 
 // Selected row index for current view (-1 = no selection)
 export const selectedRowIndex = writable<number>(-1);
@@ -9,13 +9,17 @@ export const keyboardNavActive = writable<boolean>(false);
 // Total rows in current view (set by each list component)
 export const totalRows = writable<number>(0);
 
+// True while a list view shows its own modal (an editor): j/k/gg/G pause
+// so the selection doesn't move behind it. Set by DataTable.
+export const rowNavPaused = writable<boolean>(false);
+
 // Show keyboard shortcuts help modal
 export const showKeyboardHelp = writable<boolean>(false);
 
 // Move selection up
 export function moveUp() {
   const total = get(totalRows);
-  if (total === 0) return;
+  if (total === 0 || get(rowNavPaused)) return;
 
   keyboardNavActive.set(true);
   selectedRowIndex.update(i => {
@@ -27,7 +31,7 @@ export function moveUp() {
 // Move selection down
 export function moveDown() {
   const total = get(totalRows);
-  if (total === 0) return;
+  if (total === 0 || get(rowNavPaused)) return;
 
   keyboardNavActive.set(true);
   selectedRowIndex.update(i => {
@@ -39,7 +43,7 @@ export function moveDown() {
 // Go to first row
 export function goToFirst() {
   const total = get(totalRows);
-  if (total === 0) return;
+  if (total === 0 || get(rowNavPaused)) return;
 
   keyboardNavActive.set(true);
   selectedRowIndex.set(0);
@@ -48,7 +52,7 @@ export function goToFirst() {
 // Go to last row
 export function goToLast() {
   const total = get(totalRows);
-  if (total === 0) return;
+  if (total === 0 || get(rowNavPaused)) return;
 
   keyboardNavActive.set(true);
   selectedRowIndex.set(total - 1);

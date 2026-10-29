@@ -1,25 +1,10 @@
 <script lang="ts">
   import ListView from '../ui/ListView.svelte';
   import { BP, type Column } from '../ui/data-table';
-  import { poll } from '../../utils/poll';
   import {
-    ingresses,
-    selectedNamespace,
-    currentContext,
-    refreshTrigger,
-    loadIngresses,
-    resourceState,
+    ingressList,
     type IngressInfo,
   } from '../../stores/kubernetes';
-
-  const loadState = resourceState('ingresses');
-
-  $effect(() => {
-    if (!$currentContext) return;
-    void $refreshTrigger;
-    const ns = $selectedNamespace;
-    return poll(() => loadIngresses(ns));
-  });
 
   const columns: Column<IngressInfo>[] = [
     { id: 'name', label: 'Name', sortKey: 'name', primary: true },
@@ -39,12 +24,10 @@
   title="Ingresses"
   viewId="ingresses"
   itemLabel="ingresses"
-  items={$ingresses}
-  loadState={$loadState}
+  source={ingressList}
   {columns}
   rowKey={(i) => `${i.namespace}/${i.name}`}
   filterFields={['name', 'namespace', 'class', 'hosts', 'address']}
   defaultSort={{ id: 'name', dir: 'asc' }}
   resourceType="ingress"
-  onRefresh={() => loadIngresses($selectedNamespace)}
 />

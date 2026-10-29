@@ -1,25 +1,10 @@
 <script lang="ts">
   import ListView from '../ui/ListView.svelte';
   import { BP, type Column } from '../ui/data-table';
-  import { poll } from '../../utils/poll';
   import {
-    hpas,
-    selectedNamespace,
-    currentContext,
-    refreshTrigger,
-    loadHPAs,
-    resourceState,
+    hpaList,
     type HPAInfo,
   } from '../../stores/kubernetes';
-
-  const loadState = resourceState('hpas');
-
-  $effect(() => {
-    if (!$currentContext) return;
-    void $refreshTrigger;
-    const ns = $selectedNamespace;
-    return poll(() => loadHPAs(ns));
-  });
 
   const columns: Column<HPAInfo>[] = [
     { id: 'name', label: 'Name', sortKey: 'name', primary: true },
@@ -38,12 +23,10 @@
   title="HPAs"
   viewId="hpas"
   itemLabel="autoscalers"
-  items={$hpas}
-  loadState={$loadState}
+  source={hpaList}
   {columns}
   rowKey={(h) => `${h.namespace}/${h.name}`}
   filterFields={['name', 'namespace', 'reference']}
   defaultSort={{ id: 'name', dir: 'asc' }}
   resourceType="hpa"
-  onRefresh={() => loadHPAs($selectedNamespace)}
 />

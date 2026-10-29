@@ -3,26 +3,12 @@
   import StatusPill from '../ui/StatusPill.svelte';
   import { BP, HEALTH_SORT_ID, type Column } from '../ui/data-table';
   import { verdictHealth } from '../../utils/status-words';
-  import { poll } from '../../utils/poll';
   import {
-    daemonsets,
-    selectedNamespace,
-    currentContext,
-    refreshTrigger,
-    loadDaemonSets,
-    resourceState,
+    daemonSetList,
     type DaemonSetInfo,
   } from '../../stores/kubernetes';
 
-  const loadState = resourceState('daemonsets');
   const health = verdictHealth<DaemonSetInfo>();
-
-  $effect(() => {
-    if (!$currentContext) return;
-    void $refreshTrigger;
-    const ns = $selectedNamespace;
-    return poll(() => loadDaemonSets(ns));
-  });
 
   const columns: Column<DaemonSetInfo>[] = [
     { id: 'name', label: 'Name', sortKey: 'name', primary: true },
@@ -54,8 +40,7 @@
   title="DaemonSets"
   viewId="daemonsets"
   itemLabel="daemonsets"
-  items={$daemonsets}
-  loadState={$loadState}
+  source={daemonSetList}
   {columns}
   rowKey={(d) => `${d.namespace}/${d.name}`}
   filterFields={['name', 'namespace', 'node_selector', (d) => d.verdict.reason]}
@@ -63,5 +48,4 @@
   segmentLabels={{ failed: 'Failing', warning: 'Degraded', progressing: 'Rolling out', healthy: 'Ready', neutral: 'No nodes' }}
   defaultSort={{ id: HEALTH_SORT_ID, dir: 'asc' }}
   resourceType="daemonset"
-  onRefresh={() => loadDaemonSets($selectedNamespace)}
 />

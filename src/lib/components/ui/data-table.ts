@@ -3,6 +3,7 @@
 import type { Snippet } from 'svelte';
 import type { Health, HealthResult } from '../../utils/health';
 import { parseAge } from '../../utils/sort';
+import { parseQuantity } from '../../utils/resources';
 
 export type SortDir = 'asc' | 'desc';
 export interface TableSort {
@@ -141,31 +142,11 @@ function fieldText<T>(r: T, f: FilterField<T>): string {
   return Array.isArray(v) ? v.join(' ') : String(v);
 }
 
-const QUANTITY_SUFFIX: Record<string, number> = {
-  '': 1,
-  m: 1e-3,
-  k: 1e3,
-  M: 1e6,
-  G: 1e9,
-  T: 1e12,
-  P: 1e15,
-  Ki: 2 ** 10,
-  Mi: 2 ** 20,
-  Gi: 2 ** 30,
-  Ti: 2 ** 40,
-  Pi: 2 ** 50,
-};
-
 /**
- * A Kubernetes quantity ("500Mi", "10Gi", "1.5T") as a number, so capacity
- * columns sort by size rather than by text. Null when it doesn't parse.
+ * A Kubernetes quantity ("500Mi", "10Gi") as a number, so capacity columns
+ * sort by size rather than by text. Null when it doesn't parse.
  */
-export function quantityValue(q: string | null | undefined): number | null {
-  const m = q?.trim().match(/^(\d+(?:\.\d+)?)([a-zA-Z]*)$/);
-  if (!m) return null;
-  const mult = QUANTITY_SUFFIX[m[2]];
-  return mult === undefined ? null : parseFloat(m[1]) * mult;
-}
+export const quantityValue = parseQuantity;
 
 /** Segment order in PageHeader: worst first, so keys 1-5 hit the problems. */
 export const SEGMENT_ORDER: readonly Health[] = ['failed', 'warning', 'progressing', 'unknown', 'healthy', 'neutral'];

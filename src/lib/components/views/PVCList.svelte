@@ -3,26 +3,12 @@
   import StatusPill from '../ui/StatusPill.svelte';
   import { BP, HEALTH_SORT_ID, quantityValue, type Column } from '../ui/data-table';
   import { verdictHealth } from '../../utils/status-words';
-  import { poll } from '../../utils/poll';
   import {
-    pvcs,
-    selectedNamespace,
-    currentContext,
-    refreshTrigger,
-    loadPVCs,
-    resourceState,
+    pvcList,
     type PersistentVolumeClaimInfo,
   } from '../../stores/kubernetes';
 
-  const loadState = resourceState('pvcs');
   const health = verdictHealth<PersistentVolumeClaimInfo>();
-
-  $effect(() => {
-    if (!$currentContext) return;
-    void $refreshTrigger;
-    const ns = $selectedNamespace;
-    return poll(() => loadPVCs(ns));
-  });
 
   const columns: Column<PersistentVolumeClaimInfo>[] = [
     { id: 'name', label: 'Name', sortKey: 'name', primary: true },
@@ -52,8 +38,7 @@
   title="Persistent Volume Claims"
   viewId="pvcs"
   itemLabel="claims"
-  items={$pvcs}
-  loadState={$loadState}
+  source={pvcList}
   {columns}
   rowKey={(p) => `${p.namespace}/${p.name}`}
   filterFields={['name', 'namespace', 'status', 'volume', 'storage_class']}
@@ -61,5 +46,4 @@
   segmentLabels={{ failed: 'Lost', warning: 'Pending', healthy: 'Bound' }}
   defaultSort={{ id: HEALTH_SORT_ID, dir: 'asc' }}
   resourceType="pvc"
-  onRefresh={() => loadPVCs($selectedNamespace)}
 />

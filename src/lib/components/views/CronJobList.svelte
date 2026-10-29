@@ -3,26 +3,11 @@
   import StatusPill from '../ui/StatusPill.svelte';
   import { BP, HEALTH_SORT_ID, type Column } from '../ui/data-table';
   import { cronJobHealth } from '../../utils/status-words';
-  import { poll } from '../../utils/poll';
   import { parseAge } from '../../utils/sort';
   import {
-    cronjobs,
-    selectedNamespace,
-    currentContext,
-    refreshTrigger,
-    loadCronJobs,
-    resourceState,
+    cronJobList,
     type CronJobInfo,
   } from '../../stores/kubernetes';
-
-  const loadState = resourceState('cronjobs');
-
-  $effect(() => {
-    if (!$currentContext) return;
-    void $refreshTrigger;
-    const ns = $selectedNamespace;
-    return poll(() => loadCronJobs(ns));
-  });
 
   const columns: Column<CronJobInfo>[] = [
     { id: 'name', label: 'Name', sortKey: 'name', primary: true },
@@ -44,8 +29,7 @@
   title="CronJobs"
   viewId="cronjobs"
   itemLabel="cronjobs"
-  items={$cronjobs}
-  loadState={$loadState}
+  source={cronJobList}
   {columns}
   rowKey={(c) => `${c.namespace}/${c.name}`}
   filterFields={['name', 'namespace', 'schedule']}
@@ -53,5 +37,4 @@
   segmentLabels={{ progressing: 'Active', healthy: 'Scheduled', neutral: 'Suspended' }}
   defaultSort={{ id: HEALTH_SORT_ID, dir: 'asc' }}
   resourceType="cronjob"
-  onRefresh={() => loadCronJobs($selectedNamespace)}
 />
