@@ -575,7 +575,14 @@ pub fn set_enabled(app: &AppHandle, enabled: bool) -> Result<()> {
     let s = state(app);
     let was = s.enabled.load(Ordering::SeqCst);
     if enabled && !was {
-        let icon = build_icon(app)?;
+        let icon = match build_icon(app) {
+            Ok(i) => i,
+            Err(e) => {
+                // The menu's check item flips itself on click: put it back.
+                crate::shell::sync_tray_menu(app, false);
+                return Err(e);
+            }
+        };
         *s.icon.lock().unwrap_or_else(|e| e.into_inner()) = Some(icon);
         s.enabled.store(true, Ordering::SeqCst);
         start_poller(app);
