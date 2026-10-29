@@ -1,86 +1,17 @@
 // src/lib/stores/resources.ts
-// Stores for the extra resource types (spec 12). Each is a polled list with
-// the same guards as the watches in kubernetes.ts: a generation counter so
-// an older request can't overwrite a newer one, and a context check so a
-// late answer from the previous cluster is dropped. Lists clear on a
-// context switch so names from one cluster never show under another.
-import { writable, get, type Readable } from 'svelte/store';
-import { invoke } from '@tauri-apps/api/core';
-import { currentContext, isForbiddenError } from './kubernetes';
+// Stores for the extra resource types (spec 12). They use the same list
+// model as every other list (`listStore` in kubernetes.ts): poll ticks skip
+// while a load is in flight, a newer load supersedes an older one, late
+// answers from the previous cluster are dropped, and rows clear on a
+// context switch.
+import { writable } from 'svelte/store';
+import { listStore, type ListStore, type ListLoadOptions, type ResourceState } from './kubernetes';
 import type { CustomTarget } from '../utils/resources';
 
-export type ListStatus = 'idle' | 'loading' | 'ready' | 'error' | 'forbidden';
-export interface ListState {
-  status: ListStatus;
-  error?: string;
-}
-
-export interface ListStore<T> {
-  items: Readable<T[]>;
-  state: Readable<ListState>;
-  /**
-   * Namespaced lists take the namespace filter; `extra` adds command args.
-   * `poll: true` is a background tick: skipped while a load is in flight,
-   * so a slow cluster isn't hit again before it answers and the slow
-   * answer isn't thrown away. Other loads supersede an in-flight one.
-   */
-  load: (namespace?: string | null, extra?: Record<string, unknown>, opts?: LoadOptions) => Promise<void>;
-  reset: () => void;
-  namespaced: boolean;
-}
-
-export interface LoadOptions {
-  poll?: boolean;
-  /** Override the store's scope, e.g. a cluster-scoped CRD in the custom resource browser. */
-  namespaced?: boolean;
-}
-
-export function listStore<T>(command: string, namespaced: boolean): ListStore<T> {
-  const items = writable<T[]>([]);
-  const state = writable<ListState>({ status: 'idle' });
-  let gen = 0;
-  let inFlight = false;
-
-  async function load(namespace?: string | null, extra: Record<string, unknown> = {}, opts: LoadOptions = {}) {
-    const ctx = get(currentContext);
-    if (!ctx) return;
-    if (opts.poll && inFlight) return;
-    const scoped = opts.namespaced ?? namespaced;
-    const g = ++gen;
-    inFlight = true;
-    // Keep showing rows during a refresh; only the first load shows the skeleton.
-    state.update((s) => (s.status === 'ready' ? s : { status: 'loading' }));
-    try {
-      const args = scoped ? { namespace: namespace ?? null, ...extra } : extra;
-      const rows = await invoke<T[]>(command, args);
-      if (g !== gen || get(currentContext) !== ctx) return;
-      items.set(rows);
-      state.set({ status: 'ready' });
-    } catch (e) {
-      if (g !== gen || get(currentContext) !== ctx) return;
-      state.set({ status: isForbiddenError(e) ? 'forbidden' : 'error', error: String(e) });
-    } finally {
-      if (g === gen) inFlight = false;
-    }
-  }
-
-  function reset() {
-    gen++;
-    inFlight = false;
-    items.set([]);
-    state.set({ status: 'idle' });
-  }
-
-  let ctx = get(currentContext);
-  currentContext.subscribe((c) => {
-    if (c !== ctx) {
-      ctx = c;
-      reset();
-    }
-  });
-
-  return { items, state, load, reset, namespaced };
-}
+export { listStore };
+export type { ListStore, ListLoadOptions as LoadOptions };
+export type ListState = ResourceState;
+export type ListStatus = ResourceState['status'];
 
 // ---------- Row types (match src-tauri/src/resources.rs) ----------
 

@@ -1,8 +1,9 @@
 // src/lib/components/ui/data-table.ts
 // Types and pure helpers for DataTable.svelte (spec 5.4).
 import type { Snippet } from 'svelte';
-import type { HealthResult } from '../../utils/health';
+import type { Health, HealthResult } from '../../utils/health';
 import { parseAge } from '../../utils/sort';
+import { parseQuantity } from '../../utils/resources';
 
 export type SortDir = 'asc' | 'desc';
 export interface TableSort {
@@ -38,6 +39,7 @@ export type TableState = 'loading' | 'ready' | 'error' | 'forbidden';
 
 export function cellText<T>(row: T, col: Column<T>): string {
   const v = (row as Record<string, unknown>)[col.id];
+  if (Array.isArray(v)) return v.length ? v.join(', ') : '–';
   return v == null || v === '' ? '–' : String(v);
 }
 
@@ -108,4 +110,57 @@ export function nextSort(current: TableSort | null, columnId: string, fallback: 
   if (current.dir === 'asc') return { id: columnId, dir: 'desc' };
   if (fallback && fallback.id === columnId) return { id: columnId, dir: 'asc' };
   return fallback;
+}
+
+/**
+ * Window-width breakpoints (spec 13.2), for `Column.hideBelow`:
+ * sm < 640 (side panel), md 640-1199 (half screen), lg >= 1200 (full).
+ * `hideBelow: BP.md` keeps a column only from md up; `BP.wide` also drops it
+ * in the narrow half of md, where the icon sidebar still takes 52px.
+ */
+export const BP = { md: 640, wide: 900, lg: 1200 } as const;
+
+/** Map a store's load status onto the table's states. */
+export function tableStateOf(status: string | undefined): TableState {
+  switch (status) {
+    case 'error':
+      return 'error';
+    case 'forbidden':
+      return 'forbidden';
+    case 'ready':
+      return 'ready';
+    default:
+      return 'loading';
+  }
+}
+
+export type FilterField<T> = keyof T | ((r: T) => unknown);
+
+function fieldText<T>(r: T, f: FilterField<T>): string {
+  const v = typeof f === 'function' ? f(r) : (r as Record<string, unknown>)[f as string];
+  if (v == null) return '';
+  return Array.isArray(v) ? v.join(' ') : String(v);
+}
+
+/**
+ * A Kubernetes quantity ("500Mi", "10Gi") as a number, so capacity columns
+ * sort by size rather than by text. Null when it doesn't parse.
+ */
+export const quantityValue = parseQuantity;
+
+/** Segment order in PageHeader: worst first, so keys 1-5 hit the problems. */
+export const SEGMENT_ORDER: readonly Health[] = ['failed', 'warning', 'progressing', 'unknown', 'healthy', 'neutral'];
+
+/** Rows per health state, for the PageHeader segment counts. */
+export function healthCounts<T>(rows: readonly T[], health: (r: T) => HealthResult): Record<Health, number> {
+  const counts: Record<Health, number> = { failed: 0, warning: 0, progressing: 0, unknown: 0, healthy: 0, neutral: 0 };
+  for (const r of rows) counts[health(r).health]++;
+  return counts;
+}
+
+/** Case-insensitive substring filter across the given fields (arrays joined). */
+export function filterRows<T>(rows: readonly T[], query: string, fields: readonly FilterField<T>[]): T[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [...rows];
+  return rows.filter((r) => fields.some((f) => fieldText(r, f).toLowerCase().includes(q)));
 }

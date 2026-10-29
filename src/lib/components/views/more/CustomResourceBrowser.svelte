@@ -3,7 +3,7 @@
   // objects through the dynamic API (name, namespace, age), open one for a
   // YAML-first detail window.
   import { onMount } from 'svelte';
-  import ResourceListView from '../ResourceListView.svelte';
+  import ListView from '../../ui/ListView.svelte';
   import CustomSelect from '../../ui/CustomSelect.svelte';
   import Button from '../../ui/Button.svelte';
   import { crds, customResources, selectedCrdName, type CustomResourceInfo } from '../../../stores/resources';
@@ -92,12 +92,12 @@
 {/snippet}
 
 {#key targetKey ?? 'none'}
-  <ResourceListView
+  <ListView
     title={crd ? crd.kind : 'Custom Resources'}
     subtitle={crd ? `${crd.group}/${crd.version}` : undefined}
     itemLabel={crd ? crd.plural : 'objects'}
     viewId="customresources"
-    store={customResources}
+    source={customResources}
     {columns}
     rowKey={(r) => `${r.namespace}/${r.name}`}
     resourceType={target ? encodeCrType(target) : 'crd'}

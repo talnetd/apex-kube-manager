@@ -1,5 +1,5 @@
 <script lang="ts">
-  import ResourceListView from '../ResourceListView.svelte';
+  import ListView from '../../ui/ListView.svelte';
   import { ingressClasses, type IngressClassInfo } from '../../../stores/resources';
   import type { Column } from '../../ui/data-table';
 
@@ -13,11 +13,11 @@
 
 {#snippet nameCell(r: IngressClassInfo)}{r.name}{#if r.is_default}<span class="deftag">default</span>{/if}{/snippet}
 
-<ResourceListView
+<ListView
   title="Ingress Classes"
   itemLabel="ingress classes"
   viewId="ingressclasses"
-  store={ingressClasses}
+  source={ingressClasses}
   {columns}
   rowKey={(r) => r.name}
   resourceType="ingressclass"

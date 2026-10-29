@@ -2,14 +2,12 @@
   import { onMount, onDestroy } from 'svelte';
   import {
     portForwards,
-    activePortForwardCount,
     loadPortForwards,
     startPortForward,
     stopPortForward,
     getResourcePorts,
     startPolling,
     stopPolling,
-    type PortForwardInfo,
     type ResourceType,
     type AvailablePort
   } from '../stores/portforward';
@@ -17,11 +15,10 @@
     currentContext,
     namespaces,
     selectedNamespace,
-    pods,
-    services,
-    loadPods,
-    loadServices
+    type PodInfo,
+    type ServiceInfo
   } from '../stores/kubernetes';
+  import { invoke } from '@tauri-apps/api/core';
   import CustomSelect from './ui/CustomSelect.svelte';
 
   interface Props {
@@ -53,36 +50,41 @@
     stopPolling();
   });
 
+  // Names to pick from, fetched for this form only. Writing them into the
+  // shared pods/services stores would repaint the main lists with this
+  // form's namespace.
+  let resourceNames = $state<string[]>([]);
+  let resourceReq = 0;
+
   // Load resources when namespace or type changes
   async function loadResourcesForNamespace() {
     if (!selectedNamespaceForm) return;
 
+    const req = ++resourceReq;
+    const ctx = $currentContext;
+    const type = resourceType;
     isLoadingResources = true;
     selectedResource = '';
+    resourceNames = [];
     try {
-      if (resourceType === 'pod') {
-        await loadPods(selectedNamespaceForm);
-      } else {
-        await loadServices(selectedNamespaceForm);
-      }
+      const names =
+        type === 'pod'
+          ? (await invoke<PodInfo[]>('get_pods', { namespace: selectedNamespaceForm }))
+              .filter((p) => p.status === 'Running')
+              .map((p) => p.name)
+          : (await invoke<ServiceInfo[]>('get_services', { namespace: selectedNamespaceForm })).map((s) => s.name);
+      // A newer pick (or a context switch) wins.
+      if (req === resourceReq && ctx === $currentContext) resourceNames = names;
     } catch (e) {
       console.error('Failed to load resources:', e);
     } finally {
-      isLoadingResources = false;
+      if (req === resourceReq) isLoadingResources = false;
     }
   }
 
   // Get available resources based on type
   function getAvailableResources(): string[] {
-    if (resourceType === 'pod') {
-      return $pods
-        .filter(p => p.namespace === selectedNamespaceForm && p.status === 'Running')
-        .map(p => p.name);
-    } else {
-      return $services
-        .filter(s => s.namespace === selectedNamespaceForm)
-        .map(s => s.name);
-    }
+    return resourceNames;
   }
 
   // Load available ports when resource is selected

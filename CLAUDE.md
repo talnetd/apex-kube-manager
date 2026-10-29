@@ -171,7 +171,7 @@ All resource views are fully functional with listing, namespace filtering (where
 | CRDs ("Definitions") | `more/CrdList.svelte` | No (cluster-scoped) | Name, Kind, Group, Scope, Version, Age; row action Browse |
 | Custom resources ("Browse") | `more/CustomResourceBrowser.svelte` | Yes, for namespaced CRDs | Pick a CRD, then Name, Namespace, Age via the dynamic API |
 
-The views in `views/more/` share `ResourceListView.svelte` (PageHeader + DataTable, 10s poll, filter, open detail) and the list stores in `src/lib/stores/resources.ts` (`listStore(command, namespaced)`: generation counter + context guard, cleared on context switch). Pure helpers (quantities, quota usage, PDB health, custom resource type ids) live in `src/lib/utils/resources.ts`, covered by `tests/resources.test.ts`.
+The views in `views/more/` use the same `ListView.svelte` and `listStore` as every other list (see "Lists" under Key Patterns); their stores live in `src/lib/stores/resources.ts`. Pure helpers (quantities, quota usage, PDB health, custom resource type ids) live in `src/lib/utils/resources.ts`, covered by `tests/resources.test.ts`.
 
 ### Cluster
 | Resource | View File | Namespace Filter | Key Columns |
@@ -283,7 +283,7 @@ All commands defined in `src-tauri/src/commands.rs`:
 **Polling invariants** (`loadNodeMetrics` in `kubernetes.ts`) — worth preserving when editing:
 - In-flight guard: a slow poll (unreachable kubelets) can outlast the 10s interval; without it, polls stack and a late response overwrites a newer one
 - Context guard: node names collide across clusters, so a poll resolving after a context switch must be dropped, not painted onto the new cluster's rows
-- `NodeList.svelte` re-anchors `selectedRowIndex` by node name after each re-sort — the usage columns are sortable and change every poll, so a positional selection would drift onto a different node
+- `DataTable.svelte` re-anchors `selectedRowIndex` by `rowKey` (the node name, for `NodeList.svelte`) after each re-sort — the usage columns are sortable and change every poll, so a positional selection would drift onto a different node
 
 ### Pod Operations
 | Command | Parameters | Returns |
@@ -420,6 +420,14 @@ colors: {
 
 ## Key Patterns
 
+### Lists (every list view except Pods)
+One model, in `stores/kubernetes.ts`:
+- **`ListSource`**: `items`, `state` (`resourceState`: idle/loading/ready/error/forbidden), `context` (the context the rows came from), `reset()`. Rows clear the moment the context changes, so a row from one cluster is never shown, opened or edited under another
+- **`listStore(command, namespaced, { name?, items? })`**: polled loader. `load(ns, extra, { poll, namespaced })`; a `poll: true` tick is skipped while a load is in flight, any other load supersedes it; late answers (older generation or another context) are dropped
+- **`listWatch`**: list + watch on a source (deployments, jobs, nodes, events), generation-guarded so double starts can't leak listeners
+- `ListView` refuses to open or run shortcuts on rows whose `context` isn't current, and passes the row's context to `open_resource_detail`. Editors (`SecretCreator`, `NetworkPolicyCreator`) take a `context` prop fixed at open and close themselves if the live context moves
+- A failed refresh keeps the rows on screen with a banner (DataTable); the full error state is only for an empty table
+
 ### Adding a New Resource Type
 1. **Backend** (`src-tauri/src/kubernetes.rs`):
    - Add `ResourceInfo` struct with `#[derive(Debug, Clone, Serialize, Deserialize)]`
@@ -499,6 +507,8 @@ const events = await invoke(`get_${resourceType}_events`, getInvokeParams());
 | `ConditionsTable.svelte` | Resource conditions table |
 | `CustomSelect.svelte` | Standard dropdown select (use this instead of native `<select>`) |
 | `UsageBar.svelte` | Compact table-cell usage bar (`percent: number \| null`, renders `–` when null) |
+| `DataTable.svelte` | Shared list table: sorting, keyboard nav, selection anchoring, loading/empty/filtered/error/forbidden states. Columns hide by window width via `hideBelow: BP.md / BP.wide / BP.lg` (`data-table.ts`) |
+| `ListView.svelte` | One list page in the Pods style: `PageHeader` (health segments + filter) over `DataTable`. Every list view except Pods is a column config on this. Pass `source={xList}`: a `ListStore` is loaded and polled here; a watched list passes `autoload={false}` and runs its watch in the view |
 
 **CustomSelect Usage** - Use this component for all dropdown selects across the app:
 ```svelte

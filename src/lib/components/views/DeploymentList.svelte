@@ -1,352 +1,86 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  // Scale and restart live in DeploymentDetail (CLAUDE.md, Architecture
+  // Note 7); `s` opens it so the old shortcut still lands somewhere useful.
+  import { onDestroy } from 'svelte';
+  import { get } from 'svelte/store';
   import { invoke } from '@tauri-apps/api/core';
-  import SortableHeader from '../ui/SortableHeader.svelte';
-  import { sortData, toggleSort, type SortState } from '../../utils/sort';
+  import ListView from '../ui/ListView.svelte';
+  import StatusPill from '../ui/StatusPill.svelte';
+  import { BP, HEALTH_SORT_ID, type Column } from '../ui/data-table';
+  import { verdictHealth } from '../../utils/status-words';
+  import { toast } from '../../stores/toast';
   import {
-    deployments,
     selectedNamespace,
     currentContext,
     refreshTrigger,
     startDeploymentWatch,
     stopDeploymentWatch,
+    deploymentList,
     type DeploymentInfo,
   } from '../../stores/kubernetes';
-  import { filterBySearch } from '../../stores/search';
-  import ViewFilter from '../ui/ViewFilter.svelte';
-  import {
-    selectedRowIndex,
-    keyboardNavActive,
-    totalRows,
-    resetNavigation,
-  } from '../../stores/keyboard';
 
-  let sort = $state<SortState>({ field: 'name', direction: 'asc' });
-  let filterQuery = $state('');
-  let tableBody: HTMLTableSectionElement;
-  let filterRef: ViewFilter;
+  const health = verdictHealth<DeploymentInfo>();
 
-  const sortedData = $derived(() => {
-    const filtered = filterBySearch($deployments, filterQuery, ['name', 'namespace']);
-    return sortData(filtered, sort.field, sort.direction);
-  });
-
-  function handleSort(field: string) {
-    sort = toggleSort(sort, field);
-  }
-
-  // Get selected deployment based on current index
-  const selectedItem = $derived(() => {
-    const items = sortedData();
-    const idx = $selectedRowIndex;
-    if (idx >= 0 && idx < items.length) {
-      return items[idx];
-    }
-    return null;
-  });
-
-  // Update total rows when filtered data changes
-  $effect(() => {
-    totalRows.set(sortedData().length);
-  });
-
-  // Scroll selected row into view
-  $effect(() => {
-    if ($keyboardNavActive && $selectedRowIndex >= 0 && tableBody) {
-      const row = tableBody.children[$selectedRowIndex] as HTMLElement;
-      if (row) {
-        row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      }
-    }
-  });
-
-  // Keyboard shortcuts for actions
-  function handleKeydown(e: KeyboardEvent) {
-    const active = document.activeElement;
-    const isInput = active?.tagName.toLowerCase() === 'input';
-
-    // Cmd+F to focus filter (works even in input)
-    if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
-      e.preventDefault();
-      filterRef?.focus();
-      return;
-    }
-
-    // Skip other shortcuts if in input
-    if (isInput) return;
-
-    const item = selectedItem();
-    if (!item) return;
-
-    // Enter to open detail
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      openDeploymentDetail(item);
-      return;
-    }
-
-    // 'y' to copy name
-    if (e.key === 'y') {
-      e.preventDefault();
-      navigator.clipboard.writeText(item.name);
-      return;
-    }
-
-    // 'r' to refresh
-    if (e.key === 'r') {
-      e.preventDefault();
-      startDeploymentWatch($selectedNamespace);
-      return;
-    }
-  }
-
-  // Scale modal state
-  let showScaleModal = $state<boolean>(false);
-  let scaleTarget = $state<DeploymentInfo | null>(null);
-  let scaleReplicas = $state<number>(0);
-  let isScaling = $state<boolean>(false);
-
-  // Restart state
-  let restartingDeployment = $state<string | null>(null);
-
-  onMount(() => {
-    startDeploymentWatch($selectedNamespace);
-    resetNavigation();
-    window.addEventListener('keydown', handleKeydown);
-  });
-
-  onDestroy(() => {
-    stopDeploymentWatch();
-    resetNavigation();
-    window.removeEventListener('keydown', handleKeydown);
-  });
-
+  // Starts the watch on mount, and again on namespace, context or refresh.
   $effect(() => {
     const ctx = $currentContext;
-    const trigger = $refreshTrigger;
+    void $refreshTrigger;
     if (!ctx) return;
     startDeploymentWatch($selectedNamespace);
   });
+  onDestroy(() => stopDeploymentWatch());
 
-  async function openDeploymentDetail(deployment: DeploymentInfo) {
-    try {
-      await invoke('open_resource_detail', {
-        resourceType: 'deployment',
-        name: deployment.name,
-        namespace: deployment.namespace,
-        context: $currentContext,
-      });
-    } catch (e) {
-      console.error('Failed to open deployment detail:', e);
-    }
+  const columns: Column<DeploymentInfo>[] = [
+    { id: 'name', label: 'Name', sortKey: 'name', primary: true },
+    { id: 'namespace', label: 'Namespace', sortKey: 'namespace', width: '14%', hideBelow: BP.md },
+    {
+      id: 'status',
+      label: 'Status',
+      width: '18%',
+      sortKey: (d) => health(d).rank,
+      cell: statusCell,
+      title: (d) => `${d.verdict.reason} (${d.verdict.ruleId})`,
+    },
+    { id: 'ready', label: 'Ready', sortKey: 'ready', numeric: true, width: '72px' },
+    { id: 'up_to_date', label: 'Up-to-date', sortKey: 'up_to_date', numeric: true, width: '96px', hideBelow: BP.lg },
+    { id: 'available', label: 'Available', sortKey: 'available', numeric: true, width: '88px', hideBelow: BP.wide },
+    { id: 'age', label: 'Age', sortKey: 'age', numeric: true, width: '64px' },
+  ];
+
+  function openDetail(d: DeploymentInfo) {
+    invoke('open_resource_detail', {
+      resourceType: 'deployment',
+      name: d.name,
+      namespace: d.namespace,
+      // The context the rows came from (ListView refuses rows from another).
+      context: get(deploymentList.context) || $currentContext,
+    }).catch((e) => console.error('Failed to open deployment detail:', e));
   }
 
-  function openScaleModal(deployment: DeploymentInfo, e: Event) {
-    e.stopPropagation();
-    scaleTarget = deployment;
-    // Parse current replicas from ready string (e.g., "2/3" -> 3)
-    const parts = deployment.ready.split('/');
-    scaleReplicas = parseInt(parts[1]) || 0;
-    showScaleModal = true;
-  }
-
-  async function handleScale() {
-    if (!scaleTarget) return;
-
-    try {
-      isScaling = true;
-      await invoke('scale_deployment', {
-        namespace: scaleTarget.namespace,
-        name: scaleTarget.name,
-        replicas: scaleReplicas
-      });
-      showScaleModal = false;
-      scaleTarget = null;
-      // Watch stream will automatically update the deployment
-    } catch (e) {
-      alert(`Failed to scale: ${e}`);
-    } finally {
-      isScaling = false;
-    }
-  }
-
-  async function handleRestart(deployment: DeploymentInfo, e: Event) {
-    e.stopPropagation();
-
-    if (!confirm(`Are you sure you want to restart deployment "${deployment.name}"?`)) {
-      return;
-    }
-
-    try {
-      restartingDeployment = deployment.name;
-      await invoke('restart_deployment', {
-        namespace: deployment.namespace,
-        name: deployment.name
-      });
-      // Watch stream will automatically update the deployment
-    } catch (e) {
-      alert(`Failed to restart: ${e}`);
-    } finally {
-      restartingDeployment = null;
-    }
-  }
-
-  function getReadyStatus(ready: string): 'healthy' | 'degraded' | 'failing' {
-    const parts = ready.split('/');
-    const current = parseInt(parts[0]) || 0;
-    const desired = parseInt(parts[1]) || 0;
-    if (desired === 0) return 'failing';
-    if (current === desired) return 'healthy';
-    if (current > 0) return 'degraded';
-    return 'failing';
-  }
-
-  function getStatusColor(status: 'healthy' | 'degraded' | 'failing'): string {
-    switch (status) {
-      case 'healthy': return 'bg-accent-success';
-      case 'degraded': return 'bg-accent-warning';
-      case 'failing': return 'bg-accent-error';
-    }
+  function scale(d: DeploymentInfo) {
+    openDetail(d);
+    toast('Scale from the detail window');
   }
 </script>
 
-<div class="h-full flex flex-col overflow-hidden">
-  <!-- Toolbar -->
-  <div class="px-6 py-4 border-b border-border-subtle">
-    <div class="flex items-center justify-between">
-      <h1 class="text-lg font-semibold text-text-primary">Deployments</h1>
-      <ViewFilter bind:this={filterRef} value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter deployments..." />
-    </div>
-  </div>
+{#snippet statusCell(d: DeploymentInfo)}
+  {@const h = health(d)}
+  <StatusPill health={h.health} label={h.label} />
+{/snippet}
 
-  <!-- Table -->
-  <div class="flex-1 overflow-auto p-6 pt-4">
-    <table class="w-full">
-      <thead>
-        <tr class="text-left border-b border-border-subtle">
-          <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Namespace" field="namespace" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Ready" field="ready" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Up-to-date" field="up_to_date" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Available" field="available" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Age" field="age" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-24">Actions</th>
-        </tr>
-      </thead>
-      <tbody bind:this={tableBody}>
-        {#each sortedData() as deployment, index}
-          {@const status = getReadyStatus(deployment.ready)}
-          {@const isSelected = $keyboardNavActive && $selectedRowIndex === index}
-          <tr
-            class="border-b border-border-subtle/50 cursor-pointer transition-colors {isSelected ? 'bg-accent-primary/20 ring-1 ring-accent-primary/50' : 'hover:bg-bg-secondary'}"
-            onclick={() => openDeploymentDetail(deployment)}
-          >
-            <td class="py-3 pr-4">
-              <span class="text-accent-text font-medium hover:underline">{deployment.name}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{deployment.namespace}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{deployment.ready}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{deployment.up_to_date}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{deployment.available}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{deployment.age}</span>
-            </td>
-            <td class="py-3">
-              <div class="flex items-center gap-1">
-                <button
-                  onclick={(e) => openScaleModal(deployment, e)}
-                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-text transition-colors"
-                  title="Scale"
-                >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                  </svg>
-                </button>
-                <button
-                  onclick={(e) => handleRestart(deployment, e)}
-                  disabled={restartingDeployment === deployment.name}
-                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-warning transition-colors disabled:opacity-50"
-                  title="Restart"
-                >
-                  <svg class="w-4 h-4 {restartingDeployment === deployment.name ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                </button>
-              </div>
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
-
-    {#if sortedData().length === 0}
-      <div class="flex items-center justify-center h-48">
-        <div class="text-center">
-          <svg class="w-12 h-12 text-text-muted mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
-          </svg>
-          <p class="text-text-muted">No deployments found</p>
-        </div>
-      </div>
-    {/if}
-  </div>
-</div>
-
-<!-- Scale Modal -->
-{#if showScaleModal && scaleTarget}
-  <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-    <div class="bg-bg-secondary rounded-lg p-6 w-96 border border-line-strong">
-      <h3 class="text-[18px]/7 font-semibold text-text-primary mb-4">Scale Deployment</h3>
-      <p class="text-base text-text-secondary mb-4">
-        Set the number of replicas for <span class="text-accent-text">{scaleTarget.name}</span>
-      </p>
-      <div class="flex items-center justify-center gap-3 mb-6">
-        <button
-          onclick={() => scaleReplicas = Math.max(0, scaleReplicas - 1)}
-          class="w-12 h-12 rounded-lg bg-bg-tertiary hover:bg-accent-error/20 hover:text-danger border border-border-subtle text-text-primary transition-colors flex items-center justify-center"
-        >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
-          </svg>
-        </button>
-        <input
-          type="number"
-          bind:value={scaleReplicas}
-          min="0"
-          class="w-24 text-center text-[30px]/9 font-bold bg-bg-primary border border-border-subtle rounded-lg py-3 text-text-primary focus:outline-hidden focus:border-accent-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-        />
-        <button
-          onclick={() => scaleReplicas++}
-          class="w-12 h-12 rounded-lg bg-bg-tertiary hover:bg-accent-success/20 hover:text-success border border-border-subtle text-text-primary transition-colors flex items-center justify-center"
-        >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-          </svg>
-        </button>
-      </div>
-      <div class="flex justify-end gap-3">
-        <button
-          onclick={() => { showScaleModal = false; scaleTarget = null; }}
-          class="px-4 py-2 text-base text-text-secondary hover:text-text-primary transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          onclick={handleScale}
-          disabled={isScaling}
-          class="px-4 py-2 text-base bg-btn text-on-btn rounded-sm hover:opacity-90 transition-colors disabled:opacity-50"
-        >
-          {isScaling ? 'Scaling...' : 'Scale'}
-        </button>
-      </div>
-    </div>
-  </div>
-{/if}
+<ListView
+  title="Deployments"
+  viewId="deployments"
+  itemLabel="deployments"
+  source={deploymentList}
+  autoload={false}
+  {columns}
+  rowKey={(d) => `${d.namespace}/${d.name}`}
+  filterFields={['name', 'namespace', (d) => d.verdict.reason]}
+  {health}
+  segmentLabels={{ failed: 'Failing', warning: 'Degraded', progressing: 'Rolling out', healthy: 'Ready', neutral: 'Scaled to 0' }}
+  defaultSort={{ id: HEALTH_SORT_ID, dir: 'asc' }}
+  onOpen={openDetail}
+  onRefresh={() => startDeploymentWatch($selectedNamespace)}
+  shortcuts={{ s: scale }}
+/>

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import ResourceListView from '../ResourceListView.svelte';
+  import ListView from '../../ui/ListView.svelte';
   import { priorityClasses, type PriorityClassInfo } from '../../../stores/resources';
   import type { Column } from '../../ui/data-table';
 
@@ -14,11 +14,11 @@
 
 {#snippet nameCell(r: PriorityClassInfo)}{r.name}{#if r.global_default}<span class="deftag">default</span>{/if}{/snippet}
 
-<ResourceListView
+<ListView
   title="Priority Classes"
   itemLabel="priority classes"
   viewId="priorityclasses"
-  store={priorityClasses}
+  source={priorityClasses}
   {columns}
   rowKey={(r) => r.name}
   resourceType="priorityclass"

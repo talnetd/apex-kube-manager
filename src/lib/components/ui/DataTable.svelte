@@ -22,6 +22,7 @@
     keyboardNavActive,
     totalRows,
     resetNavigation,
+    rowNavPaused,
   } from '../../stores/keyboard';
   import { density } from '../../stores/density';
   import { toast } from '../../stores/toast';
@@ -29,6 +30,7 @@
   import { isTypingTarget } from '../../utils/keys';
   import type { HealthResult } from '../../utils/health';
   import EmptyState from './EmptyState.svelte';
+  import StatusIcon from './StatusIcon.svelte';
   import Button from './Button.svelte';
   import {
     sortRows,
@@ -60,6 +62,9 @@
     rowActions,
     shortcuts,
     ariaLabel,
+    minWidth = '760px',
+    keyboard = true,
+    deleteHint = 'Delete from the detail window',
   }: {
     rows: T[];
     columns: Column<T>[];
@@ -89,6 +94,16 @@
     /** View-specific keys, e.g. { l: openLogs, e: exec }. */
     shortcuts?: Record<string, (r: T) => void>;
     ariaLabel?: string;
+    /**
+     * Below this the table scrolls sideways instead of crushing columns.
+     * Views that hide columns with `hideBelow` pass a smaller value so a
+     * side-panel window (spec 13.2, sm) fits without horizontal scroll.
+     */
+    minWidth?: string;
+    /** False while the view shows its own modal (an editor), so row keys don't fire behind it. */
+    keyboard?: boolean;
+    /** Toast when `d` opens the row instead of deleting it. */
+    deleteHint?: string;
   } = $props();
 
   // Claim the global keyboard selection: only the owner reads or writes it.
@@ -149,13 +164,13 @@
   function copy(r: T) {
     const text = copyText ? copyText(r) : rowKey(r);
     navigator.clipboard?.writeText(text).then(
-      () => toast(`Copied ${text}`),
+      () => toast(`Copied ${text.length > 60 ? `${text.slice(0, 60)}…` : text}`),
       () => toast("Couldn't copy to clipboard", { health: 'failed' })
     );
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (!ownsNav()) return;
+    if (!ownsNav() || !keyboard) return;
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
     if (isTypingTarget(document.activeElement)) return;
 
@@ -190,7 +205,7 @@
       // Muscle memory from the old list delete: open the detail window instead.
       e.preventDefault();
       onOpen(r);
-      toast('Delete from the detail window');
+      toast(deleteHint);
     }
   }
 
@@ -203,10 +218,20 @@
     window.addEventListener('keydown', handleKeydown);
   });
 
+  // j/k/gg/G are handled in App.svelte through keyboard.ts; pause them too
+  // while the view's own modal is open.
+  $effect(() => {
+    const paused = !keyboard;
+    untrack(() => {
+      if (ownsNav()) rowNavPaused.set(paused);
+    });
+  });
+
   onDestroy(() => {
     window.removeEventListener('keydown', handleKeydown);
     if (navOwner === tableId) {
       navOwner = 0;
+      rowNavPaused.set(false);
       resetNavigation();
     }
   });
@@ -236,17 +261,35 @@
 
   const SKELETON_WIDTHS = ['40%', '15%', '12%', '8%', '10%', '14%'];
   const showSkeleton = $derived(tableState === 'loading' && rows.length === 0);
-  const showRows = $derived(sorted.length > 0 && tableState !== 'error' && tableState !== 'forbidden');
+  // A failed refresh keeps the rows already on screen (they stay selectable
+  // and openable) and says so in a banner; the full error state is only for
+  // a table with nothing to show.
+  const showRows = $derived(sorted.length > 0);
+  const staleBanner = $derived(showRows && (tableState === 'error' || tableState === 'forbidden'));
 </script>
 
 <svelte:window bind:innerWidth={viewportWidth} />
 
+<div class="flex-1 min-h-0 flex flex-col">
+{#if staleBanner}
+  <div
+    class="shrink-0 flex items-center gap-2 px-(--page-px) py-1.5 border-b border-line bg-warning-tint text-sm text-warning"
+    role="status"
+  >
+    <StatusIcon health="warning" colored={false} />
+    <span class="truncate" title={error}>
+      {tableState === 'forbidden' ? `Lost access to ${itemLabel}` : `Couldn't refresh ${itemLabel}`}. Showing the last loaded rows.
+    </span>
+    {#if onRetry}<Button size="sm" class="ml-auto" onclick={onRetry}>Retry</Button>{/if}
+  </div>
+{/if}
 <div class="relative flex-1 min-h-0 overflow-auto bg-app">
   <!-- One tab stop for the whole table (spec 5.4): keyboard users can reach
        and scroll it without Tab walking every row. Rows move with j/k. -->
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <table
     class="dt w-full table-fixed border-separate border-spacing-0"
+    style:min-width={minWidth}
     tabindex="0"
     aria-label={ariaLabel ?? itemLabel}
     aria-rowcount={sorted.length + 1}
@@ -383,14 +426,11 @@
     {/if}
   {/if}
 </div>
+</div>
 
 <style>
   .dt:focus-visible {
     outline: none;
-  }
-  /* Narrow windows scroll sideways instead of crushing columns (preview). */
-  .dt {
-    min-width: 760px;
   }
   /* Mono name column (Geist): a touch smaller than the body text. */
   .name-cell {

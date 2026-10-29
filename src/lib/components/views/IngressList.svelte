@@ -1,122 +1,33 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { invoke } from '@tauri-apps/api/core';
-  import SortableHeader from '../ui/SortableHeader.svelte';
-  import { sortData, toggleSort, type SortState } from '../../utils/sort';
-  import { ingresses, selectedNamespace, currentContext, refreshTrigger, loadIngresses } from '../../stores/kubernetes';
-  import { filterBySearch } from '../../stores/search';
-  import ViewFilter from '../ui/ViewFilter.svelte';
+  import ListView from '../ui/ListView.svelte';
+  import { BP, type Column } from '../ui/data-table';
+  import {
+    ingressList,
+    type IngressInfo,
+  } from '../../stores/kubernetes';
 
-  let sort = $state<SortState>({ field: 'name', direction: 'asc' });
-  let filterQuery = $state('');
-
-  const sortedData = $derived(() => {
-    const filtered = filterBySearch($ingresses, filterQuery, ['name', 'namespace', 'hosts']);
-    return sortData(filtered, sort.field, sort.direction);
-  });
-
-  function handleSort(field: string) {
-    sort = toggleSort(sort, field);
-  }
-
-  onMount(() => {
-    loadIngresses($selectedNamespace);
-    const interval = setInterval(() => loadIngresses($selectedNamespace), 10000);
-    return () => clearInterval(interval);
-  });
-
-  $effect(() => {
-    const ctx = $currentContext;
-    const trigger = $refreshTrigger;
-    if (!ctx) return;
-    loadIngresses($selectedNamespace);
-  });
-
-  async function openIngressDetail(ingress: { name: string; namespace: string }) {
-    try {
-      await invoke('open_resource_detail', {
-        resourceType: 'ingress',
-        name: ingress.name,
-        namespace: ingress.namespace,
-        context: $currentContext
-      });
-    } catch (e) {
-      console.error('Failed to open ingress detail:', e);
-    }
-  }
+  const columns: Column<IngressInfo>[] = [
+    { id: 'name', label: 'Name', sortKey: 'name', primary: true },
+    { id: 'namespace', label: 'Namespace', sortKey: 'namespace', width: '14%', hideBelow: BP.md },
+    { id: 'class', label: 'Class', sortKey: 'class', width: '12%', hideBelow: BP.lg },
+    // An ingress without hosts matches every host.
+    { id: 'hosts', label: 'Hosts', sortKey: (i) => i.hosts.join(','), mono: true, width: '26%', cell: hostsCell, title: (i) => i.hosts.join(', ') || '*' },
+    { id: 'address', label: 'Address', sortKey: 'address', mono: true, width: '16%', hideBelow: BP.wide },
+    { id: 'ports', label: 'Ports', sortKey: 'ports', mono: true, width: '80px', hideBelow: BP.lg },
+    { id: 'age', label: 'Age', sortKey: 'age', numeric: true, width: '64px' },
+  ];
 </script>
 
-<div class="h-full flex flex-col overflow-hidden">
-  <!-- Toolbar -->
-  <div class="px-6 py-4 border-b border-border-subtle">
-    <div class="flex items-center justify-between">
-      <h1 class="text-lg font-semibold text-text-primary">Ingresses</h1>
-      <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter ingresses..." />
-    </div>
-  </div>
+{#snippet hostsCell(i: IngressInfo)}{i.hosts.length ? i.hosts.join(', ') : '*'}{/snippet}
 
-  <!-- Table -->
-  <div class="flex-1 overflow-auto p-6 pt-4">
-    <table class="w-full">
-      <thead>
-        <tr class="text-left border-b border-border-subtle">
-          <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Namespace" field="namespace" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Class" field="class" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium">Hosts</th>
-          <SortableHeader label="Address" field="address" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Ports" field="ports" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Age" field="age" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-        </tr>
-      </thead>
-      <tbody>
-        {#each sortedData() as ing}
-          <tr
-            class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer"
-            onclick={() => openIngressDetail(ing)}
-          >
-            <td class="py-3 pr-4">
-              <span class="text-accent-text font-medium hover:underline">{ing.name}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{ing.namespace}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{ing.class || '-'}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <div class="flex flex-wrap gap-1">
-                {#each ing.hosts as host}
-                  <span class="text-xs bg-bg-tertiary px-2 py-0.5 rounded-sm text-accent-text">{host}</span>
-                {/each}
-                {#if ing.hosts.length === 0}
-                  <span class="text-text-muted text-base">*</span>
-                {/if}
-              </div>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{ing.address || '-'}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{ing.ports}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{ing.age}</span>
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
-
-    {#if sortedData().length === 0}
-      <div class="flex items-center justify-center h-48">
-        <div class="text-center">
-          <svg class="w-12 h-12 text-text-muted mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-          </svg>
-          <p class="text-text-muted">No ingresses found</p>
-        </div>
-      </div>
-    {/if}
-  </div>
-</div>
+<ListView
+  title="Ingresses"
+  viewId="ingresses"
+  itemLabel="ingresses"
+  source={ingressList}
+  {columns}
+  rowKey={(i) => `${i.namespace}/${i.name}`}
+  filterFields={['name', 'namespace', 'class', 'hosts', 'address']}
+  defaultSort={{ id: 'name', dir: 'asc' }}
+  resourceType="ingress"
+/>

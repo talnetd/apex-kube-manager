@@ -1,112 +1,32 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { invoke } from '@tauri-apps/api/core';
-  import SortableHeader from '../ui/SortableHeader.svelte';
-  import { sortData, toggleSort, type SortState } from '../../utils/sort';
-  import { hpas, selectedNamespace, currentContext, refreshTrigger, loadHPAs } from '../../stores/kubernetes';
-  import { filterBySearch } from '../../stores/search';
-  import ViewFilter from '../ui/ViewFilter.svelte';
+  import ListView from '../ui/ListView.svelte';
+  import { BP, type Column } from '../ui/data-table';
+  import {
+    hpaList,
+    type HPAInfo,
+  } from '../../stores/kubernetes';
 
-  let sort = $state<SortState>({ field: 'name', direction: 'asc' });
-  let filterQuery = $state('');
-
-  async function openDetail(hpa: { name: string; namespace: string }) {
-    try {
-      await invoke('open_resource_detail', {
-        resourceType: 'hpa',
-        name: hpa.name,
-        namespace: hpa.namespace,
-        context: $currentContext
-      });
-    } catch (e) {
-      console.error('Failed to open detail:', e);
-    }
-  }
-
-  const sortedData = $derived(() => {
-    const filtered = filterBySearch($hpas, filterQuery, ['name', 'namespace', 'reference']);
-    return sortData(filtered, sort.field, sort.direction);
-  });
-
-  function handleSort(field: string) {
-    sort = toggleSort(sort, field);
-  }
-
-  onMount(() => {
-    loadHPAs($selectedNamespace);
-    const interval = setInterval(() => loadHPAs($selectedNamespace), 10000);
-    return () => clearInterval(interval);
-  });
-
-  $effect(() => {
-    const ctx = $currentContext;
-    const trigger = $refreshTrigger;
-    if (!ctx) return;
-    loadHPAs($selectedNamespace);
-  });
+  const columns: Column<HPAInfo>[] = [
+    { id: 'name', label: 'Name', sortKey: 'name', primary: true },
+    { id: 'namespace', label: 'Namespace', sortKey: 'namespace', width: '14%', hideBelow: BP.md },
+    { id: 'reference', label: 'Reference', sortKey: 'reference', mono: true, width: '20%', hideBelow: BP.wide },
+    { id: 'targets', label: 'Targets', sortKey: 'targets', mono: true, width: '16%' },
+    { id: 'min_max', label: 'Min / max', sortKey: 'max_pods', numeric: true, width: '88px', hideBelow: BP.lg, cell: minMaxCell },
+    { id: 'replicas', label: 'Replicas', sortKey: 'replicas', numeric: true, width: '80px' },
+    { id: 'age', label: 'Age', sortKey: 'age', numeric: true, width: '64px' },
+  ];
 </script>
 
-<div class="h-full flex flex-col overflow-hidden">
-  <!-- Toolbar -->
-  <div class="px-6 py-4 border-b border-border-subtle">
-    <div class="flex items-center justify-between">
-      <h1 class="text-lg font-semibold text-text-primary">Horizontal Pod Autoscalers</h1>
-      <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter HPAs..." />
-    </div>
-  </div>
+{#snippet minMaxCell(h: HPAInfo)}{h.min_pods} / {h.max_pods}{/snippet}
 
-  <!-- Table -->
-  <div class="flex-1 overflow-auto p-6 pt-4">
-    <table class="w-full">
-      <thead>
-        <tr class="text-left border-b border-border-subtle">
-          <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Namespace" field="namespace" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Reference" field="reference" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Targets" field="targets" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Min/Max" field="min_pods" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Replicas" field="replicas" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Age" field="age" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-        </tr>
-      </thead>
-      <tbody>
-        {#each sortedData() as hpa}
-          <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer" onclick={() => openDetail(hpa)}>
-            <td class="py-3 pr-4">
-              <span class="text-accent-text font-medium hover:underline">{hpa.name}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{hpa.namespace}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <code class="text-xs bg-bg-tertiary px-2 py-0.5 rounded-sm text-accent-text">{hpa.reference}</code>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{hpa.targets}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{hpa.min_pods}/{hpa.max_pods}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-accent-text font-medium">{hpa.replicas}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{hpa.age}</span>
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
-
-    {#if sortedData().length === 0}
-      <div class="flex items-center justify-center h-48">
-        <div class="text-center">
-          <svg class="w-12 h-12 text-text-muted mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-          </svg>
-          <p class="text-text-muted">No horizontal pod autoscalers found</p>
-        </div>
-      </div>
-    {/if}
-  </div>
-</div>
+<ListView
+  title="HPAs"
+  viewId="hpas"
+  itemLabel="autoscalers"
+  source={hpaList}
+  {columns}
+  rowKey={(h) => `${h.namespace}/${h.name}`}
+  filterFields={['name', 'namespace', 'reference']}
+  defaultSort={{ id: 'name', dir: 'asc' }}
+  resourceType="hpa"
+/>
