@@ -204,12 +204,12 @@
     z-index: 60;
     pointer-events: none;
   }
-  @media (640px <= width < 1200px) {
+  @media (min-width: 640px) and (max-width: 1199.98px) {
     .app-shell {
       grid-template-columns: 52px minmax(0, 1fr);
     }
   }
-  @media (width < 640px) {
+  @media (max-width: 639.98px) {
     .app-shell {
       grid-template-columns: minmax(0, 1fr);
     }

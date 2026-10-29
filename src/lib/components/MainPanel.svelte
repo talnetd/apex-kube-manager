@@ -94,7 +94,7 @@
     grid-column: 2;
     grid-row: 2;
   }
-  @media (width < 640px) {
+  @media (max-width: 639.98px) {
     .shell-main {
       grid-column: 1;
     }

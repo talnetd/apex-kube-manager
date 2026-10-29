@@ -39,10 +39,10 @@
 
 /* Window-width breakpoints (spec 13.2, 13.6): by webview width, never screen.
    sm < 640 (side panel), md 640-1199 (half screen), lg >= 1200 (full). */
-@custom-variant sm-w (@media (width < 640px));
-@custom-variant md-w (@media (640px <= width < 1200px));
-@custom-variant lg-w (@media (width >= 1200px));
-@custom-variant md-down (@media (width < 1200px));
+@custom-variant sm-w (@media (max-width: 639.98px));
+@custom-variant md-w (@media (min-width: 640px) and (max-width: 1199.98px));
+@custom-variant lg-w (@media (min-width: 1200px));
+@custom-variant md-down (@media (max-width: 1199.98px));
 
 /* ---------- Tailwind layer ---------- */
 @theme {
@@ -153,7 +153,7 @@
   --ui-primary: #ededed;
   --ui-secondary: #a1a1a1;
   --ui-muted: #8f8f8f;
-  --ui-faint: #5c5c5c;
+  --ui-faint: #626262;
   --ui-accent: #0070f3;
   --ui-accent-text: #52a8ff;
   --ui-on-accent: #ffffff;
@@ -188,7 +188,7 @@
   --ui-primary: #171717;
   --ui-secondary: #4d4d4d;
   --ui-muted: #666666;
-  --ui-faint: #a3a3a3;
+  --ui-faint: #8f8f8f;
   --ui-accent: #0070f3;
   --ui-accent-text: #0062d1;
   --ui-on-accent: #ffffff;
@@ -198,9 +198,9 @@
   --ui-danger-solid: #e5484d;
   --ui-danger-button: #cb2a2f;
   --ui-warning: #a35200;
-  --ui-warning-solid: #f5a524;
+  --ui-warning-solid: #c27c00;
   --ui-success: #297a3a;
-  --ui-success-solid: #45a557;
+  --ui-success-solid: #3e9a4f;
   --ui-info: #4d4d4d;
   --ui-info-solid: #8f8f8f;
   --ui-tint: 0%;

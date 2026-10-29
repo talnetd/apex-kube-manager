@@ -3,7 +3,16 @@
   // headers that collapse, active item as a neutral pill, mono problem counts
   // with no fill. md: icons only, counts become a dot. sm: off-canvas drawer.
   import { currentView, navOpen, type View } from '../stores/navigation';
-  import { pulseMetrics, clusterEvents, nodes } from '../stores/kubernetes';
+  import { onMount } from 'svelte';
+  import {
+    pulseMetrics,
+    pulseScope,
+    clusterEvents,
+    nodes,
+    currentContext,
+    selectedNamespace,
+    loadPulseMetrics,
+  } from '../stores/kubernetes';
   import { updateInfo } from '../stores/updates';
   import Icon from './shell/Icon.svelte';
   import type { IconName } from './shell/icons';
@@ -102,6 +111,35 @@
     collapsed = Object.fromEntries(titled.map((s) => [s.id, next]));
   }
 
+  // Workload badges read the Pulse metrics. Keep them for the current
+  // context and namespace: reload on change and refresh every 30s (Pulse
+  // itself polls every 5s while it's open).
+  $effect(() => {
+    const ctx = $currentContext;
+    const ns = $selectedNamespace;
+    if (ctx) loadPulseMetrics(ns);
+  });
+  onMount(() => {
+    const id = setInterval(() => loadPulseMetrics($selectedNamespace), 30000);
+    return () => clearInterval(id);
+  });
+  const metricsMatch = $derived(
+    !!$pulseScope && $pulseScope.context === $currentContext && $pulseScope.namespace === ($selectedNamespace ?? null)
+  );
+
+  // sm drawer: Esc closes it.
+  function onKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape' && $navOpen) {
+      e.preventDefault();
+      navOpen.set(false);
+    }
+  }
+
+  function go(view: View) {
+    currentView.set(view);
+    navOpen.set(false); // also when the view didn't change
+  }
+
   type Badge = { tone: 'fail' | 'warn'; n: number };
 
   // Problem counts from data the app already polls: the Pulse metrics
@@ -109,7 +147,7 @@
   const badges = $derived.by(() => {
     const b: Partial<Record<View, Badge>> = {};
     const m = $pulseMetrics;
-    if (m) {
+    if (m && metricsMatch) {
       for (const k of ['pods', 'deployments', 'statefulsets', 'daemonsets', 'replicasets', 'jobs'] as const) {
         if (m[k].fail > 0) b[k] = { tone: 'fail', n: m[k].fail };
       }
@@ -148,6 +186,8 @@
   {/if}
 {/snippet}
 
+<svelte:window onkeydown={onKeydown} />
+
 <!-- sm: scrim behind the drawer -->
 {#if $navOpen}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -164,6 +204,7 @@
     {#each sections as sec (sec.id)}
       {@const isCollapsed = !!(sec.title && collapsed[sec.id])}
       {#if sec.title}
+        <div class="rail-div" aria-hidden="true"></div>
         <button
           type="button"
           class="sect"
@@ -187,7 +228,7 @@
             title={item.label}
             aria-label={ariaFor(item, x)}
             aria-current={$currentView === item.id ? 'page' : undefined}
-            onclick={() => currentView.set(item.id)}
+            onclick={() => go(item.id)}
           >
             <Icon name={item.icon} />
             <span class="lbl">{item.label}</span>
@@ -325,9 +366,12 @@
   .navscrim {
     display: none;
   }
+  .rail-div {
+    display: none;
+  }
 
   /* md 640-1199: icons only, 52px; counts become a dot on the icon. */
-  @media (640px <= width < 1200px) {
+  @media (min-width: 640px) and (max-width: 1199.98px) {
     .brand {
       justify-content: center;
       padding: 0;
@@ -341,16 +385,13 @@
       padding: 6px;
     }
     .sect {
-      font-size: 0;
-      padding: 0;
+      display: none;
+    }
+    .rail-div {
+      display: block;
       height: 1px;
       margin: 6px 4px;
       background: var(--ui-divider);
-      pointer-events: none;
-    }
-    .sect .chev,
-    .sect .badge {
-      display: none;
     }
     .item,
     .item.folded {
@@ -377,7 +418,7 @@
   }
 
   /* sm < 640: off-canvas drawer opened from the header's menu button. */
-  @media (width < 640px) {
+  @media (max-width: 639.98px) {
     .side {
       position: fixed;
       left: 0;
@@ -385,10 +426,15 @@
       bottom: 24px;
       width: 260px;
       transform: translateX(-102%);
-      transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1);
+      visibility: hidden;
+      transition:
+        transform 0.2s cubic-bezier(0.2, 0, 0, 1),
+        visibility 0s linear 0.2s;
     }
     .side.open {
       transform: none;
+      visibility: visible;
+      transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1);
       box-shadow: var(--ui-shadow-dialog);
     }
     .navscrim {

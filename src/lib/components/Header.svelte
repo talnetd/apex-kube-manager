@@ -147,6 +147,27 @@
             </li>
           {/each}
         </ul>
+        <!-- sm: the namespace control is folded into this menu -->
+        <div class="sm-only">
+          <div class="sepl"></div>
+          <div class="lblm">Namespace</div>
+          <ul class="max-h-56 overflow-y-auto">
+            <li>
+              <button type="button" class="mi" onclick={() => { handleNamespaceChange(null); showContextDropdown = false; }}>
+                <span class="ck">{#if !$selectedNamespace}<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" /></svg>{/if}</span>
+                <span>All namespaces</span>
+              </button>
+            </li>
+            {#each $namespaces as ns (ns)}
+              <li>
+                <button type="button" class="mi" onclick={() => { handleNamespaceChange(ns); showContextDropdown = false; }}>
+                  <span class="ck">{#if $selectedNamespace === ns}<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" /></svg>{/if}</span>
+                  <span class="truncate">{ns}</span>
+                </button>
+              </li>
+            {/each}
+          </ul>
+        </div>
       </div>
     {/if}
   </div>
@@ -193,7 +214,7 @@
   </div>
 
   <!-- Drag region between the controls and the search box -->
-  <div class="flex-1 self-stretch min-w-2" data-tauri-drag-region></div>
+  <div class="drag flex-1 self-stretch" data-tauri-drag-region></div>
 
   <button type="button" class="ctl search" onclick={() => globalSearchOpen.set(true)} aria-label="Search or jump to">
     <span class="flex items-center gap-1.5 min-w-0"><Icon name="search" size={14} /><span class="st truncate">Search or jump to…</span></span>
@@ -220,10 +241,10 @@
     onclick={() => pulseRailOpen.update((v) => !v)}><Icon name="rail" /></button
   >
 
-  <div class="relative hide-s">
+  <div class="relative">
     <button
       type="button"
-      class="ib relative"
+      class="ib relative hide-s"
       aria-label="Port forwards"
       aria-pressed={$portForwardPanelOpen}
       title="Port forwards · ⌘P"
@@ -389,6 +410,17 @@
   .menu-btn {
     display: none;
   }
+  .drag {
+    min-width: 24px;
+  }
+  .sm-only {
+    display: none;
+  }
+  .sepl {
+    height: 1px;
+    margin: 4px 0;
+    background: var(--ui-divider);
+  }
   .menu {
     z-index: 85;
     padding: 4px;
@@ -436,7 +468,7 @@
     }
   }
 
-  @media (width < 640px) {
+  @media (max-width: 639.98px) {
     .top {
       grid-column: 1;
     }
@@ -449,6 +481,9 @@
     }
     .nsin {
       display: inline;
+    }
+    .sm-only {
+      display: block;
     }
     .dot {
       display: none;

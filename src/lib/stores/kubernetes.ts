@@ -460,6 +460,9 @@ export function startContextPolling() {
       const current = await tauriInvoke<string>('get_current_context');
       if (current !== _currentContext && current) {
         // External context change detected
+        nodes.set([]);
+        nodeMetrics.set({});
+        pulseMetrics.set(null);
         currentContext.set(current);
         selectedNamespace.set(null);
         await loadContexts();
@@ -514,6 +517,8 @@ export async function switchContext(contextName: string) {
     await stopJobWatch();
     await stopNodeWatch();
     await stopEventWatch();
+    // Node names collide across clusters: never show the old cluster's nodes.
+    nodes.set([]);
     await tauriInvoke('switch_context', { contextName });
     currentContext.set(contextName);
     // Reset namespace selection when switching clusters
@@ -1267,14 +1272,23 @@ export async function loadClusterMetrics() {
   }
 }
 
+/** Context and namespace the current `pulseMetrics` were loaded for. */
+export const pulseScope = writable<{ context: string; namespace: string | null } | null>(null);
+
 export async function loadPulseMetrics(namespace?: string | null) {
   if (!isContextReady()) return;
+  const context = _currentContext;
   try {
     const metrics = await tauriInvoke<PulseMetrics>('get_pulse_metrics', { namespace });
+    if (_currentContext !== context) return;
     pulseMetrics.set(metrics);
+    pulseScope.set({ context, namespace: namespace ?? null });
     markSynced('pulse');
+    // The status bar's "Connected" reflects the last real API call.
+    connectionStatus.set('connected');
   } catch (e) {
     error.set(String(e));
+    if (_currentContext === context) connectionStatus.set('disconnected');
   }
 }
 

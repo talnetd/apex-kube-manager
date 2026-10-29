@@ -80,7 +80,7 @@
   .sdot.bad {
     background: var(--ui-danger-solid);
   }
-  @media (width < 640px) {
+  @media (max-width: 639.98px) {
     .status {
       grid-column: 1;
     }

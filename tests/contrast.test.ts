@@ -58,11 +58,15 @@ describe('token contrast (WCAG AA 4.5:1)', () => {
       expect(contrast(t['on-accent'], t['accent'])).toBeGreaterThanOrEqual(4.5);
     });
 
-    it(`${theme}: problem dots (danger/warning text tokens) stand out from the ground (3:1)`, () => {
-      for (const tok of ['danger', 'warning']) {
-        expect(contrast(t[tok], t['app'])).toBeGreaterThanOrEqual(3);
+    // Non-text UI (WCAG 1.4.11): dots, rails, glyphs and faint icons need 3:1.
+    for (const tok of ['danger-solid', 'warning-solid', 'success-solid', 'info-solid', 'faint', 'danger', 'warning']) {
+      for (const bg of BACKGROUNDS) {
+        it(`${theme}: ${tok} on bg-${bg} (3:1, non-text)`, () => {
+          expect(t[tok], `--ui-${tok} missing`).toMatch(/^#/);
+          expect(contrast(t[tok], t[bg])).toBeGreaterThanOrEqual(3);
+        });
       }
-    });
+    }
 
     it(`${theme}: no tinted status fills`, () => {
       expect(t['tint']).toBe('0%');
