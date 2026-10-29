@@ -57,8 +57,16 @@ pub async fn get_current_context() -> Result<String> {
 /// Switches the one shared context (kubeconfig) and broadcasts
 /// `context-changed` to every window (spec 13.3).
 #[tauri::command]
-pub async fn switch_context(app: AppHandle, context_name: String) -> Result<()> {
+pub async fn switch_context(app: AppHandle, context_name: String) -> Result<crate::shell::ContextChanged> {
     crate::shell::switch_shared_context(&app, &context_name).await
+}
+
+/// The shared context and its seq: a window calls this once after it starts
+/// listening for `context-changed`, to catch a switch made while it loaded.
+#[tauri::command]
+pub fn get_shared_context(app: AppHandle) -> Option<crate::shell::ContextChanged> {
+    use tauri::Manager;
+    app.state::<crate::shell::ContextSync>().current()
 }
 
 #[tauri::command]
@@ -94,8 +102,11 @@ pub async fn get_pod_logs(
 }
 
 #[tauri::command]
-pub async fn delete_pod(namespace: String, pod_name: String) -> Result<()> {
-    let client = kubernetes::create_client().await?;
+// Mutating commands take the context explicitly (the one the window shows),
+// never the kubeconfig's current context: with several windows and a shared
+// switch, "current" can change between a click and the call.
+pub async fn delete_pod(context_name: String, namespace: String, pod_name: String) -> Result<()> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
     kubernetes::delete_pod_by_name(&client, &namespace, &pod_name).await
 }
 
@@ -108,14 +119,14 @@ pub async fn get_deployments(namespace: Option<String>) -> Result<Vec<Deployment
 // ============ Deployment Commands ============
 
 #[tauri::command]
-pub async fn scale_deployment(namespace: String, name: String, replicas: i32) -> Result<()> {
-    let client = kubernetes::create_client().await?;
+pub async fn scale_deployment(context_name: String, namespace: String, name: String, replicas: i32) -> Result<()> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
     kubernetes::scale_deployment(&client, &namespace, &name, replicas).await
 }
 
 #[tauri::command]
-pub async fn restart_deployment(namespace: String, name: String) -> Result<()> {
-    let client = kubernetes::create_client().await?;
+pub async fn restart_deployment(context_name: String, namespace: String, name: String) -> Result<()> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
     kubernetes::restart_deployment(&client, &namespace, &name).await
 }
 
@@ -168,14 +179,14 @@ pub async fn get_statefulsets(namespace: Option<String>) -> Result<Vec<StatefulS
 // ============ StatefulSet Commands ============
 
 #[tauri::command]
-pub async fn scale_statefulset(namespace: String, name: String, replicas: i32) -> Result<()> {
-    let client = kubernetes::create_client().await?;
+pub async fn scale_statefulset(context_name: String, namespace: String, name: String, replicas: i32) -> Result<()> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
     kubernetes::scale_statefulset(&client, &namespace, &name, replicas).await
 }
 
 #[tauri::command]
-pub async fn restart_statefulset(namespace: String, name: String) -> Result<()> {
-    let client = kubernetes::create_client().await?;
+pub async fn restart_statefulset(context_name: String, namespace: String, name: String) -> Result<()> {
+    let client = kubernetes::create_client_for_context(&context_name).await?;
     kubernetes::restart_statefulset(&client, &namespace, &name).await
 }
 
@@ -1015,12 +1026,13 @@ use crate::pty::PtyManager;
 pub fn pty_spawn(
     app: AppHandle,
     pty_manager: tauri::State<PtyManager>,
+    context_name: String,
     namespace: String,
     pod_name: String,
     container: Option<String>,
     shell: Option<String>,
 ) -> std::result::Result<String, String> {
-    pty_manager.spawn_session(app, &namespace, &pod_name, container.as_deref(), shell.as_deref())
+    pty_manager.spawn_session(app, &context_name, &namespace, &pod_name, container.as_deref(), shell.as_deref())
 }
 
 #[tauri::command]
@@ -1113,45 +1125,60 @@ pub async fn get_resource_ports(
 #[tauri::command]
 pub async fn watch_pods(
     app: AppHandle,
+    window: tauri::Window,
     watch_manager: tauri::State<'_, WatchManager>,
     namespace: Option<String>,
 ) -> Result<String> {
-    watch_manager.start_pod_watch(app, namespace).await
+    let id = watch_manager.start_pod_watch(app, namespace).await?;
+    watch_manager.set_owner(&id, window.label()).await;
+    Ok(id)
 }
 
 #[tauri::command]
 pub async fn watch_deployments(
     app: AppHandle,
+    window: tauri::Window,
     watch_manager: tauri::State<'_, WatchManager>,
     namespace: Option<String>,
 ) -> Result<String> {
-    watch_manager.start_deployment_watch(app, namespace).await
+    let id = watch_manager.start_deployment_watch(app, namespace).await?;
+    watch_manager.set_owner(&id, window.label()).await;
+    Ok(id)
 }
 
 #[tauri::command]
 pub async fn watch_jobs(
     app: AppHandle,
+    window: tauri::Window,
     watch_manager: tauri::State<'_, WatchManager>,
     namespace: Option<String>,
 ) -> Result<String> {
-    watch_manager.start_job_watch(app, namespace).await
+    let id = watch_manager.start_job_watch(app, namespace).await?;
+    watch_manager.set_owner(&id, window.label()).await;
+    Ok(id)
 }
 
 #[tauri::command]
 pub async fn watch_nodes(
     app: AppHandle,
+    window: tauri::Window,
     watch_manager: tauri::State<'_, WatchManager>,
 ) -> Result<String> {
-    watch_manager.start_node_watch(app).await
+    let id = watch_manager.start_node_watch(app).await?;
+    watch_manager.set_owner(&id, window.label()).await;
+    Ok(id)
 }
 
 #[tauri::command]
 pub async fn watch_events(
     app: AppHandle,
+    window: tauri::Window,
     watch_manager: tauri::State<'_, WatchManager>,
     namespace: Option<String>,
 ) -> Result<String> {
-    watch_manager.start_event_watch(app, namespace).await
+    let id = watch_manager.start_event_watch(app, namespace).await?;
+    watch_manager.set_owner(&id, window.label()).await;
+    Ok(id)
 }
 
 #[tauri::command]

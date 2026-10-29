@@ -330,28 +330,31 @@
     );
   }
 
-  type ConfirmState = { mode: 'restart' | 'scale'; issue: Issue };
+  /** `context`: the cluster the issue was read from, fixed when the confirm opened. */
+  type ConfirmState = { mode: 'restart' | 'scale'; issue: Issue; context: string };
   let confirm = $state<ConfirmState | null>(null);
   let replicas = $state<number | null>(1);
   const replicasValid = $derived(typeof replicas === 'number' && Number.isInteger(replicas) && replicas >= 0);
 
   function askRestart(i: Issue) {
-    confirm = { mode: 'restart', issue: i };
+    confirm = { mode: 'restart', issue: i, context: $currentContext };
   }
   function askScale(i: Issue) {
     replicas = i.desired ?? 1;
-    confirm = { mode: 'scale', issue: i };
+    confirm = { mode: 'scale', issue: i, context: $currentContext };
   }
 
   async function runConfirm() {
     if (!confirm) return;
-    const { mode, issue: i } = confirm;
+    const { mode, issue: i, context: target } = confirm;
     const cmd = `${mode}_${i.kind}`;
+    // Another window switched the shared context while this was open.
+    if (target !== $currentContext) throw new Error(`The app is now on ${$currentContext}; this issue is on ${target}`);
     if (mode === 'scale' && !replicasValid) throw new Error('Replicas must be a whole number, 0 or more');
     if (mode === 'restart') {
-      await invoke(cmd, { namespace: i.namespace, name: i.name });
+      await invoke(cmd, { contextName: target, namespace: i.namespace, name: i.name });
     } else {
-      await invoke(cmd, { namespace: i.namespace, name: i.name, replicas });
+      await invoke(cmd, { contextName: target, namespace: i.namespace, name: i.name, replicas });
     }
     recordAction({
       kind: 'action',
@@ -639,7 +642,7 @@
   <ConfirmDialog
     open={true}
     title={c.mode === 'restart' ? `Restart ${KIND_SHORT[c.issue.kind]}/${c.issue.name}?` : `Scale ${KIND_SHORT[c.issue.kind]}/${c.issue.name}`}
-    resource={{ kind: c.issue.kind === 'deployment' ? 'Deployment' : 'StatefulSet', name: c.issue.name, namespace: c.issue.namespace ?? undefined, context: $currentContext }}
+    resource={{ kind: c.issue.kind === 'deployment' ? 'Deployment' : 'StatefulSet', name: c.issue.name, namespace: c.issue.namespace ?? undefined, context: c.context }}
     confirmLabel={c.mode === 'restart' ? 'Restart' : 'Scale'}
     body={c.mode === 'restart' ? 'Pods are replaced one by one (rolling restart). Running requests on old pods may be cut off.' : scaleBody}
     successMessage={c.mode === 'restart' ? `Restarting ${c.issue.name}` : `Scaling ${c.issue.name} to ${replicas}`}

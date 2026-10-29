@@ -14,6 +14,8 @@ export interface ClusterStatus {
   warning: number;
   detail: boolean;
   error: string | null;
+  /** Signs in with a plugin (exec/OIDC): never probed in the background. */
+  skipped?: boolean;
 }
 
 export interface TraySnapshot {
@@ -32,7 +34,7 @@ export const DOT_LABEL: Record<Dot, string> = {
 /** The one-line summary under the popover title. */
 export function traySummary(clusters: readonly ClusterStatus[]): string {
   if (!clusters.length) return 'No clusters found';
-  if (clusters.every((c) => c.dot === 'grey')) return 'Checking clusters…';
+  if (clusters.every((c) => c.dot === 'grey' && !c.skipped)) return 'Checking clusters…';
   const bad = clusters.filter((c) => c.dot === 'red' || c.dot === 'amber').length;
   if (bad === 0) return clusters.length === 1 ? 'Cluster healthy' : `All ${clusters.length} clusters healthy`;
   return bad === 1 ? '1 cluster needs attention' : `${bad} clusters need attention`;
@@ -40,6 +42,7 @@ export function traySummary(clusters: readonly ClusterStatus[]): string {
 
 /** Right-hand text for a row: counts for the current context, state for others. */
 export function clusterNote(c: ClusterStatus): string {
+  if (c.skipped) return 'sign-in plugin, checked when current';
   if (c.reachable === null) return 'checking…';
   if (!c.reachable) return 'unreachable';
   if (!c.detail) return 'reachable';

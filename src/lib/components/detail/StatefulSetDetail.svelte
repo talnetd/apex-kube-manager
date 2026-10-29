@@ -195,6 +195,8 @@
     try {
       isScaling = true;
       await invoke('scale_statefulset', {
+        // The cluster this window shows, not kubeconfig's current one.
+        contextName: context,
         namespace,
         name,
         replicas: scaleReplicas
@@ -218,10 +220,14 @@
     if (!confirm(`Are you sure you want to restart statefulset "${name}"?`)) {
       return;
     }
+    // The app may have switched context while the confirm was open.
+    if (!guard('restart')) return;
 
     try {
       isRestarting = true;
       await invoke('restart_statefulset', {
+        // The cluster this window shows, not kubeconfig's current one.
+        contextName: context,
         namespace,
         name
       });

@@ -31,6 +31,9 @@ pub struct ContextChanged {
 pub struct ContextSync {
     last: Mutex<Option<String>>,
     seq: AtomicU64,
+    /// Serialises kubeconfig writes (switch) with the outside-change watcher,
+    /// so a watcher read can't race a switch and broadcast a stale context.
+    pub lock: tokio::sync::Mutex<()>,
 }
 
 impl ContextSync {
@@ -53,22 +56,46 @@ impl ContextSync {
     pub fn prime(&self, context: &str) {
         *self.last.lock().unwrap_or_else(|e| e.into_inner()) = Some(context.to_string());
     }
+
+    /// What every window should be on right now, with its seq. Windows call
+    /// this once after they start listening, to catch a switch they missed.
+    pub fn current(&self) -> Option<ContextChanged> {
+        let last = self
+            .last
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()?;
+        Some(ContextChanged {
+            context: last,
+            seq: self.seq.load(Ordering::SeqCst),
+        })
+    }
 }
 
 /// Tell every window (main, detail, terminal, tray) about the context.
-pub fn broadcast_context(app: &AppHandle, context: &str) {
+/// Returns the state windows should end up on.
+pub fn broadcast_context(app: &AppHandle, context: &str) -> ContextChanged {
     let sync = app.state::<ContextSync>();
-    if let Some(ev) = sync.observe(context) {
-        let _ = app.emit(CONTEXT_CHANGED, ev);
-        crate::tray::on_context_changed(app);
+    match sync.observe(context) {
+        Some(ev) => {
+            let _ = app.emit(CONTEXT_CHANGED, ev.clone());
+            crate::tray::on_context_changed(app);
+            ev
+        }
+        None => sync.current().unwrap_or(ContextChanged {
+            context: context.to_string(),
+            seq: 0,
+        }),
     }
 }
 
 /// Switch the shared context (kubeconfig write once, here) and broadcast it.
-pub async fn switch_shared_context(app: &AppHandle, context: &str) -> Result<()> {
+/// The returned seq lets the caller ignore anything older.
+pub async fn switch_shared_context(app: &AppHandle, context: &str) -> Result<ContextChanged> {
+    let sync = app.state::<ContextSync>();
+    let _guard = sync.lock.lock().await;
     kubernetes::switch_to_context(context).await?;
-    broadcast_context(app, context);
-    Ok(())
+    Ok(broadcast_context(app, context))
 }
 
 /// Outside changes (kubectx, another tool) poll the kubeconfig every 3s,
@@ -81,9 +108,10 @@ pub fn start_context_watcher(app: AppHandle) {
         let mut tick = tokio::time::interval(Duration::from_secs(3));
         loop {
             tick.tick().await;
+            let sync = app.state::<ContextSync>();
+            let _guard = sync.lock.lock().await;
             if let Ok(ctx) = kubernetes::get_current_context_name().await {
                 let changed = {
-                    let sync = app.state::<ContextSync>();
                     let last = sync.last.lock().unwrap_or_else(|e| e.into_inner());
                     last.as_deref() != Some(ctx.as_str())
                 };
@@ -136,6 +164,38 @@ pub fn open_main_window(app: &AppHandle) -> Result<()> {
         .map_err(|e| AppError::Custom(format!("Failed to open window: {e}")))?;
     emit_window_count(app);
     Ok(())
+}
+
+/// A window closed: stop the watches it started, and when the last main
+/// window goes with the menu bar item off, quit (a hidden popover must not
+/// keep a windowless app alive).
+pub fn on_window_destroyed(app: &AppHandle, label: &str) {
+    let owned = label.to_string();
+    let handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let n = handle
+            .state::<crate::watch::WatchManager>()
+            .stop_owned_by(&owned)
+            .await;
+        if n > 0 {
+            eprintln!("[apex-kube-manager] stopped {n} watches of closed window {owned}");
+        }
+    });
+    let label = label.to_string();
+    if is_main_label(&label) {
+        // The closing window can still be listed during Destroyed.
+        let left = app
+            .webview_windows()
+            .keys()
+            .filter(|l| is_main_label(l) && l.as_str() != label)
+            .count();
+        let _ = app.emit(WINDOWS_CHANGED, left);
+        let tray_on = app.state::<crate::tray::TrayState>().is_enabled();
+        if left == 0 && !tray_on {
+            eprintln!("[apex-kube-manager] last window closed, menu bar item off: quitting");
+            app.exit(0);
+        }
+    }
 }
 
 /// Focus the most recent main window, or open one if none is left (the

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { detailAccess, canRun, blockedMessage, DETAIL_ACTIONS } from '../src/lib/utils/detail-access';
 import { traySummary, clusterNote, sinceLabel, type ClusterStatus } from '../src/lib/utils/tray';
-import { acceptContextEvent } from '../src/lib/stores/kubernetes';
+import { acceptContextEvent, nextContext } from '../src/lib/stores/kubernetes';
 
 describe('detail window read-only gating', () => {
   it('is writable on its own context and before the shared one is known', () => {
@@ -26,6 +26,24 @@ describe('detail window read-only gating', () => {
   });
   it('the main window (no locked context) is never read-only', () => {
     expect(detailAccess('', 'staging').readOnly).toBe(false);
+  });
+});
+
+describe('shared context reconcile (seq-ordered)', () => {
+  it('applies a newer report for another context', () => {
+    expect(nextContext({ lastSeq: 1, current: 'a' }, { context: 'b', seq: 2 })).toEqual({ apply: true, lastSeq: 2 });
+  });
+  it('a slow local switch result loses to a newer remote switch', () => {
+    // Remote switch to C (seq 5) already applied; our own switch to B returns seq 4.
+    const afterRemote = nextContext({ lastSeq: 3, current: 'a' }, { context: 'c', seq: 5 });
+    expect(afterRemote.apply).toBe(true);
+    expect(nextContext({ lastSeq: afterRemote.lastSeq, current: 'c' }, { context: 'b', seq: 4 })).toEqual({ apply: false, lastSeq: 5 });
+  });
+  it('reconcile after listening catches a missed switch, and is a no-op when in step', () => {
+    expect(nextContext({ lastSeq: 0, current: 'a' }, { context: 'b', seq: 7 })).toEqual({ apply: true, lastSeq: 7 });
+    expect(nextContext({ lastSeq: 7, current: 'b' }, { context: 'b', seq: 7 })).toEqual({ apply: false, lastSeq: 7 });
+    expect(nextContext({ lastSeq: 0, current: 'b' }, { context: 'b', seq: 3 })).toEqual({ apply: false, lastSeq: 3 });
+    expect(nextContext({ lastSeq: 2, current: 'b' }, null)).toEqual({ apply: false, lastSeq: 2 });
   });
 });
 
@@ -55,6 +73,7 @@ describe('menu bar popover text', () => {
     expect(clusterNote(c({}))).toBe('reachable');
     expect(clusterNote(c({ detail: true, critical: 2, warning: 1 }))).toBe('2 critical · 1 issue');
     expect(clusterNote(c({ detail: true }))).toBe('no issues');
+    expect(clusterNote(c({ skipped: true, reachable: null, dot: 'grey' }))).toBe('sign-in plugin, checked when current');
   });
   it('formats the sync age', () => {
     expect(sinceLabel(null, 0)).toBeNull();

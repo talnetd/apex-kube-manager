@@ -27,7 +27,14 @@ export async function startDetailContextSync(locked: string) {
     sharedContext.set(e.payload.context);
   });
   try {
-    sharedContext.set(await invoke<string>('get_current_context'));
+    // Seq-ordered like the events: if one already arrived, it's newer.
+    const cur = await invoke<ContextChangedEvent | null>('get_shared_context');
+    if (cur && acceptContextEvent(lastSeq, cur)) {
+      lastSeq = cur.seq;
+      sharedContext.set(cur.context);
+    } else if (!cur && lastSeq === 0) {
+      sharedContext.set(await invoke<string>('get_current_context'));
+    }
   } catch {
     /* unknown: stay writable rather than lock the user out */
   }

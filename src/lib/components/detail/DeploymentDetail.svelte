@@ -197,6 +197,8 @@
     try {
       isScaling = true;
       await invoke('scale_deployment', {
+        // The cluster this window shows, not kubeconfig's current one.
+        contextName: context,
         namespace,
         name,
         replicas: scaleReplicas
@@ -220,10 +222,14 @@
     if (!confirm(`Are you sure you want to restart deployment "${name}"?`)) {
       return;
     }
+    // The app may have switched context while the confirm was open.
+    if (!guard('restart')) return;
 
     try {
       isRestarting = true;
       await invoke('restart_deployment', {
+        // The cluster this window shows, not kubeconfig's current one.
+        contextName: context,
         namespace,
         name
       });

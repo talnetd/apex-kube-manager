@@ -456,6 +456,8 @@ export interface ContextChangedEvent {
 
 let lastContextSeq = 0;
 let contextUnlisten: UnlistenFn | null = null;
+/** Bumped per apply: a newer switch makes an older, still-loading one stop. */
+let applyGen = 0;
 
 /** Accept an event only if it's newer than the last one applied (pure, tested). */
 export function acceptContextEvent(lastSeq: number, ev: ContextChangedEvent): boolean {
@@ -463,44 +465,79 @@ export function acceptContextEvent(lastSeq: number, ev: ContextChangedEvent): bo
 }
 
 /**
+ * Every report of the shared context (an event, a switch's own result, the
+ * reconcile after listening) goes through here, ordered by `seq`: a report
+ * older than one already seen is ignored, so a slow local apply can't land
+ * on top of a newer switch from another window (pure, tested).
+ */
+export function nextContext(
+  state: { lastSeq: number; current: string },
+  ev: ContextChangedEvent | null | undefined
+): { apply: boolean; lastSeq: number } {
+  if (!ev || !acceptContextEvent(state.lastSeq, ev)) return { apply: false, lastSeq: state.lastSeq };
+  return { apply: ev.context !== state.current, lastSeq: ev.seq };
+}
+
+function receiveContext(ev: ContextChangedEvent | null | undefined): Promise<void> {
+  const next = nextContext({ lastSeq: lastContextSeq, current: _currentContext }, ev);
+  lastContextSeq = next.lastSeq;
+  if (!next.apply || !ev) return Promise.resolve();
+  return applyContextChange(ev.context).catch((e) => error.set(String(e)));
+}
+
+/**
  * Bring this window's stores onto `contextName`: stop the old cluster's
  * watches, drop anything that could collide across clusters, reload.
- * Namespace selection is per window and resets on a switch.
+ * Namespace selection is per window and resets on a switch. A newer apply
+ * supersedes this one at every await.
  */
 async function applyContextChange(contextName: string) {
   if (!contextName || contextName === _currentContext) return;
+  const gen = ++applyGen;
+  const superseded = () => gen !== applyGen;
   isSwitchingContext.set(true);
   try {
     pulseMetrics.set(null);
     apiProbes.set({ ok: 0, total: 0, since: Date.now() });
     nodeMetrics.set({});
+    // Stop before switching stores: views restart their watches on the new
+    // context, and a later stop would kill those.
     await stopPodWatch();
     await stopDeploymentWatch();
     await stopJobWatch();
     await stopNodeWatch();
     await stopEventWatch();
+    if (superseded()) return;
     // Node names collide across clusters: never show the old cluster's nodes.
     nodes.set([]);
     currentContext.set(contextName);
     selectedNamespace.set(null);
     await loadContexts();
+    if (superseded()) return;
     await loadNamespaces();
+    if (superseded()) return;
     await loadClusterMetrics();
+    if (superseded()) return;
     triggerRefresh();
   } finally {
-    isSwitchingContext.set(false);
+    if (!superseded()) isSwitchingContext.set(false);
   }
 }
 
-/** Listen for shared context changes (main windows). Idempotent. */
+/**
+ * Listen for shared context changes (main windows). Idempotent. Once the
+ * listener is live, reconcile with Rust once: a switch made while this
+ * window was loading (a new ⌘N window, a slow start) is caught here.
+ */
 export async function startContextPolling() {
   if (contextUnlisten || typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
   const { listen } = await import('@tauri-apps/api/event');
-  contextUnlisten = await listen<ContextChangedEvent>('context-changed', (event) => {
-    if (!acceptContextEvent(lastContextSeq, event.payload)) return;
-    lastContextSeq = event.payload.seq;
-    applyContextChange(event.payload.context).catch((e) => error.set(String(e)));
-  });
+  contextUnlisten = await listen<ContextChangedEvent>('context-changed', (event) => receiveContext(event.payload));
+  try {
+    await receiveContext(await tauriInvoke<ContextChangedEvent | null>('get_shared_context'));
+  } catch {
+    /* older backend: events only */
+  }
 }
 
 export function stopContextPolling() {
@@ -539,8 +576,9 @@ export async function switchContext(contextName: string) {
   try {
     isLoading.set(true);
     isSwitchingContext.set(true);
-    await tauriInvoke('switch_context', { contextName });
-    await applyContextChange(contextName);
+    // Rust returns the seq of this switch; anything newer wins over it.
+    const result = await tauriInvoke<ContextChangedEvent>('switch_context', { contextName });
+    await receiveContext(result);
   } catch (e) {
     error.set(String(e));
   } finally {
@@ -1042,12 +1080,12 @@ export const loadStatefulSets = (namespace?: string | null) => statefulSetList.l
 
 export async function scaleStatefulSet(namespace: string, name: string, replicas: number) {
   if (!isContextReady()) return;
-  await tauriInvoke('scale_statefulset', { namespace, name, replicas });
+  await tauriInvoke('scale_statefulset', { contextName: _currentContext, namespace, name, replicas });
 }
 
 export async function restartStatefulSet(namespace: string, name: string) {
   if (!isContextReady()) return;
-  await tauriInvoke('restart_statefulset', { namespace, name });
+  await tauriInvoke('restart_statefulset', { contextName: _currentContext, namespace, name });
 }
 
 export const loadDaemonSets = (namespace?: string | null) => daemonSetList.load(namespace);
@@ -1170,7 +1208,7 @@ export async function loadAllResources(namespace?: string | null) {
 export async function deletePod(namespace: string, podName: string) {
   if (!isContextReady()) return;
   try {
-    await tauriInvoke('delete_pod', { namespace, podName });
+    await tauriInvoke('delete_pod', { contextName: _currentContext, namespace, podName });
     await loadPods(namespace);
   } catch (e) {
     error.set(String(e));

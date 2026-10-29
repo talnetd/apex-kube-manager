@@ -81,6 +81,34 @@ pub struct ClusterStatus {
     pub warning: u32,
     pub detail: bool,
     pub error: Option<String>,
+    /// Not checked in the background on purpose (signs in with a plugin).
+    #[serde(default)]
+    pub skipped: bool,
+}
+
+// ============ Which contexts may be probed in the background ============
+
+/// True when a context's user signs in through an exec plugin (aws, gcloud,
+/// kubelogin, ...) or a legacy auth provider (OIDC). Those plugins can open
+/// a browser, prompt on the terminal, or take seconds; Apex never runs them
+/// in the background, only for the context the user is working in.
+pub fn uses_plugin_auth(cfg: &kube::config::Kubeconfig, context: &str) -> bool {
+    let user = cfg
+        .contexts
+        .iter()
+        .find(|c| c.name == context)
+        .and_then(|c| c.context.as_ref())
+        .and_then(|c| c.user.clone());
+    let Some(user) = user else { return false };
+    cfg.auth_infos
+        .iter()
+        .find(|a| a.name == user)
+        .and_then(|a| a.auth_info.as_ref())
+        .is_some_and(|a| a.exec.is_some() || a.auth_provider.is_some())
+}
+
+fn read_kubeconfig() -> Option<kube::config::Kubeconfig> {
+    kube::config::Kubeconfig::read_from(kubernetes::get_kubeconfig_path_for_portforward()).ok()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -147,6 +175,11 @@ pub struct TrayState {
     icon: Mutex<Option<TrayIcon>>,
     /// Bumped to stop an old poll loop when the tray is turned off.
     epoch: std::sync::atomic::AtomicU64,
+    /// One sweep at a time; a request during a sweep re-runs it once after.
+    sweeping: AtomicBool,
+    rerun: AtomicBool,
+    /// One client per static-auth context (no plugin, so safe to reuse).
+    clients: Mutex<std::collections::HashMap<String, kube::Client>>,
 }
 
 impl TrayState {
@@ -156,8 +189,21 @@ impl TrayState {
             snapshot: Mutex::new(TraySnapshot::default()),
             icon: Mutex::new(None),
             epoch: std::sync::atomic::AtomicU64::new(0),
+            sweeping: AtomicBool::new(false),
+            rerun: AtomicBool::new(false),
+            clients: Mutex::new(std::collections::HashMap::new()),
         }
     }
+}
+
+/// Start a sweep unless one is running (then ask it to run once more).
+/// Returns true when the caller should sweep (pure, unit-tested).
+pub fn begin_sweep(sweeping: &AtomicBool, rerun: &AtomicBool) -> bool {
+    if sweeping.swap(true, Ordering::SeqCst) {
+        rerun.store(true, Ordering::SeqCst);
+        return false;
+    }
+    true
 }
 
 impl TrayState {
@@ -240,9 +286,26 @@ async fn current_summary(context: &str) -> std::result::Result<(u32, u32), Strin
     }
 }
 
-async fn reachable(context: &str) -> std::result::Result<(), String> {
+async fn reachable(app: &AppHandle, context: &str) -> std::result::Result<(), String> {
+    let cached = state(app)
+        .clients
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(context)
+        .cloned();
     let probe = async {
-        let client = kubernetes::create_client_for_context(context).await?;
+        let client = match cached {
+            Some(c) => c,
+            None => {
+                let c = kubernetes::create_client_for_context(context).await?;
+                state(app)
+                    .clients
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .insert(context.to_string(), c.clone());
+                c
+            }
+        };
         client.apiserver_version().await?;
         Ok::<_, AppError>(())
     };
@@ -253,14 +316,34 @@ async fn reachable(context: &str) -> std::result::Result<(), String> {
     }
 }
 
-async fn check_one(context: String, cluster: String, current: bool) -> ClusterStatus {
+async fn check_one(
+    app: AppHandle,
+    context: String,
+    cluster: String,
+    current: bool,
+    plugin: bool,
+) -> ClusterStatus {
+    if !current && plugin {
+        return ClusterStatus {
+            dot: Dot::Grey,
+            context,
+            cluster,
+            current,
+            reachable: None,
+            critical: 0,
+            warning: 0,
+            detail: false,
+            error: None,
+            skipped: true,
+        };
+    }
     let (reachable, critical, warning, error) = if current {
         match current_summary(&context).await {
             Ok((c, w)) => (Some(true), c, w, None),
             Err(e) => (Some(false), 0, 0, Some(e)),
         }
     } else {
-        match reachable(&context).await {
+        match reachable(&app, &context).await {
             Ok(()) => (Some(true), 0, 0, None),
             Err(e) => (Some(false), 0, 0, Some(e)),
         }
@@ -275,19 +358,43 @@ async fn check_one(context: String, cluster: String, current: bool) -> ClusterSt
         warning,
         detail: current,
         error,
+        skipped: false,
     }
 }
 
-/// One sweep over every context, concurrently; pushes the result.
+/// Sweeps over every context, at most 4 at a time, one sweep at a time;
+/// pushes the result. A request while one runs makes it run once more.
 pub async fn poll_once(app: &AppHandle) {
+    let s = state(app);
+    if !begin_sweep(&s.sweeping, &s.rerun) {
+        return;
+    }
+    loop {
+        s.rerun.store(false, Ordering::SeqCst);
+        sweep(app).await;
+        if !s.rerun.load(Ordering::SeqCst) {
+            break;
+        }
+    }
+    s.sweeping.store(false, Ordering::SeqCst);
+}
+
+async fn sweep(app: &AppHandle) {
     let Ok(contexts) = kubernetes::list_contexts().await else {
         return;
     };
     let current = kubernetes::get_current_context_name().await.ok();
+    let cfg = read_kubeconfig();
+    let limit = std::sync::Arc::new(tokio::sync::Semaphore::new(4));
     let mut set = tokio::task::JoinSet::new();
     for c in contexts {
         let is_current = current.as_deref() == Some(c.name.as_str());
-        set.spawn(check_one(c.name, c.cluster, is_current));
+        let plugin = cfg.as_ref().is_some_and(|k| uses_plugin_auth(k, &c.name));
+        let (app, limit) = (app.clone(), limit.clone());
+        set.spawn(async move {
+            let _permit = limit.acquire_owned().await;
+            check_one(app, c.name, c.cluster, is_current, plugin).await
+        });
     }
     let mut clusters = Vec::new();
     while let Some(r) = set.join_next().await {
@@ -384,16 +491,50 @@ fn toggle_popover(app: &AppHandle, anchor: Option<tauri::Rect>) {
         return;
     }
     if let Some(rect) = anchor {
-        let scale = w.scale_factor().unwrap_or(2.0);
-        let pos = rect.position.to_physical::<f64>(scale);
-        let size = rect.size.to_physical::<f64>(scale);
-        let width = 320.0 * scale;
-        let x = pos.x + size.width / 2.0 - width / 2.0;
-        let y = pos.y + size.height + 4.0 * scale;
-        let _ = w.set_position(PhysicalPosition::new(x.max(0.0), y));
+        if let Some((x, y)) = popover_position(&w, rect) {
+            let _ = w.set_position(PhysicalPosition::new(x, y));
+        }
     }
     let _ = w.show();
     let _ = w.set_focus();
+}
+
+/// Under the icon, centred, clamped inside the monitor the icon is on (which
+/// can sit at negative x left of the primary display), in its scale.
+fn popover_position(w: &tauri::WebviewWindow, rect: tauri::Rect) -> Option<(f64, f64)> {
+    let guess = w.scale_factor().unwrap_or(2.0);
+    let pos = rect.position.to_physical::<f64>(guess);
+    let mon = w
+        .monitor_from_point(pos.x, pos.y)
+        .ok()
+        .flatten()
+        .or_else(|| w.primary_monitor().ok().flatten())?;
+    let scale = mon.scale_factor();
+    let (pos, size) = (
+        rect.position.to_physical::<f64>(scale),
+        rect.size.to_physical::<f64>(scale),
+    );
+    let width = 320.0 * scale;
+    let (mx, mw) = (mon.position().x as f64, mon.size().width as f64);
+    Some(clamp_popover_x(
+        pos.x + size.width / 2.0 - width / 2.0,
+        width,
+        mx,
+        mw,
+        8.0 * scale,
+    ))
+    .map(|x| (x, pos.y + size.height + 4.0 * scale))
+}
+
+/// Keep `width` inside `[mon_x, mon_x + mon_w]` with a margin (pure, unit-tested).
+pub fn clamp_popover_x(x: f64, width: f64, mon_x: f64, mon_w: f64, margin: f64) -> f64 {
+    let lo = mon_x + margin;
+    let hi = mon_x + mon_w - width - margin;
+    if hi < lo {
+        lo
+    } else {
+        x.clamp(lo, hi)
+    }
 }
 
 /// Popover closes when it loses focus, like a menu (wired in lib.rs).
@@ -429,23 +570,29 @@ fn build_icon(app: &AppHandle) -> Result<TrayIcon> {
         .map_err(|e| AppError::Custom(format!("Failed to create menu bar icon: {e}")))
 }
 
-/// Turn the menu bar item on or off; persists the choice.
+/// Turn the menu bar item on or off; persists the choice once it worked.
 pub fn set_enabled(app: &AppHandle, enabled: bool) -> Result<()> {
     let s = state(app);
-    let was = s.enabled.swap(enabled, Ordering::SeqCst);
-    save_enabled(app, enabled);
+    let was = s.enabled.load(Ordering::SeqCst);
     if enabled && !was {
         let icon = build_icon(app)?;
         *s.icon.lock().unwrap_or_else(|e| e.into_inner()) = Some(icon);
+        s.enabled.store(true, Ordering::SeqCst);
         start_poller(app);
     } else if !enabled && was {
+        s.enabled.store(false, Ordering::SeqCst);
         s.epoch.fetch_add(1, Ordering::SeqCst); // stops the poll loop
         if let Some(icon) = s.icon.lock().unwrap_or_else(|e| e.into_inner()).take() {
             let _ = icon.set_visible(false);
         }
         let _ = app.remove_tray_by_id(TRAY_ID);
-        on_popover_blur(app);
+        s.clients.lock().unwrap_or_else(|e| e.into_inner()).clear();
+        // Close (not hide): a hidden window would keep a windowless app alive.
+        if let Some(w) = app.get_webview_window(POPOVER) {
+            let _ = w.close();
+        }
     }
+    save_enabled(app, enabled);
     let _ = app.emit(TRAY_STATUS, snapshot(app));
     crate::shell::sync_tray_menu(app, enabled);
     Ok(())
@@ -498,7 +645,73 @@ mod tests {
             warning: 0,
             detail: false,
             error: None,
+            skipped: false,
         }
+    }
+
+    #[test]
+    fn one_sweep_at_a_time_with_one_rerun() {
+        let (sw, rr) = (AtomicBool::new(false), AtomicBool::new(false));
+        assert!(begin_sweep(&sw, &rr));
+        assert!(
+            !begin_sweep(&sw, &rr),
+            "second caller doesn't start a parallel sweep"
+        );
+        assert!(
+            rr.load(Ordering::SeqCst),
+            "it asks the running one to go again"
+        );
+    }
+
+    #[test]
+    fn plugin_auth_contexts_are_detected() {
+        let cfg: kube::config::Kubeconfig = serde_yaml::from_str(
+            r#"
+apiVersion: v1
+kind: Config
+contexts:
+- name: eks
+  context: { cluster: eks, user: aws }
+- name: kind
+  context: { cluster: kind, user: kind-admin }
+- name: oidc
+  context: { cluster: c, user: oidc-user }
+users:
+- name: aws
+  user:
+    exec: { apiVersion: client.authentication.k8s.io/v1beta1, command: aws, args: [eks, get-token] }
+- name: kind-admin
+  user: { client-certificate-data: abc, client-key-data: def }
+- name: oidc-user
+  user:
+    auth-provider: { name: oidc, config: {} }
+"#,
+        )
+        .unwrap();
+        assert!(uses_plugin_auth(&cfg, "eks"));
+        assert!(uses_plugin_auth(&cfg, "oidc"));
+        assert!(!uses_plugin_auth(&cfg, "kind"));
+        assert!(!uses_plugin_auth(&cfg, "missing"));
+    }
+
+    #[test]
+    fn popover_stays_on_its_monitor() {
+        // Centred when there's room.
+        assert_eq!(clamp_popover_x(500.0, 640.0, 0.0, 3000.0, 16.0), 500.0);
+        // Pushed in from the right edge.
+        assert_eq!(
+            clamp_popover_x(2600.0, 640.0, 0.0, 3000.0, 16.0),
+            3000.0 - 640.0 - 16.0
+        );
+        // A display left of the primary one (negative x) keeps negative coordinates.
+        assert_eq!(
+            clamp_popover_x(-900.0, 640.0, -2000.0, 2000.0, 16.0),
+            -900.0
+        );
+        assert_eq!(
+            clamp_popover_x(-100.0, 640.0, -2000.0, 2000.0, 16.0),
+            -656.0
+        );
     }
 
     #[test]

@@ -122,13 +122,45 @@ struct WatchHandle {
 
 pub struct WatchManager {
     watchers: Arc<RwLock<HashMap<String, WatchHandle>>>,
+    /// watch id -> label of the window that started it. Watches are
+    /// cluster-wide streams; a closed window must not leave its own running.
+    owners: Arc<RwLock<HashMap<String, String>>>,
+}
+
+/// Ids of the watches a window owns (pure, unit-tested).
+pub fn ids_owned_by(owners: &HashMap<String, String>, label: &str) -> Vec<String> {
+    let mut ids: Vec<String> = owners
+        .iter()
+        .filter(|(_, l)| l.as_str() == label)
+        .map(|(id, _)| id.clone())
+        .collect();
+    ids.sort();
+    ids
 }
 
 impl WatchManager {
     pub fn new() -> Self {
         Self {
             watchers: Arc::new(RwLock::new(HashMap::new())),
+            owners: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    /// Record which window started `watch_id`.
+    pub async fn set_owner(&self, watch_id: &str, label: &str) {
+        self.owners
+            .write()
+            .await
+            .insert(watch_id.to_string(), label.to_string());
+    }
+
+    /// Stop every watch a (closed) window started. Returns how many.
+    pub async fn stop_owned_by(&self, label: &str) -> usize {
+        let ids = ids_owned_by(&*self.owners.read().await, label);
+        for id in &ids {
+            let _ = self.stop_watch(id).await;
+        }
+        ids.len()
     }
 
     pub async fn start_pod_watch(
@@ -499,6 +531,7 @@ impl WatchManager {
     }
 
     pub async fn stop_watch(&self, watch_id: &str) -> Result<()> {
+        self.owners.write().await.remove(watch_id);
         let mut watchers = self.watchers.write().await;
         if let Some(handle) = watchers.remove(watch_id) {
             let _ = handle.shutdown_tx.send(());
@@ -508,11 +541,39 @@ impl WatchManager {
     }
 
     pub async fn stop_all(&self) {
+        self.owners.write().await.clear();
         let mut watchers = self.watchers.write().await;
         for (id, handle) in watchers.drain() {
             let _ = handle.shutdown_tx.send(());
             tracing::info!("Stopped watch {}", id);
         }
+    }
+}
+
+#[cfg(test)]
+mod owner_tests {
+    use super::*;
+
+    #[test]
+    fn ids_owned_by_picks_only_that_window() {
+        let owners = HashMap::from([
+            ("w1".to_string(), "main".to_string()),
+            ("w2".to_string(), "main-2".to_string()),
+            ("w3".to_string(), "main-2".to_string()),
+        ]);
+        assert_eq!(ids_owned_by(&owners, "main-2"), vec!["w2", "w3"]);
+        assert_eq!(ids_owned_by(&owners, "main"), vec!["w1"]);
+        assert!(ids_owned_by(&owners, "main-9").is_empty());
+    }
+
+    #[tokio::test]
+    async fn closing_a_window_forgets_its_watches() {
+        let m = WatchManager::new();
+        m.set_owner("w1", "main").await;
+        m.set_owner("w2", "main-2").await;
+        assert_eq!(m.stop_owned_by("main-2").await, 1);
+        assert_eq!(ids_owned_by(&*m.owners.read().await, "main-2"), Vec::<String>::new());
+        assert_eq!(ids_owned_by(&*m.owners.read().await, "main"), vec!["w1"]);
     }
 }
 

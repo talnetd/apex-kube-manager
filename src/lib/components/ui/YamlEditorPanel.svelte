@@ -20,11 +20,8 @@
   let isSaving = $state<boolean>(false);
   let saveMessage = $state<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Turning read-only mid-edit drops edit mode (nothing can be applied).
-  $effect(() => {
-    if ($detailReadOnly && isEditing) isEditing = false;
-  });
-
+  // Turning read-only mid-edit keeps the unsaved text; only Apply is off
+  // (saveYaml guards too) until the user switches back.
   function startEditing() {
     if (!guard('edit')) return;
     editedYaml = yaml;

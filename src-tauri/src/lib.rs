@@ -162,9 +162,9 @@ pub fn run() {
             let label = window.label().to_string();
             match event {
                 tauri::WindowEvent::Focused(false) if label == "tray" => tray::on_popover_blur(window.app_handle()),
-                tauri::WindowEvent::Destroyed if shell::is_main_label(&label) => {
+                tauri::WindowEvent::Destroyed => {
                     eprintln!("[apex-kube-manager] window {label} closed");
-                    shell::emit_window_count(window.app_handle())
+                    shell::on_window_destroyed(window.app_handle(), &label);
                 }
                 _ => {}
             }
@@ -332,6 +332,7 @@ pub fn run() {
             commands::check_for_updates,
             // Multi-window + menu bar (shell.rs, tray.rs)
             commands::open_main_window,
+            commands::get_shared_context,
             commands::focus_main_window,
             commands::get_main_window_count,
             commands::get_tray_status,
@@ -353,6 +354,13 @@ pub fn run() {
                     }
                 }
                 tauri::RunEvent::Exit => eprintln!("[apex-kube-manager] exiting"),
+                // Dock icon clicked with no visible window: bring one back.
+                #[cfg(target_os = "macos")]
+                tauri::RunEvent::Reopen { has_visible_windows, .. } => {
+                    if !has_visible_windows {
+                        let _ = shell::focus_or_open_main(app);
+                    }
+                }
                 _ => {}
             }
         });
