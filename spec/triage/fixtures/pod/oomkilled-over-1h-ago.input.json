@@ -1,0 +1,51 @@
+{
+  "apiVersion": "v1",
+  "kind": "Pod",
+  "metadata": {
+    "name": "worker-3",
+    "namespace": "payments",
+    "uid": "uid-worker-3",
+    "creationTimestamp": "2026-10-27T12:00:00Z"
+  },
+  "spec": {
+    "containers": [
+      {
+        "name": "app",
+        "image": "registry.example/app:1.0"
+      }
+    ]
+  },
+  "status": {
+    "phase": "Running",
+    "startTime": "2026-10-27T12:00:00Z",
+    "conditions": [
+      {
+        "type": "Ready",
+        "status": "True",
+        "lastTransitionTime": "2026-10-28T10:01:00Z"
+      }
+    ],
+    "containerStatuses": [
+      {
+        "name": "app",
+        "ready": true,
+        "restartCount": 1,
+        "image": "registry.example/app:1.0",
+        "imageID": "",
+        "state": {
+          "running": {
+            "startedAt": "2026-10-28T11:00:00Z"
+          }
+        },
+        "lastState": {
+          "terminated": {
+            "reason": "OOMKilled",
+            "exitCode": 137,
+            "finishedAt": "2026-10-28T10:00:00Z",
+            "startedAt": "2026-10-28T09:59:00Z"
+          }
+        }
+      }
+    ]
+  }
+}

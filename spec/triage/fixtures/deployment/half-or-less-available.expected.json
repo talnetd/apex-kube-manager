@@ -1,0 +1,7 @@
+{
+  "status": "fail",
+  "reason": "2/4 available",
+  "ruleId": "TRI-WL-002",
+  "since": "2026-10-28T11:40:00Z",
+  "severity": "error"
+}

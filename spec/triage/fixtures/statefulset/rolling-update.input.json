@@ -1,0 +1,42 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "StatefulSet",
+  "metadata": {
+    "name": "etcd",
+    "namespace": "data",
+    "generation": 1,
+    "creationTimestamp": "2026-10-27T12:00:00Z"
+  },
+  "spec": {
+    "replicas": 3,
+    "serviceName": "etcd",
+    "selector": {
+      "matchLabels": {
+        "app": "etcd"
+      }
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "app": "etcd"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "db",
+            "image": "x"
+          }
+        ]
+      }
+    }
+  },
+  "status": {
+    "replicas": 3,
+    "readyReplicas": 3,
+    "currentRevision": "r1",
+    "updateRevision": "r2",
+    "observedGeneration": 1,
+    "updatedReplicas": 1
+  }
+}

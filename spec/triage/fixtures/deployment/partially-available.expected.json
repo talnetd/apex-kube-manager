@@ -1,0 +1,7 @@
+{
+  "status": "warn",
+  "reason": "2/3 available",
+  "ruleId": "TRI-WL-002",
+  "since": "2026-10-28T11:40:00Z",
+  "severity": "warning"
+}

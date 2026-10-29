@@ -1,5 +1,8 @@
 import { writable, derived, get } from 'svelte/store';
 import { settings } from './settings';
+import { verdictToHealth, type Verdict } from '../utils/health';
+
+export type { Verdict };
 
 // Lazy invoke helper to ensure Tauri is ready
 async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -20,6 +23,8 @@ export interface KubeContext {
 }
 
 export interface PodInfo {
+  /** Health from the shared triage rules (Rust, spec/triage/rules.md). Never re-derive it here. */
+  verdict: Verdict;
   name: string;
   namespace: string;
   status: string;
@@ -64,6 +69,8 @@ export interface NodeWatchEvent {
 }
 
 export interface DeploymentInfo {
+  /** Health from the shared triage rules (Rust, spec/triage/rules.md). Never re-derive it here. */
+  verdict: Verdict;
   name: string;
   namespace: string;
   ready: string;
@@ -73,6 +80,8 @@ export interface DeploymentInfo {
 }
 
 export interface StatefulSetInfo {
+  /** Health from the shared triage rules (Rust, spec/triage/rules.md). Never re-derive it here. */
+  verdict: Verdict;
   name: string;
   namespace: string;
   ready: string;
@@ -82,6 +91,8 @@ export interface StatefulSetInfo {
 }
 
 export interface DaemonSetInfo {
+  /** Health from the shared triage rules (Rust, spec/triage/rules.md). Never re-derive it here. */
+  verdict: Verdict;
   name: string;
   namespace: string;
   desired: number;
@@ -94,6 +105,8 @@ export interface DaemonSetInfo {
 }
 
 export interface ReplicaSetInfo {
+  /** Health from the shared triage rules (Rust, spec/triage/rules.md). Never re-derive it here. */
+  verdict: Verdict;
   name: string;
   namespace: string;
   desired: number;
@@ -104,6 +117,8 @@ export interface ReplicaSetInfo {
 }
 
 export interface JobInfo {
+  /** Health from the shared triage rules (Rust, spec/triage/rules.md). Never re-derive it here. */
+  verdict: Verdict;
   name: string;
   namespace: string;
   completions: string;
@@ -191,6 +206,8 @@ export interface PersistentVolumeInfo {
 }
 
 export interface PersistentVolumeClaimInfo {
+  /** Health from the shared triage rules (Rust, spec/triage/rules.md). Never re-derive it here. */
+  verdict: Verdict;
   name: string;
   namespace: string;
   status: string;
@@ -215,6 +232,8 @@ export interface NodeTaintInfo {
 }
 
 export interface NodeInfo {
+  /** Health from the shared triage rules (Rust, spec/triage/rules.md). Never re-derive it here. */
+  verdict: Verdict;
   name: string;
   status: string;
   roles: string[];
@@ -357,6 +376,54 @@ export const isLoading = writable<boolean>(false);
 export const isSwitchingContext = writable<boolean>(false);
 export const error = writable<string | null>(null);
 
+// ---- Per-resource load state (spec 5.4) ----
+// DataTable needs to tell "still connecting" from "empty" from "RBAC said no".
+export type ResourceStatus = 'idle' | 'loading' | 'ready' | 'error' | 'forbidden';
+export interface ResourceState {
+  status: ResourceStatus;
+  error?: string;
+  /** ms epoch of the last successful list or watch event. */
+  lastSyncedAt?: number;
+}
+
+const resourceStates = new Map<string, ReturnType<typeof writable<ResourceState>>>();
+
+/** Load state for one resource list (e.g. 'pods'). Created on first use. */
+export function resourceState(name: string) {
+  let s = resourceStates.get(name);
+  if (!s) {
+    s = writable<ResourceState>({ status: 'idle' });
+    resourceStates.set(name, s);
+  }
+  return s;
+}
+
+/** Last successful sync from any resource (status bar freshness, spec 4.4). */
+export const lastSyncedAt = writable<number | null>(null);
+
+export function markLoading(name: string) {
+  resourceState(name).update((s) => ({ ...s, status: 'loading', error: undefined }));
+}
+
+export function markSynced(name: string, at = Date.now()) {
+  resourceState(name).set({ status: 'ready', lastSyncedAt: at });
+  lastSyncedAt.set(at);
+}
+
+/** 403s come through as error text until the error type carries a code. */
+export function isForbiddenError(e: unknown): boolean {
+  const msg = String(e);
+  return /\b403\b|forbidden/i.test(msg);
+}
+
+export function markFailed(name: string, e: unknown) {
+  resourceState(name).update((s) => ({
+    ...s,
+    status: isForbiddenError(e) ? 'forbidden' : 'error',
+    error: String(e),
+  }));
+}
+
 // Connection status
 export const connectionStatus = writable<'connected' | 'disconnected' | 'connecting'>('disconnected');
 
@@ -364,6 +431,8 @@ export const connectionStatus = writable<'connected' | 'disconnected' | 'connect
 type UnlistenFn = () => void;
 let podWatchUnlisten: UnlistenFn | null = null;
 let currentPodWatchId: string | null = null;
+// Context the `pods` store currently holds.
+let podsContext: string | null = null;
 let deploymentWatchUnlisten: UnlistenFn | null = null;
 let currentDeploymentWatchId: string | null = null;
 let jobWatchUnlisten: UnlistenFn | null = null;
@@ -486,68 +555,149 @@ export async function loadPods(namespace?: string | null) {
 }
 
 // Pod Watch Stream Functions
+//
+// Every start/stop bumps `podWatchGen`. Each await in the setup re-checks
+// it, and so does the listener: a superseded setup tears down whatever it
+// already created (watch id, listener) and never writes to `pods`. That
+// covers a namespace switch racing a context switch, and a slow first list
+// resolving after a newer watch started.
+let podWatchGen = 0;
+
+// Watch events are applied in batches (every 100ms) so a burst of updates
+// costs one copy/regroup/sort instead of one per event.
+const POD_BATCH_MS = 100;
+let podEventQueue: PodWatchEvent[] = [];
+let podFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+const podKey = (p: Pick<PodInfo, 'namespace' | 'name'>) => `${p.namespace}/${p.name}`;
+
+/** Apply queued watch events to a pod list in order (last event per pod wins). Pure. */
+export function applyPodEvents(current: PodInfo[], events: PodWatchEvent[]): PodInfo[] {
+  if (events.length === 0) return current;
+  const index = new Map(current.map((p, i) => [podKey(p), i]));
+  const next = [...current];
+  const removed = new Set<number>();
+  for (const { event_type, pod } of events) {
+    const k = podKey(pod);
+    const i = index.get(k);
+    if (event_type === 'applied') {
+      if (i !== undefined && !removed.has(i)) next[i] = pod;
+      else {
+        index.set(k, next.length);
+        next.push(pod);
+      }
+    } else if (event_type === 'deleted' && i !== undefined) {
+      removed.add(i);
+      index.delete(k);
+    }
+  }
+  return removed.size ? next.filter((_, i) => !removed.has(i)) : next;
+}
+
+function flushPodEvents(gen: number) {
+  podFlushTimer = null;
+  const events = podEventQueue;
+  podEventQueue = [];
+  if (gen !== podWatchGen || events.length === 0) return;
+  pods.update((current) => applyPodEvents(current, events));
+  markSynced('pods');
+}
+
+function queuePodEvent(gen: number, event: PodWatchEvent) {
+  if (gen !== podWatchGen) return; // superseded watch: drop
+  podEventQueue.push(event);
+  if (!podFlushTimer) podFlushTimer = setTimeout(() => flushPodEvents(gen), POD_BATCH_MS);
+}
+
+/** Tear down the current listener + backend watch and drop queued events. */
+async function teardownPodWatch() {
+  const unlisten = podWatchUnlisten;
+  const watchId = currentPodWatchId;
+  podWatchUnlisten = null;
+  currentPodWatchId = null;
+  podEventQueue = [];
+  if (podFlushTimer) {
+    clearTimeout(podFlushTimer);
+    podFlushTimer = null;
+  }
+  unlisten?.();
+  if (watchId) {
+    try {
+      await tauriInvoke('stop_watch', { watchId });
+      console.log(`Pod watch stopped: ${watchId}`);
+    } catch (e) {
+      console.error('Failed to stop pod watch:', e);
+    }
+  }
+}
+
 export async function startPodWatch(namespace?: string | null) {
-  // Stop any existing watch first
-  await stopPodWatch();
+  const gen = ++podWatchGen;
+  await teardownPodWatch();
+  if (gen !== podWatchGen) return;
 
   if (!isContextReady()) return;
 
-  try {
-    // Get initial snapshot
-    const initialPods = await tauriInvoke<PodInfo[]>('get_pods', { namespace });
-    pods.set(initialPods);
+  // Pod names collide across clusters: never show the old context's pods
+  // under the new one while the first list is in flight.
+  const ctx = _currentContext;
+  if (podsContext !== ctx) {
+    pods.set([]);
+    podsContext = ctx;
+  }
+  markLoading('pods');
 
-    // Start watch stream
+  // A setup step finished after a newer start/stop: undo what we made.
+  const superseded = () => gen !== podWatchGen || _currentContext !== ctx;
+
+  try {
+    const initialPods = await tauriInvoke<PodInfo[]>('get_pods', { namespace });
+    if (superseded()) return;
+    pods.set(initialPods);
+    markSynced('pods');
+
     const watchId = await tauriInvoke<string>('watch_pods', { namespace });
+    if (superseded()) {
+      tauriInvoke('stop_watch', { watchId }).catch(() => {});
+      return;
+    }
     currentPodWatchId = watchId;
 
-    // Import listen dynamically
     const { listen } = await import('@tauri-apps/api/event');
+    if (superseded()) {
+      // currentPodWatchId is ours only if nobody tore down in between.
+      if (currentPodWatchId === watchId) {
+        currentPodWatchId = null;
+        tauriInvoke('stop_watch', { watchId }).catch(() => {});
+      }
+      return;
+    }
 
-    // Listen for watch events
-    podWatchUnlisten = await listen<PodWatchEvent>(`pod-watch-${watchId}`, (event) => {
-      const { event_type, pod } = event.payload;
-
-      pods.update(current => {
-        if (event_type === 'applied') {
-          // Update or add pod
-          const idx = current.findIndex(p => p.name === pod.name && p.namespace === pod.namespace);
-          if (idx >= 0) {
-            current[idx] = pod;
-            return [...current];
-          } else {
-            return [...current, pod];
-          }
-        } else if (event_type === 'deleted') {
-          // Remove pod
-          return current.filter(p => !(p.name === pod.name && p.namespace === pod.namespace));
-        }
-        return current;
-      });
-    });
+    const unlisten = await listen<PodWatchEvent>(`pod-watch-${watchId}`, (event) =>
+      queuePodEvent(gen, event.payload)
+    );
+    if (superseded()) {
+      unlisten();
+      if (currentPodWatchId === watchId) {
+        currentPodWatchId = null;
+        tauriInvoke('stop_watch', { watchId }).catch(() => {});
+      }
+      return;
+    }
+    podWatchUnlisten = unlisten;
 
     console.log(`Pod watch started: ${watchId}`);
   } catch (e) {
+    if (superseded()) return;
     error.set(String(e));
+    markFailed('pods', e);
     console.error('Failed to start pod watch:', e);
   }
 }
 
 export async function stopPodWatch() {
-  if (podWatchUnlisten) {
-    podWatchUnlisten();
-    podWatchUnlisten = null;
-  }
-
-  if (currentPodWatchId) {
-    try {
-      await tauriInvoke('stop_watch', { watchId: currentPodWatchId });
-      console.log(`Pod watch stopped: ${currentPodWatchId}`);
-    } catch (e) {
-      console.error('Failed to stop pod watch:', e);
-    }
-    currentPodWatchId = null;
-  }
+  podWatchGen++;
+  await teardownPodWatch();
 }
 
 // Deployment Watch Stream Functions
@@ -1213,12 +1363,38 @@ export const filteredPods = derived(
   }
 );
 
-export const podsByStatus = derived(pods, ($pods) => {
-  return {
-    all: $pods,
-    running: $pods.filter((p) => p.status === 'Running'),
-    pending: $pods.filter((p) => p.status === 'Pending'),
-    failed: $pods.filter((p) => p.status === 'Failed'),
-    succeeded: $pods.filter((p) => p.status === 'Succeeded'),
+export interface HealthBuckets<T> {
+  all: T[];
+  failed: T[];
+  warning: T[];
+  progressing: T[];
+  healthy: T[];
+  /** Neutral verdicts: Completed pods, Scaled to 0, Suspended. */
+  completed: T[];
+  /** No usable data; only reachable through `all`. */
+  unknown: T[];
+}
+
+/**
+ * Bucket rows by their Rust verdict (spec 5.1). A CrashLoopBackOff pod has
+ * phase Running but lands in `failed` here, which is the whole point.
+ */
+export function bucketByHealth<T extends { verdict: Verdict }>(items: T[]): HealthBuckets<T> {
+  const b: HealthBuckets<T> = {
+    all: items,
+    failed: [],
+    warning: [],
+    progressing: [],
+    healthy: [],
+    completed: [],
+    unknown: [],
   };
-});
+  for (const item of items) {
+    const h = verdictToHealth(item.verdict);
+    if (h === 'neutral') b.completed.push(item);
+    else b[h].push(item);
+  }
+  return b;
+}
+
+export const podsByStatus = derived(pods, ($pods) => bucketByHealth($pods));

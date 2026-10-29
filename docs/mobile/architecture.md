@@ -50,18 +50,22 @@ spec/triage/
 ├── rules.md                 # human-readable rules, one ID per rule (TRI-POD-001 ...)
 ├── schema/verdict.schema.json
 └── fixtures/
-    ├── pod/crashloop-backoff.input.json      # raw K8s object as the API returns it
-    ├── pod/crashloop-backoff.expected.json   # { "status": "fail", "reason": "CrashLoopBackOff", "rule": "TRI-POD-003" }
+    ├── meta.json                              # { "now": "2026-10-28T12:00:00Z" }: fixed evaluation time
+    ├── pod/crashloop-backoff.input.json       # raw K8s object as the API returns it (apiVersion + kind)
+    ├── pod/crashloop-backoff.expected.json    # { "status": "fail", "reason": "CrashLoopBackOff", "ruleId": "TRI-POD-003",
+    │                                          #   "since": "2026-10-28T11:58:00Z", "severity": "error" }
     ├── deployment/unavailable-replicas.*.json
     ├── node/not-ready.*.json
-    ├── node/metrics-server-absent.*.json     # expected: cpu/mem null, not 0
-    └── events/warning-dedup.*.json
+    └── ...                                    # pod, deployment, statefulset, daemonset, replicaset, job, node, pvc
 ```
 
-- **Verdict model** (identical names on all three platforms): `status: ok | warn | fail | unknown`, `reason: String`, `ruleId: String`, `since: timestamp?`.
-- **Initial rules** (v1): pod phase Failed/Unknown, container waiting reasons (CrashLoopBackOff, ImagePullBackOff, ErrImagePull, CreateContainerConfigError, OOMKilled as last termination), not-ready > N minutes while Running, Pending > N minutes, restarts in last hour; deployment/statefulset/daemonset available < desired, Progressing=False, stuck rollout; node Ready != True, MemoryPressure/DiskPressure/PIDPressure, unschedulable (cordoned = warn); events type=Warning within window, deduped by involvedObject + reason.
-- **Runners:** `src-tauri` Rust test (new `triage` module, added after deps-upgrade merges), Swift Package test target, Kotlin JVM unit test. Each reads `spec/triage/fixtures/**` and asserts equality.
-- **Desktop adoption:** the desktop redesign is "triage-first", so it should consume the same rules. Aligning desktop list/Pulse logic to `rules.md` is a redesign-track task, not a mobile PR.
+**Status (2026-10-28):** `spec/triage/` was created by the desktop redesign track (redesign PR1b) with 80 per-object fixtures, and desktop `cargo test` runs them. Mobile PR 2 **adopts** these files instead of creating them: it adds the Swift and Kotlin runners and may add fixtures (with matching `rules.md` edits). Event and issue-grouping fixtures (`events/`, `issues/`) come with desktop PR2; `node/metrics-server-absent` is a capacity contract (usage `null`, never `0`), not a verdict, and is tested by the KubeClient decoding tests (PR 4) instead.
+
+- **Verdict model** (identical names on all three platforms, `schema/verdict.schema.json`): `status: ok | warn | fail | unknown`, `reason: String`, `ruleId: String`, `since: timestamp?` (RFC 3339 UTC), plus the two fields the redesign spec (6.10, 11.1) added: `severity: critical | error | warning` (present exactly when status is `fail` or `warn`) and `tone: progressing | neutral` (only with `ok`; absent = healthy). Display: `fail` → failed, `warn` → warning, `unknown` → unknown, `ok`+progressing → progressing, `ok`+neutral → neutral, `ok` → healthy. Mobile renders these six states with the shapes in redesign spec 11.1.
+- **Initial rules** (v1, now specified in full in `rules.md`): pod phase Failed/Unknown, container waiting reasons (CrashLoopBackOff, ImagePullBackOff, ErrImagePull, CreateContainerConfigError, OOMKilled as last termination), not-ready > N minutes while Running, Pending > N minutes, restarts in last hour; deployment/statefulset/daemonset available < desired, Progressing=False, stuck rollout; node Ready != True, MemoryPressure/DiskPressure/PIDPressure, unschedulable (cordoned = warn); events type=Warning within window, deduped by involvedObject + reason.
+- **Runners:** `src-tauri` Rust test (`src-tauri/src/triage/fixtures.rs`, live), Swift Package test target, Kotlin JVM unit test. Each reads `spec/triage/fixtures/**`, evaluates at `meta.json`'s `now`, and asserts exact JSON equality, passing the optional `<case>.context.json` (`firstSeenUnsettled`, `storageClassBindingMode`) to the rule. Each also fails on an orphan input/expected/context file and on an implemented rule id with no fixture (`rules.md`, "Fixtures").
+- **Mobile must also:** re-evaluate unsettled verdicts on the polling tick even when an object did not change (time windows age), and track "first seen unsettled" per uid for StatefulSets, ReplicaSets and DaemonSets (`rules.md`, "Thresholds"). Without tracking, the rules fall back to `creationTimestamp`, so an old object that starts scaling looks overdue at once.
+- **Desktop adoption:** done in redesign PR1b. Desktop computes verdicts in Rust only (`src-tauri/src/triage/`) and attaches `verdict` to every pod, workload, node and PVC list payload; Pulse OK:FAIL counts use them.
 - **Change process:** a rule change is a PR that edits `rules.md` + fixtures; path filters run all three platforms' tests.
 
 ---
@@ -248,7 +252,7 @@ Confirmation rules: every action shows cluster + namespace + object name; Delete
 
 `docs/design/redesign-spec.md` did not exist when this was written. Proposal to the redesign track:
 - Put tokens in `spec/design-tokens/tokens.json` (color, radius, spacing, type scale, status colors) as the single source. Desktop generates Tailwind theme; iOS generates a Swift `Color`/`Font` file; Android generates a Compose `ColorScheme` + `Typography` (small script, run in CI to verify generated files are up to date).
-- Status semantics shared with triage verdicts: `ok`=success green, `warn`=amber, `fail`=red, `unknown`=muted grey; same icon shapes (filled dot / half dot / triangle) so color is never the only signal.
+- Status semantics shared with triage verdicts: **superseded by redesign spec section 11** (the shared display contract). Six states derived from `status` + `tone` (failed red octagon ✕, warning amber triangle !, progressing blue half circle, unknown grey ?, healthy green ✓ circle, neutral empty circle), with the SF Symbol / Material equivalents listed in 11.1. Color is never the only signal; `severity` only affects ranking and the CRIT/ERR tag.
 - Mobile uses native navigation and controls (tab bar, sheets, swipe actions) and only shares tokens and status language, not layouts. "Compact/comfortable density" maps to Dynamic Type / font scale on mobile, not a separate setting.
 
 ---
@@ -259,7 +263,7 @@ Confirmation rules: every action shows cluster + namespace + object name; Delete
 |---|---|---|---|
 | `ios.yml` | `apps/ios/**`, `spec/**`, `.github/workflows/ios.yml` | `macos-15` | XcodeGen generate, `swift test` (ApexKubeCore incl. fixtures), `xcodebuild test` on iOS Simulator, SwiftLint (warn-only at first) |
 | `android.yml` | `apps/android/**`, `spec/**`, `.github/workflows/android.yml` | `ubuntu-24.04` | setup-java 17, `gradle/actions/setup-gradle` cache, `./gradlew lint test assembleDebug` |
-| `ci.yml` (desktop) | add `paths-ignore: [apps/**, docs/mobile/**]`; include `spec/**` once the Rust fixture test exists | unchanged | unchanged |
+| `ci.yml` (desktop) | `paths-ignore: [apps/**, docs/mobile/**]` (`spec/**` is **not** ignored since redesign PR1b: desktop tests the fixtures) | unchanged | unchanged |
 
 Notes:
 - The repo is public, so macOS minutes are free; keep `concurrency: cancel-in-progress` like `ci.yml` anyway.
@@ -291,8 +295,8 @@ Each phase may be split into `-ios` and `-android` PRs so two engineers can work
 | PR | Content | Acceptance criteria |
 |---|---|---|
 | **1. Scaffold** | `apps/ios` (XcodeGen, SwiftUI hello world, `ApexKubeCore` package with one test), `apps/android` (Compose hello world, `core/triage` module with one test), `ios.yml`, `android.yml`, `ci.yml` `paths-ignore`, this doc | Both workflows green on the PR; a mobile-only commit does not trigger desktop CI and a desktop-only commit does not trigger mobile CI (verified in the PR); no other desktop files changed; app ids as in section 4 |
-| **2. Triage spec + fixtures** | `spec/triage/rules.md`, schema, ~25 fixtures; Swift and Kotlin rule engines passing them | Fixture tests run in both mobile workflows; changing one expected file fails both |
-| **2b. Desktop fixture runner** | `src-tauri` pure `triage` module + test reading the fixtures; `ci.yml` includes `spec/**` | Lands **after** deps-upgrade merges; no change to existing desktop behavior |
+| **2. Triage spec + fixtures** | Adopt `spec/triage/` (created by redesign PR1b: `rules.md`, schema with `severity`/`tone`, 80 fixtures); Swift and Kotlin rule engines passing them | Fixture tests run in both mobile workflows; changing one expected file fails both |
+| **2b. Desktop fixture runner** | **Done in redesign PR1b**: `src-tauri/src/triage/` + fixture test; `ci.yml` includes `spec/**` | Desktop verdicts are live in list payloads and Pulse counts |
 | **3. Kubeconfig + credentials (token auth)** | Parser, import (picker, share sheet, paste), Keychain/Keystore store, TLS CA trust, insecure-skip handling, connection test | Unit tests over fixture kubeconfigs (exec, file paths, insecure, multi-context, expired JWT); credentials verified not in backups; connects to a kind cluster in CI-free manual test |
 | **4. Triage home (read-only)** | KubeClient lists, repository polling with in-flight + cluster guards, triage screen, namespace filter, cluster list | Mock-server tests (URLProtocol / MockWebServer) for decoding and 403/404 degradation; metrics absent renders `–` |
 | **5. Detail screens** | Pod detail, logs, workload detail, nodes, events, deep links | Logs previous/container switch work; deep link opens correct screen or a clear "cluster not imported" |

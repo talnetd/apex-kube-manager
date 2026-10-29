@@ -1,0 +1,23 @@
+{
+  "apiVersion": "v1",
+  "kind": "Node",
+  "metadata": {
+    "name": "ip-10-0-1-4",
+    "creationTimestamp": "2026-09-28T12:00:00Z"
+  },
+  "spec": {},
+  "status": {
+    "conditions": [
+      {
+        "type": "MemoryPressure",
+        "status": "True",
+        "lastTransitionTime": "2026-10-28T11:48:00Z"
+      },
+      {
+        "type": "Ready",
+        "status": "True",
+        "lastTransitionTime": "2026-10-27T12:00:00Z"
+      }
+    ]
+  }
+}

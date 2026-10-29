@@ -1,0 +1,42 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "DaemonSet",
+  "metadata": {
+    "name": "fluent-bit",
+    "namespace": "kube-system",
+    "generation": 1,
+    "creationTimestamp": "2026-10-27T12:00:00Z"
+  },
+  "spec": {
+    "selector": {
+      "matchLabels": {
+        "app": "fluent-bit"
+      }
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "app": "fluent-bit"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "agent",
+            "image": "x"
+          }
+        ]
+      }
+    }
+  },
+  "status": {
+    "desiredNumberScheduled": 5,
+    "currentNumberScheduled": 5,
+    "numberReady": 3,
+    "numberAvailable": 3,
+    "numberUnavailable": 2,
+    "numberMisscheduled": 0,
+    "updatedNumberScheduled": 5,
+    "observedGeneration": 1
+  }
+}

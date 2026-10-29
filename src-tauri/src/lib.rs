@@ -3,6 +3,7 @@ mod error;
 mod kubernetes;
 mod portforward;
 mod pty;
+mod triage;
 mod updates;
 mod watch;
 

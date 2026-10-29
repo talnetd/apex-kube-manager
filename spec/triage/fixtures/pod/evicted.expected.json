@@ -1,0 +1,7 @@
+{
+  "status": "warn",
+  "reason": "Evicted",
+  "ruleId": "TRI-POD-010",
+  "since": "2026-10-28T10:30:00Z",
+  "severity": "warning"
+}

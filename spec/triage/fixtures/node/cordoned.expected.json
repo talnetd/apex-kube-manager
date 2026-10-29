@@ -1,0 +1,6 @@
+{
+  "status": "warn",
+  "reason": "Cordoned",
+  "ruleId": "TRI-NODE-004",
+  "severity": "warning"
+}

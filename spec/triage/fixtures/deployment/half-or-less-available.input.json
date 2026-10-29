@@ -1,0 +1,54 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "Deployment",
+  "metadata": {
+    "name": "search",
+    "namespace": "payments",
+    "generation": 2,
+    "creationTimestamp": "2026-10-27T12:00:00Z"
+  },
+  "spec": {
+    "replicas": 4,
+    "selector": {
+      "matchLabels": {
+        "app": "search"
+      }
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "app": "search"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "app",
+            "image": "x"
+          }
+        ]
+      }
+    }
+  },
+  "status": {
+    "replicas": 4,
+    "updatedReplicas": 4,
+    "observedGeneration": 2,
+    "availableReplicas": 2,
+    "readyReplicas": 2,
+    "conditions": [
+      {
+        "type": "Available",
+        "status": "True",
+        "lastTransitionTime": "2026-10-27T12:00:00Z",
+        "lastUpdateTime": "2026-10-27T12:00:00Z"
+      },
+      {
+        "type": "Progressing",
+        "status": "True",
+        "lastTransitionTime": "2026-10-27T12:00:00Z",
+        "lastUpdateTime": "2026-10-28T11:40:00Z"
+      }
+    ]
+  }
+}

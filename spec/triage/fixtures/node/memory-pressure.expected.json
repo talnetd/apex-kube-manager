@@ -1,0 +1,7 @@
+{
+  "status": "fail",
+  "reason": "MemoryPressure",
+  "ruleId": "TRI-NODE-002",
+  "since": "2026-10-28T11:48:00Z",
+  "severity": "error"
+}

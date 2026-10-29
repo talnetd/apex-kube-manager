@@ -1,0 +1,22 @@
+{
+  "apiVersion": "v1",
+  "kind": "Pod",
+  "metadata": {
+    "name": "stuck-1",
+    "namespace": "payments",
+    "uid": "uid-stuck-1",
+    "creationTimestamp": "2026-10-28T11:30:00Z"
+  },
+  "spec": {
+    "containers": [
+      {
+        "name": "app",
+        "image": "registry.example/app:1.0"
+      }
+    ]
+  },
+  "status": {
+    "phase": "Pending",
+    "conditions": []
+  }
+}

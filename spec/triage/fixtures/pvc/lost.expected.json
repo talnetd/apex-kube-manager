@@ -1,0 +1,6 @@
+{
+  "status": "fail",
+  "reason": "Lost",
+  "ruleId": "TRI-PVC-002",
+  "severity": "error"
+}

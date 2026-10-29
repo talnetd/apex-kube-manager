@@ -1,0 +1,59 @@
+{
+  "apiVersion": "v1",
+  "kind": "Pod",
+  "metadata": {
+    "name": "web-2",
+    "namespace": "payments",
+    "uid": "uid-web-2",
+    "creationTimestamp": "2026-10-27T12:00:00Z"
+  },
+  "spec": {
+    "containers": [
+      {
+        "name": "app",
+        "image": "registry.example/app:1.0"
+      },
+      {
+        "name": "sidecar",
+        "image": "registry.example/sidecar:1.0"
+      }
+    ]
+  },
+  "status": {
+    "phase": "Running",
+    "startTime": "2026-10-27T12:00:00Z",
+    "conditions": [
+      {
+        "type": "Ready",
+        "status": "False",
+        "lastTransitionTime": "2026-10-28T11:30:00Z"
+      }
+    ],
+    "containerStatuses": [
+      {
+        "name": "app",
+        "ready": true,
+        "restartCount": 0,
+        "image": "registry.example/app:1.0",
+        "imageID": "",
+        "state": {
+          "running": {
+            "startedAt": "2026-10-28T11:00:00Z"
+          }
+        }
+      },
+      {
+        "name": "sidecar",
+        "ready": false,
+        "restartCount": 0,
+        "image": "registry.example/sidecar:1.0",
+        "imageID": "",
+        "state": {
+          "running": {
+            "startedAt": "2026-10-28T11:00:00Z"
+          }
+        }
+      }
+    ]
+  }
+}

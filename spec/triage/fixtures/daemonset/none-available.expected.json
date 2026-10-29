@@ -1,0 +1,6 @@
+{
+  "status": "fail",
+  "reason": "0/5 available",
+  "ruleId": "TRI-WL-004",
+  "severity": "critical"
+}

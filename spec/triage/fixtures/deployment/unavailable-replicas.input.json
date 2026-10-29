@@ -1,0 +1,53 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "Deployment",
+  "metadata": {
+    "name": "checkout",
+    "namespace": "payments",
+    "generation": 2,
+    "creationTimestamp": "2026-10-27T12:00:00Z"
+  },
+  "spec": {
+    "replicas": 3,
+    "selector": {
+      "matchLabels": {
+        "app": "checkout"
+      }
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "app": "checkout"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "app",
+            "image": "x"
+          }
+        ]
+      }
+    }
+  },
+  "status": {
+    "replicas": 3,
+    "updatedReplicas": 3,
+    "observedGeneration": 2,
+    "conditions": [
+      {
+        "type": "Available",
+        "status": "False",
+        "lastTransitionTime": "2026-10-28T11:50:00Z",
+        "reason": "MinimumReplicasUnavailable",
+        "lastUpdateTime": "2026-10-28T11:50:00Z"
+      },
+      {
+        "type": "Progressing",
+        "status": "True",
+        "lastTransitionTime": "2026-10-27T12:00:00Z",
+        "lastUpdateTime": "2026-10-28T11:50:00Z"
+      }
+    ]
+  }
+}

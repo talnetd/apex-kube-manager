@@ -1,0 +1,6 @@
+{
+  "status": "warn",
+  "reason": "Misscheduled",
+  "ruleId": "TRI-WL-004",
+  "severity": "warning"
+}

@@ -1,0 +1,7 @@
+{
+  "status": "warn",
+  "reason": "Rollout stuck",
+  "ruleId": "TRI-WL-006",
+  "since": "2026-10-28T11:45:00Z",
+  "severity": "warning"
+}

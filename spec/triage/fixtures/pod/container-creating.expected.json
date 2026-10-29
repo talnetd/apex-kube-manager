@@ -1,0 +1,6 @@
+{
+  "status": "ok",
+  "reason": "ContainerCreating",
+  "ruleId": "TRI-POD-011",
+  "tone": "progressing"
+}

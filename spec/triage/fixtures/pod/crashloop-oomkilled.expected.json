@@ -1,0 +1,7 @@
+{
+  "status": "fail",
+  "reason": "OOMKilled",
+  "ruleId": "TRI-POD-006",
+  "since": "2026-10-28T11:55:00Z",
+  "severity": "error"
+}

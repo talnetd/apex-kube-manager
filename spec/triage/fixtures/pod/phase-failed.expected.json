@@ -1,0 +1,7 @@
+{
+  "status": "fail",
+  "reason": "Failed",
+  "ruleId": "TRI-POD-001",
+  "since": "2026-10-28T11:00:00Z",
+  "severity": "error"
+}
