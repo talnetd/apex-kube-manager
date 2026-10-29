@@ -12,6 +12,7 @@ export default defineConfig({
         main: resolve(import.meta.dirname, 'index.html'),
         detail: resolve(import.meta.dirname, 'detail.html'),
         terminal: resolve(import.meta.dirname, 'terminal.html'),
+        tray: resolve(import.meta.dirname, 'tray.html'),
       },
     },
   },

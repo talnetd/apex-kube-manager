@@ -213,7 +213,7 @@
   ></div>
 
   <!-- Panel -->
-  <div class="absolute top-full right-0 mt-2 w-80 bg-bg-secondary border border-border-subtle rounded-lg z-50">
+  <div class="absolute top-full right-0 mt-2 w-80 max-w-[calc(100vw-16px)] bg-bg-secondary border border-border-subtle rounded-lg z-50">
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-border-subtle">
       <span class="text-base font-medium text-text-primary">Port Forwards</span>

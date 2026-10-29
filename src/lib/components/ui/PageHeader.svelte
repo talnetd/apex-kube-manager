@@ -135,8 +135,8 @@
     </div>
   {/if}
 
-  <div class="flex items-center gap-2">
-    <div class="relative w-[240px]">
+  <div class="flex items-center gap-2 w-full sm:w-auto">
+    <div class="relative w-full sm:w-[240px]">
       <svg class="absolute left-2 top-1/2 -translate-y-1/2 text-muted pointer-events-none" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
         <circle cx="7" cy="7" r="4.75" /><path d="M13.5 13.5l-3-3" />
       </svg>

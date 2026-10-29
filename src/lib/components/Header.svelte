@@ -71,6 +71,8 @@
     await switchContext(contextName);
     // Load pulse metrics for all namespaces (namespace was reset in switchContext)
     await loadPulseMetrics(null);
+    // One toast, in the window where the switch happened (spec 13.3).
+    if (wins > 1) toast(`Switched all ${wins} windows to ${contextName}`);
   }
 
   function handleNamespaceChange(ns: string | null) {

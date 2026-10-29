@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { guard, detailReadOnly } from '../../stores/detail';
   import { invoke } from '@tauri-apps/api/core';
   import YamlEditor from './YamlEditor.svelte';
 
@@ -19,7 +20,13 @@
   let isSaving = $state<boolean>(false);
   let saveMessage = $state<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // Turning read-only mid-edit drops edit mode (nothing can be applied).
+  $effect(() => {
+    if ($detailReadOnly && isEditing) isEditing = false;
+  });
+
   function startEditing() {
+    if (!guard('edit')) return;
     editedYaml = yaml;
     isEditing = true;
     saveMessage = null;
@@ -47,6 +54,7 @@
   }
 
   async function saveYaml() {
+    if (!guard('apply')) return;
     if (isDeleted || !editedYaml) return;
 
     try {
@@ -110,7 +118,7 @@
         </button>
         <button
           onclick={saveYaml}
-          disabled={isSaving || isDeleted}
+          disabled={isSaving || isDeleted || $detailReadOnly}
           class="text-xs px-3 py-1 bg-btn text-on-btn rounded-sm hover:opacity-90 transition-colors disabled:opacity-50 flex items-center gap-1"
         >
           {#if isSaving}
@@ -132,7 +140,7 @@
         </button>
         <button
           onclick={startEditing}
-          disabled={isDeleted || !yaml}
+          disabled={isDeleted || !yaml || $detailReadOnly}
           class="text-xs px-3 py-1 bg-accent-primary/10 text-accent-text rounded-sm hover:bg-accent-primary/20 transition-colors disabled:opacity-50"
         >
           Edit

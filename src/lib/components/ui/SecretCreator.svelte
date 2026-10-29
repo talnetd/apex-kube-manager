@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { guard } from '../../stores/detail';
   import { invoke } from '@tauri-apps/api/core';
   import { currentContext, selectedNamespace, namespaces, loadSecrets } from '../../stores/kubernetes';
   import CustomSelect from './CustomSelect.svelte';
@@ -106,6 +107,7 @@
   }
 
   async function handleSave() {
+    if (!guard('edit')) return;
     if (!name.trim()) {
       error = 'Name is required';
       return;
@@ -163,7 +165,7 @@
 {#if show}
   <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onclick={handleClose}>
     <div
-      class="bg-bg-secondary rounded-lg border border-border-subtle w-[600px] max-h-[85vh] flex flex-col"
+      class="bg-bg-secondary rounded-lg border border-border-subtle w-[600px] max-w-[calc(100vw-16px)] max-h-[85vh] flex flex-col"
       onclick={(e) => e.stopPropagation()}
     >
       <!-- Header -->

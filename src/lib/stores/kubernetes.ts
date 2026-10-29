@@ -445,38 +445,67 @@ export function triggerRefresh() {
   refreshTrigger.update(n => n + 1);
 }
 
-// Context polling for external changes (kubectx)
-let contextPollInterval: ReturnType<typeof setInterval> | null = null;
+// ---------- Shared context (spec 13.3) ----------
+// Rust owns the context: a switch from any window, the menu bar, or an
+// outside kubectx change is broadcast once as `context-changed { context,
+// seq }`, and every window applies it here. `seq` drops out-of-order events.
+export interface ContextChangedEvent {
+  context: string;
+  seq: number;
+}
 
-export function startContextPolling() {
-  if (contextPollInterval) return;
+let lastContextSeq = 0;
+let contextUnlisten: UnlistenFn | null = null;
 
-  contextPollInterval = setInterval(async () => {
-    try {
-      const current = await tauriInvoke<string>('get_current_context');
-      if (current !== _currentContext && current) {
-        // External context change detected
-        nodes.set([]);
-        nodeMetrics.set({});
-        pulseMetrics.set(null);
-        apiProbes.set({ ok: 0, total: 0, since: Date.now() });
-        currentContext.set(current);
-        selectedNamespace.set(null);
-        await loadContexts();
-        await loadNamespaces();
-        triggerRefresh();
-      }
-    } catch (e) {
-      // Silently ignore polling errors
-    }
-  }, 3000); // Check every 3 seconds
+/** Accept an event only if it's newer than the last one applied (pure, tested). */
+export function acceptContextEvent(lastSeq: number, ev: ContextChangedEvent): boolean {
+  return ev.seq > lastSeq && !!ev.context;
+}
+
+/**
+ * Bring this window's stores onto `contextName`: stop the old cluster's
+ * watches, drop anything that could collide across clusters, reload.
+ * Namespace selection is per window and resets on a switch.
+ */
+async function applyContextChange(contextName: string) {
+  if (!contextName || contextName === _currentContext) return;
+  isSwitchingContext.set(true);
+  try {
+    pulseMetrics.set(null);
+    apiProbes.set({ ok: 0, total: 0, since: Date.now() });
+    nodeMetrics.set({});
+    await stopPodWatch();
+    await stopDeploymentWatch();
+    await stopJobWatch();
+    await stopNodeWatch();
+    await stopEventWatch();
+    // Node names collide across clusters: never show the old cluster's nodes.
+    nodes.set([]);
+    currentContext.set(contextName);
+    selectedNamespace.set(null);
+    await loadContexts();
+    await loadNamespaces();
+    await loadClusterMetrics();
+    triggerRefresh();
+  } finally {
+    isSwitchingContext.set(false);
+  }
+}
+
+/** Listen for shared context changes (main windows). Idempotent. */
+export async function startContextPolling() {
+  if (contextUnlisten || typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
+  const { listen } = await import('@tauri-apps/api/event');
+  contextUnlisten = await listen<ContextChangedEvent>('context-changed', (event) => {
+    if (!acceptContextEvent(lastContextSeq, event.payload)) return;
+    lastContextSeq = event.payload.seq;
+    applyContextChange(event.payload.context).catch((e) => error.set(String(e)));
+  });
 }
 
 export function stopContextPolling() {
-  if (contextPollInterval) {
-    clearInterval(contextPollInterval);
-    contextPollInterval = null;
-  }
+  contextUnlisten?.();
+  contextUnlisten = null;
 }
 
 // Helper to check if context is ready
@@ -501,31 +530,17 @@ export async function loadContexts() {
   }
 }
 
+/**
+ * Switch the shared context. Rust writes the kubeconfig once and tells
+ * every window; this window applies it right away (the broadcast that
+ * follows is then a no-op here, by name).
+ */
 export async function switchContext(contextName: string) {
   try {
     isLoading.set(true);
     isSwitchingContext.set(true);
-    // Clear stale metrics so header shows currentContext name, not old cluster name
-    pulseMetrics.set(null);
-    apiProbes.set({ ok: 0, total: 0, since: Date.now() });
-    nodeMetrics.set({});
-    // Stop any active watch streams before switching
-    await stopPodWatch();
-    await stopDeploymentWatch();
-    await stopJobWatch();
-    await stopNodeWatch();
-    await stopEventWatch();
-    // Node names collide across clusters: never show the old cluster's nodes.
-    nodes.set([]);
     await tauriInvoke('switch_context', { contextName });
-    currentContext.set(contextName);
-    // Reset namespace selection when switching clusters
-    selectedNamespace.set(null);
-    // Reload contexts to update is_current flags
-    await loadContexts();
-    // Reload namespaces for the new cluster
-    await loadNamespaces();
-    await loadClusterMetrics();
+    await applyContextChange(contextName);
   } catch (e) {
     error.set(String(e));
   } finally {
