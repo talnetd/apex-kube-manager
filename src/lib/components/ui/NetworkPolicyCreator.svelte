@@ -2,7 +2,9 @@
   import { guard } from '../../stores/detail';
   import { invoke } from '@tauri-apps/api/core';
   import { currentContext, selectedNamespace, namespaces, loadNetworkPolicies } from '../../stores/kubernetes';
+  import { untrack } from 'svelte';
   import CustomSelect from './CustomSelect.svelte';
+  import { modal, escapeKeydown } from '../../actions/modal';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import { toast } from '../../stores/toast';
 
@@ -164,6 +166,24 @@
       createNamespace = $selectedNamespace || $namespaces[0] || 'default';
     }
   });
+
+  // Escape is a one-key close, so it never throws away typed input: with
+  // unsaved changes it only says how to discard them.
+  const formKey = $derived(JSON.stringify({ name, editNamespace, createNamespace, podSelectorLabels, policyTypes, ingressRules, egressRules }));
+  let baseline = $state('');
+  $effect(() => {
+    if (show) {
+      void editData; void $selectedNamespace; void $namespaces; // same triggers as the populate effect above
+      baseline = untrack(() => formKey);
+    }
+  });
+  function onEscape() {
+    if (formKey !== baseline) {
+      toast('Unsaved changes. Use Cancel to discard them.');
+      return;
+    }
+    handleClose();
+  }
 
   function reset() {
     name = '';
@@ -370,7 +390,7 @@
 
 {#if show}
   <div role="presentation" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onmousedown={(e) => e.target === e.currentTarget && handleClose()}>
-    <div role="dialog" aria-modal="true" aria-labelledby="np-title" tabindex="-1"
+    <div role="dialog" aria-modal="true" aria-labelledby="np-title" tabindex="-1" use:modal onkeydown={escapeKeydown(onEscape)}
       class="bg-bg-secondary rounded-lg border border-border-subtle w-[800px] max-w-[calc(100vw-16px)] max-h-[85vh] flex flex-col"
     >
       <!-- Header -->
