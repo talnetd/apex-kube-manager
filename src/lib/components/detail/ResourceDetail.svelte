@@ -1,6 +1,7 @@
 <script lang="ts">
   import { guard, detailReadOnly } from '../../stores/detail';
   import { onMount } from 'svelte';
+  import { modal } from '../../actions/modal';
   import { invoke } from '@tauri-apps/api/core';
   import YamlEditorPanel from '../ui/YamlEditorPanel.svelte';
   import MetadataSection from '../ui/MetadataSection.svelte';
@@ -1333,7 +1334,7 @@
     <!-- Add Taint Modal -->
     {#if showAddTaintModal}
       <div role="presentation" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onmousedown={(e) => { if (e.target === e.currentTarget && !taintActionLoading) showAddTaintModal = false; }}>
-        <div role="dialog" aria-modal="true" aria-labelledby="add-taint-title" tabindex="-1" class="bg-bg-secondary rounded-lg border border-line-strong w-full max-w-md mx-4">
+        <div role="dialog" aria-modal="true" aria-labelledby="add-taint-title" tabindex="-1" use:modal={() => { if (!taintActionLoading) showAddTaintModal = false; }} class="bg-bg-secondary rounded-lg border border-line-strong w-full max-w-md mx-4">
           <div class="flex items-center justify-between px-6 py-4 border-b border-border-subtle">
             <h3 id="add-taint-title" class="text-[18px]/7 font-semibold text-text-primary">Add Taint</h3>
             <button aria-label="Close"

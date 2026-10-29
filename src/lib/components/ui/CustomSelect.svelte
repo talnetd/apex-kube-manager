@@ -64,6 +64,7 @@
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
+      e.preventDefault(); // handled: an enclosing dialog stays open
       isOpen = false;
       buttonRef?.focus();
     }

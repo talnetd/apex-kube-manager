@@ -3,6 +3,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { currentContext, selectedNamespace, namespaces, loadNetworkPolicies } from '../../stores/kubernetes';
   import CustomSelect from './CustomSelect.svelte';
+  import { modal } from '../../actions/modal';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import { toast } from '../../stores/toast';
 
@@ -370,7 +371,7 @@
 
 {#if show}
   <div role="presentation" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onmousedown={(e) => e.target === e.currentTarget && handleClose()}>
-    <div role="dialog" aria-modal="true" aria-labelledby="np-title" tabindex="-1"
+    <div role="dialog" aria-modal="true" aria-labelledby="np-title" tabindex="-1" use:modal={handleClose}
       class="bg-bg-secondary rounded-lg border border-border-subtle w-[800px] max-w-[calc(100vw-16px)] max-h-[85vh] flex flex-col"
     >
       <!-- Header -->
