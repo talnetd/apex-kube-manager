@@ -92,6 +92,8 @@ pub struct DeploymentInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeploymentDetail {
+    /// Shared triage verdict, same as the list row (spec/triage/rules.md).
+    pub verdict: Verdict,
     pub name: String,
     pub namespace: String,
     pub uid: String,
@@ -146,6 +148,8 @@ pub struct StatefulSetInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatefulSetDetail {
+    /// Shared triage verdict, same as the list row (spec/triage/rules.md).
+    pub verdict: Verdict,
     pub name: String,
     pub namespace: String,
     pub uid: String,
@@ -1228,6 +1232,7 @@ pub async fn restart_deployment(client: &Client, namespace: &str, name: &str) ->
 pub async fn get_deployment_detail(client: &Client, namespace: &str, name: &str) -> Result<DeploymentDetail> {
     let deployments: Api<Deployment> = Api::namespaced(client.clone(), namespace);
     let deploy = deployments.get(name).await?;
+    let verdict = triage::deployment_verdict(&deploy, triage_now());
 
     let metadata = &deploy.metadata;
     let spec = deploy.spec.as_ref();
@@ -1276,6 +1281,7 @@ pub async fn get_deployment_detail(client: &Client, namespace: &str, name: &str)
         .unwrap_or_default();
 
     Ok(DeploymentDetail {
+        verdict,
         name: metadata.name.clone().unwrap_or_default(),
         namespace: metadata.namespace.clone().unwrap_or_default(),
         uid: metadata.uid.clone().unwrap_or_default(),
@@ -1510,6 +1516,7 @@ pub async fn restart_statefulset(client: &Client, namespace: &str, name: &str) -
 pub async fn get_statefulset_detail(client: &Client, namespace: &str, name: &str) -> Result<StatefulSetDetail> {
     let statefulsets: Api<StatefulSet> = Api::namespaced(client.clone(), namespace);
     let sts = statefulsets.get(name).await?;
+    let verdict = triage::statefulset_tracked(&sts, triage_now());
 
     let metadata = &sts.metadata;
     let spec = sts.spec.as_ref();
@@ -1562,6 +1569,7 @@ pub async fn get_statefulset_detail(client: &Client, namespace: &str, name: &str
         .unwrap_or_default();
 
     Ok(StatefulSetDetail {
+        verdict,
         name: metadata.name.clone().unwrap_or_default(),
         namespace: metadata.namespace.clone().unwrap_or_default(),
         uid: metadata.uid.clone().unwrap_or_default(),
@@ -3500,6 +3508,8 @@ fn try_parse_memory_quantity(quantity: &str) -> Option<i64> {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PodDetail {
+    /// Shared triage verdict, same as the list row (spec/triage/rules.md).
+    pub verdict: Verdict,
     pub name: String,
     pub namespace: String,
     pub uid: String,
@@ -3598,6 +3608,7 @@ pub struct PodEvent {
 pub async fn get_pod_detail(client: &Client, namespace: &str, name: &str) -> Result<PodDetail> {
     let pods: Api<Pod> = Api::namespaced(client.clone(), namespace);
     let pod = pods.get(name).await?;
+    let verdict = triage::pod_verdict(&pod, triage_now());
 
     let metadata = &pod.metadata;
     let spec = pod.spec.as_ref();
@@ -3852,6 +3863,7 @@ pub async fn get_pod_detail(client: &Client, namespace: &str, name: &str) -> Res
         .unwrap_or_default();
 
     Ok(PodDetail {
+        verdict,
         name: metadata.name.clone().unwrap_or_default(),
         namespace: metadata.namespace.clone().unwrap_or_default(),
         uid: metadata.uid.clone().unwrap_or_default(),
@@ -4111,6 +4123,8 @@ pub async fn get_secret_events(client: &Client, namespace: &str, name: &str) -> 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobDetail {
+    /// Shared triage verdict, same as the list row (spec/triage/rules.md).
+    pub verdict: Verdict,
     pub name: String,
     pub namespace: String,
     pub uid: String,
@@ -4158,6 +4172,7 @@ pub async fn get_job_detail(client: &Client, namespace: &str, name: &str) -> Res
     use k8s_openapi::api::batch::v1::Job;
     let jobs: Api<Job> = Api::namespaced(client.clone(), namespace);
     let job = jobs.get(name).await?;
+    let verdict = triage::job_verdict(&job, triage_now());
 
     let metadata = job.metadata;
     let spec = job.spec.unwrap_or_default();
@@ -4176,6 +4191,7 @@ pub async fn get_job_detail(client: &Client, namespace: &str, name: &str) -> Res
     }).collect();
 
     Ok(JobDetail {
+        verdict,
         name: metadata.name.unwrap_or_default(),
         namespace: metadata.namespace.unwrap_or_default(),
         uid: metadata.uid.unwrap_or_default(),
@@ -4335,6 +4351,8 @@ pub async fn get_cronjob_events(client: &Client, namespace: &str, name: &str) ->
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DaemonSetDetail {
+    /// Shared triage verdict, same as the list row (spec/triage/rules.md).
+    pub verdict: Verdict,
     pub name: String,
     pub namespace: String,
     pub uid: String,
@@ -4377,6 +4395,7 @@ pub struct DaemonSetEvent {
 pub async fn get_daemonset_detail(client: &Client, namespace: &str, name: &str) -> Result<DaemonSetDetail> {
     let daemonsets: Api<DaemonSet> = Api::namespaced(client.clone(), namespace);
     let ds = daemonsets.get(name).await?;
+    let verdict = triage::daemonset_tracked(&ds, triage_now());
 
     let metadata = ds.metadata;
     let spec = ds.spec.unwrap_or_default();
@@ -4399,6 +4418,7 @@ pub async fn get_daemonset_detail(client: &Client, namespace: &str, name: &str) 
         .unwrap_or_else(|| "RollingUpdate".to_string());
 
     Ok(DaemonSetDetail {
+        verdict,
         name: metadata.name.unwrap_or_default(),
         namespace: metadata.namespace.unwrap_or_default(),
         uid: metadata.uid.unwrap_or_default(),
@@ -4470,6 +4490,8 @@ pub async fn get_daemonset_pods(client: &Client, namespace: &str, daemonset_name
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReplicaSetDetail {
+    /// Shared triage verdict, same as the list row (spec/triage/rules.md).
+    pub verdict: Verdict,
     pub name: String,
     pub namespace: String,
     pub uid: String,
@@ -4516,6 +4538,7 @@ pub struct ReplicaSetEvent {
 pub async fn get_replicaset_detail(client: &Client, namespace: &str, name: &str) -> Result<ReplicaSetDetail> {
     let replicasets: Api<ReplicaSet> = Api::namespaced(client.clone(), namespace);
     let rs = replicasets.get(name).await?;
+    let verdict = triage::replicaset_tracked(&rs, triage_now());
 
     let metadata = rs.metadata;
     let spec = rs.spec.unwrap_or_default();
@@ -4544,6 +4567,7 @@ pub async fn get_replicaset_detail(client: &Client, namespace: &str, name: &str)
     }).collect();
 
     Ok(ReplicaSetDetail {
+        verdict,
         name: metadata.name.unwrap_or_default(),
         namespace: metadata.namespace.unwrap_or_default(),
         uid: metadata.uid.unwrap_or_default(),
@@ -5555,6 +5579,8 @@ pub async fn get_namespace_events(client: &Client, name: &str) -> Result<Vec<Nam
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeDetail {
+    /// Shared triage verdict, same as the list row (spec/triage/rules.md).
+    pub verdict: Verdict,
     pub name: String,
     pub uid: String,
     pub creation_timestamp: String,
@@ -5629,6 +5655,7 @@ pub struct NodeEvent {
 pub async fn get_node_detail(client: &Client, name: &str) -> Result<NodeDetail> {
     let nodes: Api<Node> = Api::all(client.clone());
     let node = nodes.get(name).await?;
+    let verdict = triage::node_verdict(&node, triage_now());
 
     let metadata = node.metadata;
     let spec = node.spec.unwrap_or_default();
@@ -5685,6 +5712,7 @@ pub async fn get_node_detail(client: &Client, name: &str) -> Result<NodeDetail> 
     };
 
     Ok(NodeDetail {
+        verdict,
         name: metadata.name.unwrap_or_default(),
         uid: metadata.uid.unwrap_or_default(),
         creation_timestamp: metadata.creation_timestamp

@@ -1,4 +1,8 @@
 <script lang="ts">
+  // Events as hairline rows like DataTable: type as an icon + word (only
+  // Warning is coloured), reason in mono, message under it, time right.
+  import StatusPill from './StatusPill.svelte';
+  import Button from './Button.svelte';
   interface ResourceEvent {
     event_type?: string;
     type?: string;
@@ -30,67 +34,97 @@
     return e.event_type || e.type || 'Normal';
   }
 
-  function getEventTypeColor(type: string): string {
-    return type === 'Warning' ? 'bg-accent-warning/20 text-warning' : 'bg-accent-success/20 text-success';
-  }
+
 </script>
 
 <div class="h-full flex flex-col">
-  <!-- Header Bar -->
-  <div class="flex items-center justify-between px-4 py-2 bg-bg-secondary border-b border-border-subtle">
-    <div class="flex items-center gap-2">
-      <span class="text-base text-text-muted">{resourceType} Events</span>
-      {#if isDeleted}
-        <span class="text-xs text-warning">(cached)</span>
-      {/if}
-    </div>
-    {#if onRefresh}
-      <button
-        onclick={onRefresh}
-        disabled={isDeleted}
-        class="text-xs px-3 py-1 bg-bg-tertiary rounded-sm hover:bg-border-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        Refresh
-      </button>
-    {/if}
+  <div class="ebar">
+    <span class="text-sm text-secondary">{events.length} {events.length === 1 ? 'event' : 'events'}{#if isDeleted}<span class="text-muted"> · cached</span>{/if}</span>
+    {#if onRefresh}<Button size="sm" disabled={isDeleted} onclick={onRefresh}>Refresh</Button>{/if}
   </div>
 
-  <!-- Events Content -->
-  <div class="flex-1 overflow-auto p-4">
+  <div class="flex-1 overflow-auto">
     {#if isLoading}
-      <div class="flex items-center justify-center h-full">
-        <div class="text-center">
-          <svg class="w-8 h-8 text-accent-text mx-auto mb-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          <p class="text-text-muted">Loading events...</p>
-        </div>
-      </div>
+      <p class="text-muted text-sm px-5 py-8">Loading events…</p>
     {:else if events.length > 0}
-      <div class="space-y-3">
+      <ul class="elist">
         {#each events as event}
-          <div class="bg-bg-secondary rounded-lg p-4">
-            <div class="flex items-start justify-between mb-2">
-              <div class="flex items-center gap-2">
-                <span class="text-xs px-2 py-0.5 rounded-sm {getEventTypeColor(getEventType(event))}">{getEventType(event)}</span>
-                <span class="font-medium text-text-primary">{event.reason}</span>
-                {#if event.count > 1}
-                  <span class="text-xs text-text-muted">x{event.count}</span>
-                {/if}
-              </div>
-              <span class="text-xs text-text-muted">{formatTime(event.last_timestamp) || formatTime(event.first_timestamp)}</span>
+          {@const warn = getEventType(event) === 'Warning'}
+          <li>
+            <div class="l1">
+              <StatusPill health={warn ? 'warning' : 'neutral'} label={getEventType(event)} variant="dot" />
+              <span class="reason">{event.reason}</span>
+              {#if event.count > 1}<span class="count">×{event.count}</span>{/if}
+              <span class="time">{formatTime(event.last_timestamp) || formatTime(event.first_timestamp)}</span>
             </div>
-            <p class="text-base text-text-secondary">{event.message}</p>
-            {#if event.source}
-              <p class="text-xs text-text-muted mt-1">Source: {event.source}</p>
-            {/if}
-          </div>
+            <p class="msg">{event.message}</p>
+            {#if event.source}<p class="src">{event.source}</p>{/if}
+          </li>
         {/each}
-      </div>
+      </ul>
     {:else}
-      <div class="flex items-center justify-center h-full">
-        <p class="text-text-muted">No events found</p>
-      </div>
+      <p class="text-muted text-sm px-5 py-8">No events for this {resourceType.toLowerCase()} in the last hour or so (the API server keeps them briefly).</p>
     {/if}
   </div>
 </div>
+
+<style>
+  .ebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 20px;
+    border-bottom: 1px solid var(--ui-line);
+  }
+  .elist {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .elist li {
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--ui-line);
+  }
+  .l1 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+  .reason {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--ui-primary);
+  }
+  .count {
+    font-size: 12px;
+    color: var(--ui-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .time {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--ui-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .msg {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--ui-secondary);
+    overflow-wrap: anywhere;
+  }
+  .src {
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: var(--ui-muted);
+  }
+  @media (max-width: 639.98px) {
+    .ebar,
+    .elist li {
+      padding-left: 12px;
+      padding-right: 12px;
+    }
+  }
+</style>

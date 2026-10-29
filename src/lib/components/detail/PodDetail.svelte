@@ -3,6 +3,12 @@
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import YamlEditorPanel from '../ui/YamlEditorPanel.svelte';
+  import EventsTable from '../ui/EventsTable.svelte';
+  import ConditionsTable from '../ui/ConditionsTable.svelte';
+  import Button from '../ui/Button.svelte';
+  import DetailToolbar from './kit/DetailToolbar.svelte';
+  import DetailTabs from './kit/DetailTabs.svelte';
+  import type { Verdict } from '../../utils/health';
   import CustomSelect from '../ui/CustomSelect.svelte';
 
   interface Props {
@@ -21,6 +27,7 @@
 
   // Pod detail data
   interface PodDetail {
+    verdict?: Verdict;
     name: string;
     namespace: string;
     uid: string;
@@ -123,8 +130,10 @@
   let lastSeen = $state<string | null>(null);
   let existenceInterval: ReturnType<typeof setInterval> | null = null;
 
-  onMount(async () => {
-    await loadPodDetail();
+  // Sync onMount so the cleanup below actually runs (an async one's return
+  // value is ignored, which leaked the intervals).
+  onMount(() => {
+    loadPodDetail();
 
     // Start polling for pod existence every 5 seconds
     existenceInterval = setInterval(checkPodExists, 5000);
@@ -321,13 +330,7 @@
     }
   }
 
-  function getConditionColor(status: string): string {
-    return status === 'True' ? 'text-success' : 'text-danger';
-  }
 
-  function getEventTypeColor(type: string): string {
-    return type === 'Normal' ? 'text-success bg-accent-success/10' : 'text-warning bg-accent-warning/10';
-  }
 
   async function openTerminal(containerName?: string) {
     if (!guard('exec')) return;
@@ -345,53 +348,33 @@
 </script>
 
 <div class="h-full flex flex-col">
-  <!-- Tabs -->
-  <div class="border-b border-border-subtle bg-bg-secondary">
-    <nav class="flex gap-1 px-4">
-      <button
-        onclick={() => handleTabChange('overview')}
-        class="px-4 py-3 text-base font-medium border-b-2 transition-colors {activeTab === 'overview' ? 'border-accent-primary text-accent-text' : 'border-transparent text-text-muted hover:text-text-primary'}"
+  <DetailToolbar
+    verdict={podDetail?.verdict}
+    summary={podDetail ? [podDetail.phase, podDetail.node_name].filter(Boolean).join(' · ') : undefined}
+  >
+    {#snippet actions()}
+      <Button size="sm" onclick={() => handleTabChange('logs')}>Logs</Button>
+      <Button
+        size="sm"
+        disabled={isDeleted || !podDetail?.containers?.length || $detailReadOnly}
+        onclick={() => openTerminal(podDetail?.containers?.[0]?.name)}>Exec</Button
       >
-        Overview
-      </button>
-      <button
-        onclick={() => handleTabChange('containers')}
-        class="px-4 py-3 text-base font-medium border-b-2 transition-colors {activeTab === 'containers' ? 'border-accent-primary text-accent-text' : 'border-transparent text-text-muted hover:text-text-primary'}"
-      >
-        Containers
-      </button>
-      <button
-        onclick={() => handleTabChange('env')}
-        class="px-4 py-3 text-base font-medium border-b-2 transition-colors {activeTab === 'env' ? 'border-accent-primary text-accent-text' : 'border-transparent text-text-muted hover:text-text-primary'}"
-      >
-        Env
-      </button>
-      <button
-        onclick={() => handleTabChange('volumes')}
-        class="px-4 py-3 text-base font-medium border-b-2 transition-colors {activeTab === 'volumes' ? 'border-accent-primary text-accent-text' : 'border-transparent text-text-muted hover:text-text-primary'}"
-      >
-        Volumes
-      </button>
-      <button
-        onclick={() => handleTabChange('events')}
-        class="px-4 py-3 text-base font-medium border-b-2 transition-colors {activeTab === 'events' ? 'border-accent-primary text-accent-text' : 'border-transparent text-text-muted hover:text-text-primary'}"
-      >
-        Events
-      </button>
-      <button
-        onclick={() => handleTabChange('logs')}
-        class="px-4 py-3 text-base font-medium border-b-2 transition-colors {activeTab === 'logs' ? 'border-accent-primary text-accent-text' : 'border-transparent text-text-muted hover:text-text-primary'}"
-      >
-        Logs
-      </button>
-      <button
-        onclick={() => handleTabChange('yaml')}
-        class="px-4 py-3 text-base font-medium border-b-2 transition-colors {activeTab === 'yaml' ? 'border-accent-primary text-accent-text' : 'border-transparent text-text-muted hover:text-text-primary'}"
-      >
-        YAML
-      </button>
-    </nav>
-  </div>
+    {/snippet}
+  </DetailToolbar>
+
+  <DetailTabs
+    tabs={[
+      { id: 'overview', label: 'Overview' },
+      { id: 'containers', label: 'Containers', count: podDetail ? podDetail.containers.length + podDetail.init_containers.length : undefined },
+      { id: 'env', label: 'Env' },
+      { id: 'volumes', label: 'Volumes' },
+      { id: 'events', label: 'Events' },
+      { id: 'logs', label: 'Logs' },
+      { id: 'yaml', label: 'YAML' },
+    ]}
+    active={activeTab}
+    onchange={(id) => handleTabChange(id as TabType)}
+  />
 
   <!-- Tombstone Banner - Pod deleted while window open -->
   {#if isDeleted}
@@ -435,62 +418,26 @@
         </div>
       </div>
     {:else if activeTab === 'overview' && podDetail}
-      <div class="p-6 space-y-6">
+      <div class="d-body">
         <!-- Status Section -->
         <section>
-          <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Status</h2>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="bg-bg-secondary rounded-lg p-4">
-              <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Phase</div>
-              <span class="text-base px-2 py-0.5 rounded-sm {getStatusColor(podDetail.phase)}">{podDetail.phase}</span>
-            </div>
-            <div class="bg-bg-secondary rounded-lg p-4">
-              <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Pod IP</div>
-              <code class="text-base text-text-primary">{podDetail.pod_ip || 'N/A'}</code>
-            </div>
-            <div class="bg-bg-secondary rounded-lg p-4">
-              <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Node</div>
-              <span class="text-base text-text-primary">{podDetail.node_name || 'N/A'}</span>
-            </div>
-            <div class="bg-bg-secondary rounded-lg p-4">
-              <div class="text-xs text-text-muted uppercase tracking-wide mb-1">Service Account</div>
-              <span class="text-base text-text-primary">{podDetail.service_account || 'default'}</span>
-            </div>
-          </div>
+          <h2 class="d-sec-title">Status</h2>
+          <dl class="d-props">
+            <div class="d-prop"><dt>Phase</dt><dd><span class="text-base px-2 py-0.5 rounded-sm {getStatusColor(podDetail.phase)}">{podDetail.phase}</span></dd></div>
+            <div class="d-prop"><dt>Pod IP</dt><dd><code class="text-base text-text-primary">{podDetail.pod_ip || 'N/A'}</code></dd></div>
+            <div class="d-prop"><dt>Node</dt><dd><span class="text-base text-text-primary">{podDetail.node_name || 'N/A'}</span></dd></div>
+            <div class="d-prop"><dt>Service Account</dt><dd><span class="text-base text-text-primary">{podDetail.service_account || 'default'}</span></dd></div>
+          </dl>
         </section>
 
-        <!-- Conditions Section -->
-        <section>
-          <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Conditions</h2>
-          <div class="bg-bg-secondary rounded-lg overflow-hidden">
-            <table class="w-full text-base">
-              <thead class="bg-bg-tertiary">
-                <tr>
-                  <th class="px-4 py-2 text-left text-xs text-text-muted uppercase">Type</th>
-                  <th class="px-4 py-2 text-left text-xs text-text-muted uppercase">Status</th>
-                  <th class="px-4 py-2 text-left text-xs text-text-muted uppercase">Reason</th>
-                  <th class="px-4 py-2 text-left text-xs text-text-muted uppercase">Last Transition</th>
-                </tr>
-              </thead>
-              <tbody>
-                {#each podDetail.conditions as condition}
-                  <tr class="border-t border-border-subtle">
-                    <td class="px-4 py-2 text-text-primary">{condition.type}</td>
-                    <td class="px-4 py-2 {getConditionColor(condition.status)}">{condition.status}</td>
-                    <td class="px-4 py-2 text-text-secondary">{condition.reason || '-'}</td>
-                    <td class="px-4 py-2 text-text-muted">{condition.last_transition_time || '-'}</td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <!-- Conditions -->
+        <ConditionsTable conditions={podDetail.conditions ?? []} />
 
         <!-- Labels & Annotations -->
         <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Labels</h2>
-            <div class="bg-bg-secondary rounded-lg p-4">
+            <h2 class="d-sec-title">Labels</h2>
+            <div class="d-frame p-3">
               {#if Object.keys(podDetail.labels).length > 0}
                 <div class="flex flex-wrap gap-2">
                   {#each Object.entries(podDetail.labels) as [key, value]}
@@ -505,7 +452,7 @@
             </div>
           </div>
           <div>
-            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Annotations</h2>
+            <h2 class="d-sec-title">Annotations</h2>
             <div class="bg-bg-secondary rounded-lg p-4 max-h-48 overflow-auto">
               {#if Object.keys(podDetail.annotations).length > 0}
                 <div class="space-y-1">
@@ -525,14 +472,14 @@
       </div>
 
     {:else if activeTab === 'containers' && podDetail}
-      <div class="p-6 space-y-6">
+      <div class="d-body">
         <!-- Init Containers -->
         {#if podDetail.init_containers.length > 0}
           <section>
-            <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Init Containers ({podDetail.init_containers.length})</h2>
+            <h2 class="d-sec-title">Init Containers ({podDetail.init_containers.length})</h2>
             <div class="space-y-4">
               {#each podDetail.init_containers as container}
-                <div class="bg-bg-secondary rounded-lg p-4">
+                <div class="d-frame p-3">
                   <div class="flex items-center justify-between mb-3">
                     <div class="flex items-center gap-2">
                       <div class="w-2 h-2 rounded-full {container.ready ? 'bg-accent-success' : 'bg-accent-error'}"></div>
@@ -566,10 +513,10 @@
 
         <!-- Containers -->
         <section>
-          <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Containers ({podDetail.containers.length})</h2>
+          <h2 class="d-sec-title">Containers ({podDetail.containers.length})</h2>
           <div class="space-y-4">
             {#each podDetail.containers as container}
-              <div class="bg-bg-secondary rounded-lg p-4">
+              <div class="d-frame p-3">
                 <div class="flex items-center justify-between mb-3">
                   <div class="flex items-center gap-2">
                     <div class="w-2 h-2 rounded-full {container.ready ? 'bg-accent-success' : 'bg-accent-error'}"></div>
@@ -692,10 +639,10 @@
       </div>
 
     {:else if activeTab === 'volumes' && podDetail}
-      <div class="p-6 space-y-6">
+      <div class="d-body">
         <!-- Volume Definitions -->
         <section>
-          <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Volumes ({podDetail.volumes.length})</h2>
+          <h2 class="d-sec-title">Volumes ({podDetail.volumes.length})</h2>
           {#if podDetail.volumes.length > 0}
             <div class="bg-bg-secondary rounded-lg overflow-hidden">
               <table class="w-full text-base">
@@ -733,11 +680,11 @@
 
         <!-- Volume Mounts by Container -->
         <section>
-          <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">Volume Mounts</h2>
+          <h2 class="d-sec-title">Volume Mounts</h2>
           <div class="space-y-4">
             {#each [...podDetail.containers, ...podDetail.init_containers] as container}
               {#if container.volume_mounts.length > 0}
-                <div class="bg-bg-secondary rounded-lg p-4">
+                <div class="d-frame p-3">
                   <h3 class="text-base font-medium text-text-primary mb-3">{container.name}</h3>
                   <div class="space-y-2">
                     {#each container.volume_mounts as mount}
@@ -894,49 +841,7 @@
       </div>
 
     {:else if activeTab === 'events'}
-      <div class="h-full flex flex-col">
-        <div class="flex items-center justify-between px-4 py-2 bg-bg-secondary border-b border-border-subtle">
-          <div class="flex items-center gap-2">
-            <span class="text-base text-text-muted">Pod Events</span>
-            {#if isDeleted}
-              <span class="text-xs text-warning">(cached)</span>
-            {/if}
-          </div>
-          <button
-            onclick={loadPodEvents}
-            disabled={isDeleted}
-            class="text-xs px-3 py-1 bg-bg-tertiary rounded-sm hover:bg-border-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Refresh
-          </button>
-        </div>
-        <div class="flex-1 overflow-auto p-4">
-          {#if podEvents.length > 0}
-            <div class="space-y-3">
-              {#each podEvents as event}
-                <div class="bg-bg-secondary rounded-lg p-4">
-                  <div class="flex items-start justify-between mb-2">
-                    <div class="flex items-center gap-2">
-                      <span class="text-xs px-2 py-0.5 rounded-sm {getEventTypeColor(event.type)}">{event.type}</span>
-                      <span class="font-medium text-text-primary">{event.reason}</span>
-                      {#if event.count > 1}
-                        <span class="text-xs text-text-muted">x{event.count}</span>
-                      {/if}
-                    </div>
-                    <span class="text-xs text-text-muted">{event.last_timestamp || event.first_timestamp}</span>
-                  </div>
-                  <p class="text-base text-text-secondary">{event.message}</p>
-                  <p class="text-xs text-text-muted mt-1">Source: {event.source}</p>
-                </div>
-              {/each}
-            </div>
-          {:else}
-            <div class="flex items-center justify-center h-full">
-              <p class="text-text-muted">No events found</p>
-            </div>
-          {/if}
-        </div>
-      </div>
+      <EventsTable events={podEvents} resourceType="Pod" isDeleted={isDeleted} onRefresh={loadPodEvents} />
     {/if}
   </div>
 </div>

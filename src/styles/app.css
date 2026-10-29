@@ -371,4 +371,104 @@
     font-weight: 500;
     vertical-align: 1px;
   }
+
+  /* ---------- Detail windows (Geist): label/value rows, small sections ---------- */
+  .d-body {
+    padding: 16px 20px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .d-sec-title {
+    margin: 0 0 8px;
+    font-size: 13px;
+    line-height: 20px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--ui-primary);
+  }
+  /* A property list: hairline rows, label column sized to content. */
+  .d-props {
+    display: grid;
+    /* Same label width in every section, so values line up down the page. */
+    grid-template-columns: 168px minmax(0, 1fr);
+    margin: 0;
+    border-top: 1px solid var(--ui-line);
+  }
+  .d-prop {
+    display: contents;
+  }
+  .d-prop > dt,
+  .d-prop > dd {
+    margin: 0;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--ui-line);
+    font-size: 13px;
+    line-height: 20px;
+    min-width: 0;
+  }
+  .d-prop > dt {
+    padding-right: 24px;
+    color: var(--ui-muted);
+    white-space: nowrap;
+  }
+  .d-prop > dd {
+    color: var(--ui-primary);
+    overflow-wrap: anywhere;
+  }
+  /* Narrow side panel: label above value. */
+  @media (max-width: 639.98px) {
+    .d-body {
+      padding: 12px 12px 24px;
+    }
+    .d-props {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .d-prop > dt {
+      padding-bottom: 0;
+      border-bottom: 0;
+      font-size: 12px;
+    }
+    .d-prop > dd {
+      padding-top: 2px;
+    }
+  }
+  /* Tables inside detail windows: same hairline look as DataTable. */
+  .d-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+  }
+  .d-table th {
+    height: 32px;
+    padding: 0 12px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--ui-muted);
+    border-bottom: 1px solid var(--ui-line);
+    white-space: nowrap;
+  }
+  .d-table td {
+    padding: 8px 12px;
+    vertical-align: top;
+    color: var(--ui-secondary);
+    border-bottom: 1px solid var(--ui-line);
+  }
+  .d-table tr:last-child td {
+    border-bottom: 0;
+  }
+  .d-table td:first-child {
+    color: var(--ui-primary);
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+  }
+  .d-frame {
+    border: 1px solid var(--ui-line);
+    border-radius: 8px;
+    overflow-x: auto;
+  }
 }

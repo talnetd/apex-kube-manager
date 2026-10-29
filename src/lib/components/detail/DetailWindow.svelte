@@ -10,6 +10,16 @@
   import { parseCrType } from '../../utils/resources';
   import { startDetailContextSync, access, switchBack } from '../../stores/detail';
   import { toast } from '../../stores/toast';
+  import { prodContextStore } from '../../stores/production';
+
+  // kubectl-style short kinds for the title bar tag.
+  const SHORT: Record<string, string> = {
+    pod: 'pod', deployment: 'deploy', statefulset: 'sts', daemonset: 'ds', replicaset: 'rs', job: 'job', cronjob: 'cronjob',
+    service: 'svc', ingress: 'ing', configmap: 'cm', secret: 'secret', networkpolicy: 'netpol', hpa: 'hpa', pv: 'pv',
+    pvc: 'pvc', namespace: 'ns', node: 'node', serviceaccount: 'sa', role: 'role', clusterrole: 'clusterrole',
+    rolebinding: 'rolebinding', clusterrolebinding: 'clusterrolebinding', storageclass: 'sc', endpointslice: 'endpointslice',
+    ingressclass: 'ingressclass', pdb: 'pdb', resourcequota: 'quota', limitrange: 'limits', priorityclass: 'pc', crd: 'crd',
+  };
 
   let switching = $state(false);
   async function doSwitchBack() {
@@ -62,7 +72,13 @@
   let resourceType = $state<ResourceType>('pod');
   // Custom resources: `cr|group|version|plural|Kind|scope` (utils/resources.ts).
   const crTarget = $derived(parseCrType(resourceType));
-  const typeLabel = $derived(crTarget ? crTarget.kind : resourceType);
+  const kindShort = $derived(crTarget ? crTarget.kind : (SHORT[resourceType] ?? resourceType));
+  // The prod marker follows the window's own (locked) context.
+  let isProd = $state(false);
+  $effect(() => {
+    if (!lockedContext) return;
+    return prodContextStore(lockedContext).subscribe((v) => (isProd = v));
+  });
   let resourceName = $state<string>('');
   let initialTab = $state<string>('');
   let isLoaded = $state<boolean>(false);
@@ -125,44 +141,21 @@
   }
 </script>
 
-<div class="h-screen flex flex-col bg-bg-primary overflow-hidden">
-  <!-- Header with locked context info -->
-  <header class="flex items-center px-4 py-3 bg-bg-secondary border-b border-border-subtle">
-    <div class="flex items-center gap-3" data-tauri-drag-region>
-      <svg class="w-5 h-5 text-accent-text pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={getResourceIcon(resourceType)} />
-      </svg>
-      <div class="pointer-events-none">
-        <h1 class="text-[18px]/7 font-semibold text-text-primary"><span class="capitalize">{typeLabel}</span>: {resourceName}</h1>
-        <div class="flex items-center gap-2 text-xs text-text-muted">
-          <span class="flex items-center gap-1">
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />
-            </svg>
-            {lockedContext}
-          </span>
-          {#if lockedNamespace}
-            <span class="text-text-muted">/</span>
-            <span class="flex items-center gap-1">
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-              </svg>
-              {lockedNamespace}
-            </span>
-          {/if}
-        </div>
-      </div>
-    </div>
-    <!-- Drag region spacer -->
-    <div class="flex-1 h-full cursor-grab active:cursor-grabbing" data-tauri-drag-region></div>
-    <!-- Locked view badge and window controls -->
-    <div class="flex items-center gap-2">
-      {#if $access.readOnly}
-        <span class="text-xs px-2 py-0.5 border border-line-strong text-secondary rounded-sm font-mono">Read-only</span>
-      {/if}
-      <div class="ml-2 pl-2 border-l border-border-subtle">
-        <WindowControls />
-      </div>
+<div class="h-screen flex flex-col bg-app overflow-hidden">
+  <!-- Title bar (Geist): kind, mono name, namespace · context. The status
+       and actions row sits under it, in each detail view. -->
+  <header class="wbar" data-tauri-drag-region>
+    <span class="ktag" data-tauri-drag-region>{kindShort}</span>
+    <h1 class="wname" title={resourceName} data-tauri-drag-region>{resourceName}</h1>
+    <span class="wmeta" data-tauri-drag-region>
+      {#if lockedNamespace}<span class="truncate">{lockedNamespace}</span><span aria-hidden="true">·</span>{/if}
+      <span class="truncate">{lockedContext}</span>
+      {#if isProd}<span class="prodtag">PROD</span>{/if}
+    </span>
+    <div class="flex-1 self-stretch min-w-4" data-tauri-drag-region></div>
+    {#if $access.readOnly}<span class="ro">Read-only</span>{/if}
+    <div class="pl-2 border-l border-line">
+      <WindowControls />
     </div>
   </header>
 
@@ -247,3 +240,68 @@
 </div>
 
 <Toaster />
+
+<style>
+  .wbar {
+    height: 44px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 8px 0 16px;
+    border-bottom: 1px solid var(--ui-line);
+    background: var(--ui-app);
+    min-width: 0;
+  }
+  .ktag {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 16px;
+    padding: 0 5px;
+    border: 1px solid var(--ui-line-strong);
+    border-radius: 4px;
+    color: var(--ui-secondary);
+  }
+  .wname {
+    margin: 0;
+    min-width: 0;
+    flex: 0 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--ui-primary);
+  }
+  .wmeta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: 12px;
+    color: var(--ui-muted);
+    white-space: nowrap;
+  }
+  .ro {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 0 5px;
+    border: 1px solid var(--ui-line-strong);
+    border-radius: 4px;
+    color: var(--ui-secondary);
+  }
+  /* Side panel: drop namespace/context from the bar (the banner and the
+     window list still say it), keep kind + name + controls. */
+  @media (max-width: 639.98px) {
+    .wmeta {
+      display: none;
+    }
+    .wbar {
+      padding-left: 12px;
+    }
+  }
+</style>

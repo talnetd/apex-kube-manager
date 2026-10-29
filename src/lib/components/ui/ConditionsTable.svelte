@@ -1,4 +1,6 @@
 <script lang="ts">
+  import StatusPill from './StatusPill.svelte';
+  import { conditionHealth } from '../../utils/conditions';
   interface Condition {
     type?: string;
     condition_type?: string;
@@ -17,7 +19,7 @@
   let { conditions, title = 'Conditions' }: Props = $props();
 
   function formatTime(time: string | null | undefined): string {
-    if (!time) return '-';
+    if (!time) return '–';
     const date = new Date(time);
     return date.toLocaleString();
   }
@@ -28,40 +30,29 @@
 </script>
 
 <section>
-  <h2 class="text-[18px]/7 font-semibold text-text-primary mb-4">{title}</h2>
-  <div class="bg-bg-secondary rounded-lg overflow-hidden">
-    <table class="w-full">
+  <h2 class="d-sec-title">{title}</h2>
+  <div class="d-frame">
+    <table class="d-table">
       <thead>
-        <tr class="text-left text-xs text-text-muted uppercase tracking-wide border-b border-border-subtle">
-          <th class="px-4 py-3">Type</th>
-          <th class="px-4 py-3">Status</th>
-          <th class="px-4 py-3">Reason</th>
-          <th class="px-4 py-3 hidden md:table-cell">Message</th>
-          <th class="px-4 py-3">Last Transition</th>
+        <tr>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Reason</th>
+          <th class="hidden md:table-cell">Message</th>
+          <th class="hidden sm:table-cell">Last transition</th>
         </tr>
       </thead>
       <tbody>
         {#each conditions as condition}
-          <tr class="border-b border-border-subtle last:border-0 hover:bg-bg-tertiary/50">
-            <td class="px-4 py-3 text-text-primary font-medium">{getConditionType(condition)}</td>
-            <td class="px-4 py-3">
-              <span class="inline-flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full {condition.status === 'True' ? 'bg-accent-success' : condition.status === 'False' ? 'bg-accent-error' : 'bg-accent-warning'}"></span>
-                <span class="text-text-secondary">{condition.status}</span>
-              </span>
-            </td>
-            <td class="px-4 py-3 text-text-secondary text-base">{condition.reason || '-'}</td>
-            <td class="px-4 py-3 text-text-muted text-base hidden md:table-cell max-w-xs truncate" title={condition.message || ''}>
-              {condition.message || '-'}
-            </td>
-            <td class="px-4 py-3 text-text-muted text-base">
-              {formatTime(condition.last_transition_time || condition.last_update_time)}
-            </td>
+          <tr>
+            <td>{getConditionType(condition)}</td>
+            <td><StatusPill health={conditionHealth(getConditionType(condition), condition.status)} label={condition.status} variant="dot" /></td>
+            <td>{condition.reason || '–'}</td>
+            <td class="hidden md:table-cell max-w-xs truncate" title={condition.message || ''}>{condition.message || '–'}</td>
+            <td class="hidden sm:table-cell tabular-nums text-muted">{formatTime(condition.last_transition_time || condition.last_update_time)}</td>
           </tr>
         {:else}
-          <tr>
-            <td colspan="5" class="px-4 py-8 text-center text-text-muted">No conditions</td>
-          </tr>
+          <tr><td colspan="5" class="text-center text-muted py-6">No conditions</td></tr>
         {/each}
       </tbody>
     </table>

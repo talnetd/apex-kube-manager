@@ -2,6 +2,9 @@
   import { guard, detailReadOnly } from '../../stores/detail';
   import { invoke } from '@tauri-apps/api/core';
   import YamlEditor from './YamlEditor.svelte';
+  import Button from './Button.svelte';
+  import ConfirmDialog from './ConfirmDialog.svelte';
+  import { toast } from '../../stores/toast';
 
   interface Props {
     yaml: string;
@@ -39,45 +42,56 @@
     editedYaml = newContent;
   }
 
+  // Discarding unsaved edits asks first (ConfirmDialog, no native confirm()).
+  let confirmDiscard = $state(false);
+  let confirmApply = $state(false);
+
   async function handleRefresh() {
     if (isEditing) {
-      // If editing, ask for confirmation
-      if (!confirm('You have unsaved changes. Discard and refresh?')) {
-        return;
-      }
-      cancelEditing();
+      confirmDiscard = true;
+      return;
     }
     await onRefresh();
   }
 
-  async function saveYaml() {
+  async function discardAndRefresh() {
+    cancelEditing();
+    await onRefresh();
+  }
+
+  function saveYaml() {
     if (!guard('apply')) return;
     if (isDeleted || !editedYaml) return;
+    confirmApply = true;
+  }
 
+  // Runs from the ConfirmDialog (prod guard applies); throws so it shows errors.
+  async function doApply() {
+    if (!guard('apply')) throw new Error('Switch back to this context to apply');
+    isSaving = true;
+    saveMessage = null;
     try {
-      isSaving = true;
-      saveMessage = null;
       const result = await invoke<string>('apply_yaml', {
         contextName: context,
-        yamlContent: editedYaml
+        yamlContent: editedYaml,
       });
-      saveMessage = { type: 'success', text: result || 'Applied successfully' };
+      saveMessage = { type: 'success', text: result || 'Applied' };
       isEditing = false;
       editedYaml = '';
-      // Reload the YAML and detail
       await onRefresh();
-      if (onApplySuccess) {
-        await onApplySuccess();
-      }
-    } catch (e) {
-      saveMessage = { type: 'error', text: String(e) };
+      if (onApplySuccess) await onApplySuccess();
     } finally {
       isSaving = false;
     }
   }
 
   async function copyYaml() {
-    await navigator.clipboard.writeText(isEditing ? editedYaml : yaml);
+    try {
+      await navigator.clipboard.writeText(isEditing ? editedYaml : yaml);
+      toast('Copied YAML');
+    } catch {
+      toast("Couldn't copy to clipboard", { health: 'failed' });
+    }
   }
 
   // Reset edit state when yaml prop changes significantly (e.g., switching resources)
@@ -97,77 +111,104 @@
 </script>
 
 <div class="h-full flex flex-col">
-  <div class="flex items-center justify-between px-4 py-2 bg-bg-secondary border-b border-border-subtle">
-    <div class="flex items-center gap-2">
-      <span class="text-base text-text-muted">{resourceType} YAML Manifest</span>
+  <div class="ybar">
+    <span class="text-sm text-secondary">
+      {resourceType} manifest
+      {#if isEditing}<span class="editing">editing</span>{/if}
+    </span>
+    <div class="flex items-center gap-1.5">
       {#if isEditing}
-        <span class="text-xs px-2 py-0.5 rounded-sm bg-accent-warning/20 text-warning">Editing</span>
-      {/if}
-    </div>
-    <div class="flex items-center gap-2">
-      {#if isEditing}
-        <button
-          onclick={cancelEditing}
-          disabled={isSaving}
-          class="text-xs px-3 py-1 bg-bg-tertiary rounded-sm hover:bg-border-subtle transition-colors disabled:opacity-50"
+        <Button size="sm" variant="ghost" disabled={isSaving} onclick={cancelEditing}>Cancel</Button>
+        <Button
+          size="sm"
+          variant="primary"
+          loading={isSaving}
+          disabled={isDeleted || $detailReadOnly}
+          title={$detailReadOnly ? 'Read-only: the app moved to another context' : undefined}
+          onclick={saveYaml}>Apply…</Button
         >
-          Cancel
-        </button>
-        <button
-          onclick={saveYaml}
-          disabled={isSaving || isDeleted || $detailReadOnly}
-          class="text-xs px-3 py-1 bg-btn text-on-btn rounded-sm hover:opacity-90 transition-colors disabled:opacity-50 flex items-center gap-1"
-        >
-          {#if isSaving}
-            <svg class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Applying...
-          {:else}
-            Apply
-          {/if}
-        </button>
       {:else}
-        <button
-          onclick={copyYaml}
-          disabled={!yaml}
-          class="text-xs px-3 py-1 bg-bg-tertiary rounded-sm hover:bg-border-subtle transition-colors disabled:opacity-50"
-        >
-          Copy
-        </button>
-        <button
-          onclick={startEditing}
+        <Button size="sm" disabled={!yaml} onclick={copyYaml}>Copy</Button>
+        <Button
+          size="sm"
           disabled={isDeleted || !yaml || $detailReadOnly}
-          class="text-xs px-3 py-1 bg-accent-primary/10 text-accent-text rounded-sm hover:bg-accent-primary/20 transition-colors disabled:opacity-50"
+          title={$detailReadOnly ? 'Read-only: the app moved to another context' : undefined}
+          onclick={startEditing}>Edit</Button
         >
-          Edit
-        </button>
-        <button
-          onclick={handleRefresh}
-          disabled={isDeleted}
-          class="text-xs px-3 py-1 bg-bg-tertiary rounded-sm hover:bg-border-subtle transition-colors disabled:opacity-50"
-        >
-          Refresh
-        </button>
+        <Button size="sm" variant="ghost" disabled={isDeleted} onclick={handleRefresh}>Refresh</Button>
       {/if}
     </div>
   </div>
   {#if saveMessage}
-    <div class="px-4 py-2 text-base {saveMessage.type === 'success' ? 'bg-accent-success/10 text-success' : 'bg-accent-error/10 text-danger'}">
-      {saveMessage.text}
-    </div>
+    <div class="msg" class:err={saveMessage.type === 'error'} role={saveMessage.type === 'error' ? 'alert' : 'status'}>{saveMessage.text}</div>
   {/if}
   <div class="flex-1 overflow-hidden">
     {#if yaml || isEditing}
-      <YamlEditor
-        content={isEditing ? editedYaml : yaml}
-        readonly={!isEditing}
-        onchange={handleYamlChange}
-      />
+      <YamlEditor content={isEditing ? editedYaml : yaml} readonly={!isEditing} onchange={handleYamlChange} />
     {:else}
-      <div class="flex items-center justify-center h-full text-text-muted">
-        Loading YAML...
-      </div>
+      <p class="text-muted text-sm px-5 py-8">Loading YAML…</p>
     {/if}
   </div>
 </div>
+
+{#if confirmApply}
+  <ConfirmDialog
+    open={true}
+    title={`Apply changes to this ${resourceType.toLowerCase()}?`}
+    resource={{ kind: resourceType, name: 'manifest', context }}
+    confirmLabel="Apply"
+    body="kubectl apply with the edited manifest. Fields you removed may be pruned by the API server."
+    onConfirm={doApply}
+    onClose={() => (confirmApply = false)}
+  />
+{:else if confirmDiscard}
+  <ConfirmDialog
+    open={true}
+    title="Discard your edits?"
+    resource={{ kind: resourceType, name: 'manifest', context }}
+    confirmLabel="Discard and refresh"
+    tone="danger"
+    prodEscalation={false}
+    body="Refreshing loads the live manifest and drops what you typed."
+    onConfirm={discardAndRefresh}
+    onClose={() => (confirmDiscard = false)}
+  />
+{/if}
+
+<style>
+  .ybar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 20px;
+    border-bottom: 1px solid var(--ui-line);
+  }
+  .editing {
+    margin-left: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 0 5px;
+    border: 1px solid color-mix(in srgb, var(--ui-warning) 55%, transparent);
+    border-radius: 4px;
+    color: var(--ui-warning);
+  }
+  .msg {
+    padding: 8px 20px;
+    font-size: 13px;
+    color: var(--ui-secondary);
+    border-bottom: 1px solid var(--ui-line);
+    overflow-wrap: anywhere;
+  }
+  .msg.err {
+    color: var(--ui-danger);
+  }
+  @media (max-width: 639.98px) {
+    .ybar,
+    .msg {
+      padding-left: 12px;
+      padding-right: 12px;
+    }
+  }
+</style>
