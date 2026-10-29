@@ -7,6 +7,7 @@
   import StatefulSetDetail from './StatefulSetDetail.svelte';
   // Unified component for all other resource types
   import ResourceDetail from './ResourceDetail.svelte';
+  import { parseCrType } from '../../utils/resources';
   // Window controls
   import WindowControls from '../ui/WindowControls.svelte';
   import Toaster from '../ui/Toaster.svelte';
@@ -26,19 +27,28 @@
   // Resource types that can be displayed
   type ResourceType = 'pod' | 'deployment' | 'statefulset' | 'daemonset' | 'replicaset' |
                       'job' | 'cronjob' | 'service' | 'ingress' | 'configmap' | 'secret' |
-                      'pv' | 'pvc' | 'node' | 'namespace' | 'serviceaccount' | 'hpa' | 'networkpolicy';
+                      'pv' | 'pvc' | 'node' | 'namespace' | 'serviceaccount' | 'hpa' | 'networkpolicy' |
+                      'role' | 'clusterrole' | 'rolebinding' | 'clusterrolebinding' | 'storageclass' |
+                      'endpointslice' | 'ingressclass' | 'pdb' | 'resourcequota' | 'limitrange' |
+                      'priorityclass' | 'crd';
 
   // Resource types that use the unified ResourceDetail component
   const unifiedResourceTypes = new Set<ResourceType>([
     'daemonset', 'replicaset', 'job', 'cronjob', 'service', 'ingress',
     'configmap', 'secret', 'networkpolicy', 'hpa', 'pv', 'pvc',
-    'namespace', 'node', 'serviceaccount'
+    'namespace', 'node', 'serviceaccount',
+    'role', 'clusterrole', 'rolebinding', 'clusterrolebinding', 'storageclass',
+    'endpointslice', 'ingressclass', 'pdb', 'resourcequota', 'limitrange',
+    'priorityclass', 'crd'
   ]);
 
   // Locked context from URL params - never changes after mount
   let lockedContext = $state<string>('');
   let lockedNamespace = $state<string>('');
   let resourceType = $state<ResourceType>('pod');
+  // Custom resources: `cr|group|version|plural|Kind|scope` (utils/resources.ts).
+  const crTarget = $derived(parseCrType(resourceType));
+  const typeLabel = $derived(crTarget ? crTarget.kind : resourceType);
   let resourceName = $state<string>('');
   let initialTab = $state<string>('');
   let isLoaded = $state<boolean>(false);
@@ -61,7 +71,8 @@
     }
 
     // Update window title (capitalize resource type only)
-    const capitalizedType = resourceType.charAt(0).toUpperCase() + resourceType.slice(1);
+    const label = parseCrType(resourceType)?.kind ?? resourceType;
+    const capitalizedType = label.charAt(0).toUpperCase() + label.slice(1);
     document.title = `${capitalizedType}: ${resourceName}`;
 
     // Add keyboard listener for Cmd+W
@@ -73,7 +84,7 @@
   });
 
   function getResourceIcon(type: ResourceType): string {
-    const icons: Record<ResourceType, string> = {
+    const icons: Partial<Record<ResourceType, string>> = {
       pod: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
       deployment: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z',
       statefulset: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
@@ -93,7 +104,7 @@
       hpa: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6',
       networkpolicy: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'
     };
-    return icons[type] || icons.pod;
+    return icons[type] || icons.pod!;
   }
 </script>
 
@@ -105,7 +116,7 @@
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={getResourceIcon(resourceType)} />
       </svg>
       <div class="pointer-events-none">
-        <h1 class="text-[18px]/7 font-semibold text-text-primary"><span class="capitalize">{resourceType}</span>: {resourceName}</h1>
+        <h1 class="text-[18px]/7 font-semibold text-text-primary"><span class="capitalize">{typeLabel}</span>: {resourceName}</h1>
         <div class="flex items-center gap-2 text-xs text-text-muted">
           <span class="flex items-center gap-1">
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -179,7 +190,7 @@
         name={resourceName}
       />
     <!-- Unified component for all other resource types -->
-    {:else if unifiedResourceTypes.has(resourceType)}
+    {:else if unifiedResourceTypes.has(resourceType) || crTarget}
       <ResourceDetail
         resourceType={resourceType}
         context={lockedContext}

@@ -3,6 +3,7 @@ mod error;
 mod kubernetes;
 mod portforward;
 mod pty;
+mod resources;
 mod triage;
 mod updates;
 mod watch;
@@ -236,6 +237,25 @@ pub fn run() {
             commands::get_serviceaccount_detail,
             commands::get_serviceaccount_yaml,
             commands::get_serviceaccount_events,
+            commands::get_roles,
+            commands::get_cluster_roles,
+            commands::get_role_bindings,
+            commands::get_cluster_role_bindings,
+            commands::get_storage_classes,
+            commands::get_endpoint_slices,
+            commands::get_ingress_classes,
+            commands::get_pdbs,
+            commands::get_resource_quotas,
+            commands::get_limit_ranges,
+            commands::get_priority_classes,
+            commands::get_crds,
+            commands::get_custom_resources,
+            commands::get_resource_detail,
+            commands::get_resource_yaml,
+            commands::get_resource_events,
+            commands::get_custom_resource_detail,
+            commands::get_custom_resource_yaml,
+            commands::get_custom_resource_events,
             commands::get_events,
             commands::get_cluster_metrics,
             commands::get_pulse_metrics,

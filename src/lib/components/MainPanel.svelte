@@ -25,6 +25,20 @@
   import NodeList from './views/NodeList.svelte';
   import ServiceAccountList from './views/ServiceAccountList.svelte';
   import EventList from './views/EventList.svelte';
+  // More resources (spec 12)
+  import RoleList from './views/more/RoleList.svelte';
+  import ClusterRoleList from './views/more/ClusterRoleList.svelte';
+  import RoleBindingList from './views/more/RoleBindingList.svelte';
+  import ClusterRoleBindingList from './views/more/ClusterRoleBindingList.svelte';
+  import StorageClassList from './views/more/StorageClassList.svelte';
+  import EndpointSliceList from './views/more/EndpointSliceList.svelte';
+  import IngressClassList from './views/more/IngressClassList.svelte';
+  import PdbList from './views/more/PdbList.svelte';
+  import ResourceQuotaList from './views/more/ResourceQuotaList.svelte';
+  import LimitRangeList from './views/more/LimitRangeList.svelte';
+  import PriorityClassList from './views/more/PriorityClassList.svelte';
+  import CrdList from './views/more/CrdList.svelte';
+  import CustomResourceBrowser from './views/more/CustomResourceBrowser.svelte';
 
   interface Props {
     view: View;
@@ -79,6 +93,33 @@
     <ServiceAccountList />
   {:else if view === 'events'}
     <EventList />
+  <!-- More resources -->
+  {:else if view === 'roles'}
+    <RoleList />
+  {:else if view === 'clusterroles'}
+    <ClusterRoleList />
+  {:else if view === 'rolebindings'}
+    <RoleBindingList />
+  {:else if view === 'clusterrolebindings'}
+    <ClusterRoleBindingList />
+  {:else if view === 'storageclasses'}
+    <StorageClassList />
+  {:else if view === 'endpointslices'}
+    <EndpointSliceList />
+  {:else if view === 'ingressclasses'}
+    <IngressClassList />
+  {:else if view === 'pdbs'}
+    <PdbList />
+  {:else if view === 'resourcequotas'}
+    <ResourceQuotaList />
+  {:else if view === 'limitranges'}
+    <LimitRangeList />
+  {:else if view === 'priorityclasses'}
+    <PriorityClassList />
+  {:else if view === 'crds'}
+    <CrdList />
+  {:else if view === 'customresources'}
+    <CustomResourceBrowser />
   {:else}
     <div class="flex items-center justify-center h-full">
       <div class="text-center">

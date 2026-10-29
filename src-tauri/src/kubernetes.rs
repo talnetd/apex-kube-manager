@@ -25,7 +25,7 @@ fn triage_now() -> k8s_openapi::jiff::Timestamp {
 /// chrono `DateTime`. Everything here (and the string format the frontend
 /// receives) was built on chrono, so convert at the edge. `to_rfc3339` keeps
 /// chrono's exact output (`+00:00` offset, not jiff's `Z`).
-trait TimestampExt {
+pub(crate) trait TimestampExt {
     fn to_chrono(&self) -> chrono::DateTime<chrono::Utc>;
 
     fn to_rfc3339(&self) -> String {
@@ -3415,7 +3415,7 @@ fn pod_to_pod_info(pod: &Pod) -> PodInfo {
     }
 }
 
-fn get_age(timestamp: Option<&k8s_openapi::apimachinery::pkg::apis::meta::v1::Time>) -> String {
+pub(crate) fn get_age(timestamp: Option<&k8s_openapi::apimachinery::pkg::apis::meta::v1::Time>) -> String {
     timestamp
         .map(|ts| {
             let now = chrono::Utc::now();
