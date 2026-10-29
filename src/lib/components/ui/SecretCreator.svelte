@@ -106,8 +106,7 @@
     }
   });
 
-  // Escape is a one-key close, so it never throws away typed input: with
-  // unsaved changes it only says how to discard them.
+  // Unsaved-changes check: the form as it was when the editor opened.
   const formKey = $derived(JSON.stringify({ name, editNamespace, createNamespace, secretType, entries: dataEntries.map((e) => [e.key, e.value]) }));
   let baseline = $state('');
   $effect(() => {
@@ -116,13 +115,17 @@
       baseline = untrack(() => formKey);
     }
   });
-  function onEscape() {
+  // One close rule for Escape, Cancel, × and the backdrop: unsaved edits
+  // ask first, a clean form just closes.
+  let confirmDiscard = $state(false);
+  function requestClose() {
     if (formKey !== baseline) {
-      toast('Unsaved changes. Use Cancel to discard them.');
+      confirmDiscard = true;
       return;
     }
     handleClose();
   }
+
 
   function reset() {
     name = '';
@@ -213,15 +216,15 @@
 </script>
 
 {#if show}
-  <div role="presentation" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onmousedown={(e) => e.target === e.currentTarget && handleClose()}>
-    <div role="dialog" aria-modal="true" aria-labelledby="sc-title" tabindex="-1" use:modal onkeydown={escapeKeydown(onEscape)}
+  <div role="presentation" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onmousedown={(e) => e.target === e.currentTarget && requestClose()}>
+    <div role="dialog" aria-modal="true" aria-labelledby="sc-title" tabindex="-1" use:modal onkeydown={escapeKeydown(requestClose)}
       class="bg-bg-secondary rounded-lg border border-border-subtle w-[600px] max-w-[calc(100vw-16px)] max-h-[85vh] flex flex-col"
     >
       <!-- Header -->
       <div class="flex items-center justify-between p-4 border-b border-border-subtle">
         <h2 id="sc-title" class="text-[18px]/7 font-semibold text-text-primary">{isEditMode ? 'Edit' : 'Create'} Secret</h2>
         <button aria-label="Close"
-          onclick={handleClose}
+          onclick={requestClose}
           class="p-1 hover:bg-bg-tertiary rounded-sm transition-colors"
         >
           <svg class="w-5 h-5 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -390,7 +393,7 @@
         {/if}
         <div class="flex gap-3">
           <button
-            onclick={handleClose}
+            onclick={requestClose}
             class="px-4 py-2 text-base text-text-secondary hover:text-text-primary transition-colors"
           >
             Cancel
@@ -425,5 +428,23 @@
         handleClose();
       }
     }}
+  />
+{/if}
+
+{#if show && confirmDiscard}
+  <ConfirmDialog
+    open={true}
+    title="Discard changes?"
+    resource={{ kind: 'Secret', name: name || 'new secret', namespace: editNamespace ?? createNamespace, context }}
+    body="Your edits to this secret haven't been saved."
+    confirmLabel="Discard"
+    tone="danger"
+    tier={1}
+    prodEscalation={false}
+    onConfirm={() => {
+      confirmDiscard = false;
+      handleClose();
+    }}
+    onClose={() => (confirmDiscard = false)}
   />
 {/if}

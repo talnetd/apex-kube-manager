@@ -25,6 +25,7 @@ describe('escapeKeydown', () => {
     const close = vi.fn();
     escapeKeydown(close)(key({ key: 'Escape', isComposing: true }));
     escapeKeydown(close)(key({ key: 'Enter' }));
+    escapeKeydown(close)(key({ key: 'Escape', keyCode: 229 }));
     expect(close).not.toHaveBeenCalled();
   });
 });

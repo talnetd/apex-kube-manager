@@ -19,7 +19,8 @@ export function modal(node: HTMLElement) {
 export function escapeKeydown(close: () => void) {
   return (e: KeyboardEvent) => {
     // Escape during IME composition belongs to the input method.
-    if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing) return;
+    // (Safari reports some composition keys only as keyCode 229.)
+    if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing || e.keyCode === 229) return;
     e.preventDefault();
     e.stopPropagation(); // don't also clear the list selection behind
     close();
