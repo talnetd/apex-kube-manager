@@ -1223,27 +1223,6 @@ export async function loadAllResources(namespace?: string | null) {
   ]);
 }
 
-export async function getPodLogs(
-  namespace: string,
-  podName: string,
-  container?: string,
-  tailLines?: number,
-  previous?: boolean
-): Promise<string> {
-  if (!isContextReady()) return '';
-  try {
-    return await tauriInvoke<string>('get_pod_logs', {
-      namespace,
-      podName,
-      container,
-      tailLines,
-      previous,
-    });
-  } catch (e) {
-    error.set(String(e));
-    return '';
-  }
-}
 
 export async function openTerminalWindow(
   namespace: string,
@@ -1263,14 +1242,6 @@ export async function openTerminalWindow(
   }
 }
 
-// Derived stores
-export const filteredPods = derived(
-  [pods, selectedNamespace],
-  ([$pods, $selectedNamespace]) => {
-    if (!$selectedNamespace) return $pods;
-    return $pods.filter((pod) => pod.namespace === $selectedNamespace);
-  }
-);
 
 export interface HealthBuckets<T> {
   all: T[];

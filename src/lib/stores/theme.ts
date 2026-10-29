@@ -99,14 +99,3 @@ export function setTheme(newTheme: Theme) {
   theme.set(newTheme);
 }
 
-// Helper function to toggle between light and dark (skips system)
-export function toggleTheme() {
-  theme.update((current: Theme) => {
-    if (current === "light") return "dark";
-    if (current === "dark") return "light";
-
-    // If current is system, toggle to opposite of current system theme
-    const systemTheme = getSystemTheme();
-    return systemTheme === "dark" ? "light" : "dark";
-  });
-}

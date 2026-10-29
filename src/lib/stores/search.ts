@@ -43,7 +43,7 @@ export const searchQuery = writable<string>('');
 export const globalSearchOpen = writable<boolean>(false);
 
 // Generic filter function for any resource type
-export function filterBySearch<T extends Record<string, unknown>>(
+export function filterBySearch<T extends object>(
   items: T[],
   query: string,
   fields: (keyof T)[]
