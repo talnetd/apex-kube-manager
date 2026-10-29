@@ -31,6 +31,7 @@
     requireTyping,
     prodEscalation = true,
     successMessage,
+    confirmDisabled = false,
     onConfirm,
     onClose,
   }: {
@@ -45,6 +46,8 @@
     prodEscalation?: boolean;
     /** Toast shown after onConfirm resolves. */
     successMessage?: string;
+    /** Extra gate from the call site, e.g. an invalid input in the body. */
+    confirmDisabled?: boolean;
     onConfirm: () => Promise<void> | void;
     onClose?: () => void;
   } = $props();
@@ -70,7 +73,7 @@
   let inputEl = $state<HTMLInputElement>();
   let returnFocus: HTMLElement | null = null;
 
-  const canConfirm = $derived(!busy && typedMatches(behavior, typed));
+  const canConfirm = $derived(!busy && !confirmDisabled && typedMatches(behavior, typed));
 
   // Open / close side effects: reset state, move focus in, restore on close.
   let wasOpen = false;

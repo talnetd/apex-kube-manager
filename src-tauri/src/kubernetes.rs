@@ -82,6 +82,9 @@ pub struct DeploymentInfo {
     pub name: String,
     pub namespace: String,
     pub ready: String,
+    /// spec.replicas: the desired count. `ready` uses status.replicas, which
+    /// includes surge pods during a rollout, so scaling is diffed on this.
+    pub desired: i32,
     pub up_to_date: i32,
     pub available: i32,
     pub age: String,
@@ -886,6 +889,7 @@ pub fn deployment_to_info(deploy: &Deployment) -> Option<DeploymentInfo> {
         name: metadata.name.clone()?,
         namespace: metadata.namespace.clone().unwrap_or_default(),
         ready: format!("{}/{}", ready, replicas),
+        desired: deploy.spec.as_ref().and_then(|s| s.replicas).unwrap_or(1),
         up_to_date: updated,
         available,
         age: get_age(metadata.creation_timestamp.as_ref()),
@@ -1174,6 +1178,7 @@ pub async fn list_deployments(client: &Client, namespace: Option<&str>) -> Resul
                 name: metadata.name.clone().unwrap_or_default(),
                 namespace: metadata.namespace.clone().unwrap_or_default(),
                 ready: format!("{}/{}", ready, replicas),
+                desired: deploy.spec.as_ref().and_then(|s| s.replicas).unwrap_or(1),
                 up_to_date: updated,
                 available,
                 age: get_age(metadata.creation_timestamp.as_ref()),

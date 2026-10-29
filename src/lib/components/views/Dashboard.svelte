@@ -1,342 +1,664 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { pulseMetrics, selectedNamespace, currentContext, loadPulseMetrics, type ResourceCount } from '../../stores/kubernetes';
-  import { currentView, type View } from '../../stores/navigation';
+  // Pulse (spec 6, approved Geist preview v5): KPI strip, health grid,
+  // CPU/Memory/Disk with 1h history, activity feed and the issues table with
+  // a side sheet. Health is the Rust triage verdict on each object.
+  import './pulse/pulse.css';
+  import { onMount, onDestroy, untrack } from 'svelte';
+  import { get } from 'svelte/store';
+  import { anchorSelection } from '../../utils/selection';
+  import { invoke } from '@tauri-apps/api/core';
+  import {
+    currentContext,
+    selectedNamespace,
+    refreshTrigger,
+    pulseMetrics,
+    pods,
+    clusterEvents,
+    lastSyncedAt,
+    apiProbes,
+    loadPulseMetrics,
+    loadStatefulSets,
+    loadDaemonSets,
+    loadReplicaSets,
+    loadNodeMetrics,
+    startDeploymentWatch,
+    stopDeploymentWatch,
+    startJobWatch,
+    stopJobWatch,
+    startNodeWatch,
+    stopNodeWatch,
+    startPodWatch,
+    stopPodWatch,
+    nodeMetrics,
+    type PodInfo,
+  } from '../../stores/kubernetes';
+  import { selectedRowIndex, totalRows, resetNavigation, keyboardNavActive } from '../../stores/keyboard';
+  import { currentContextIsProd } from '../../stores/production';
+  import { toast } from '../../stores/toast';
+  import { isTypingTarget } from '../../utils/keys';
+  import { toDisplay, type Health } from '../../utils/health';
+  import StatusPill from '../ui/StatusPill.svelte';
+  import StatusIcon from '../ui/StatusIcon.svelte';
+  import ConfirmDialog from '../ui/ConfirmDialog.svelte';
+  import Icon from '../shell/Icon.svelte';
+  import type { IconName } from '../shell/icons';
+  import LineSpark from './pulse/LineSpark.svelte';
+  import IssueSheet from './pulse/IssueSheet.svelte';
+  import {
+    initPulse,
+    workloads,
+    nodeObjects,
+    kpis,
+    activity,
+    historyTick,
+    lastHour,
+    firstSeen,
+    pruneFirstSeen,
+    recordAction,
+    worstDisk,
+  } from '../../pulse/store';
+  import { delta } from '../../pulse/history';
+  import {
+    buildIssues,
+    podsFor,
+    eventsFor,
+    findTrigger,
+    reachabilityPct,
+    shortDuration,
+    objectKey,
+    KIND_SHORT,
+    SEV_LABEL,
+    type Issue,
+    type PulseObject,
+    type ActivityItem,
+  } from '../../pulse/model';
 
-  let lastRefresh = $state(new Date());
-  let refreshInterval: ReturnType<typeof setInterval>;
+  initPulse();
 
-  // Calculate real CPU/Memory usage percentages from metrics
-  const cpuUsage = $derived(() => {
-    if (!$pulseMetrics?.metrics_available || !$pulseMetrics.cpu_usage) return 0;
-    const usage = $pulseMetrics.cpu_usage;
-    const allocatable = $pulseMetrics.cpu_allocatable;
-    if (allocatable <= 0) return 0;
-    return Math.min(100, (usage / allocatable) * 100);
-  });
+  // ---------- Data: watches (push) plus the existing 5s metrics poll ----------
+  const POLL_MS = 5000;
+  /** Lists without a watch ride on every 6th poll tick (30s). */
+  const SLOW_EVERY = 6;
+  let pollTimer: ReturnType<typeof setInterval> | undefined;
+  let clockTimer: ReturnType<typeof setInterval> | undefined;
+  let tickN = 0;
+  let now = $state(Date.now());
 
-  const memoryUsage = $derived(() => {
-    if (!$pulseMetrics?.metrics_available || !$pulseMetrics.memory_usage) return 0;
-    const usage = $pulseMetrics.memory_usage;
-    const allocatable = $pulseMetrics.memory_allocatable;
-    if (allocatable <= 0) return 0;
-    return Math.min(100, (usage / allocatable) * 100);
-  });
+  function loadSlow(ns: string | null) {
+    loadStatefulSets(ns);
+    loadDaemonSets(ns);
+    loadReplicaSets(ns);
+    loadNodeMetrics();
+  }
 
-  // React to namespace and context changes
+  // Runs on mount too, so it is the only place watches start (starting twice
+  // concurrently would leak the first stream).
   $effect(() => {
     const ctx = $currentContext;
-    if (!ctx) return; // Don't load if no context is set
     const ns = $selectedNamespace;
-    loadPulseMetrics(ns);
-    lastRefresh = new Date();
+    void $refreshTrigger;
+    if (!ctx) return;
+    untrack(() => {
+      startDeploymentWatch(ns);
+      startJobWatch(ns);
+      startPodWatch(ns);
+      startNodeWatch().then(() => loadNodeMetrics());
+      loadPulseMetrics(ns);
+      loadSlow(ns);
+    });
   });
 
   onMount(() => {
-    refreshInterval = setInterval(() => {
-      loadPulseMetrics($selectedNamespace);
-      lastRefresh = new Date();
-    }, 5000);
+    resetNavigation();
+    // 1s clock for "synced Ns ago" and ages; no requests.
+    clockTimer = setInterval(() => (now = Date.now()), 1000);
+    pollTimer = setInterval(() => {
+      const ns = $selectedNamespace;
+      loadPulseMetrics(ns);
+      if (++tickN % SLOW_EVERY === 0) loadSlow(ns);
+    }, POLL_MS);
+    window.addEventListener('keydown', onKeydown);
+  });
 
-    return () => {
-      clearInterval(refreshInterval);
+  onDestroy(() => {
+    if (pollTimer) clearInterval(pollTimer);
+    if (clockTimer) clearInterval(clockTimer);
+    window.removeEventListener('keydown', onKeydown);
+    stopDeploymentWatch();
+    stopJobWatch();
+    stopPodWatch();
+    stopNodeWatch();
+    resetNavigation();
+  });
+
+  // ---------- Derived state ----------
+  const objects = $derived<PulseObject[]>([...$workloads, ...$nodeObjects]);
+  const issues = $derived(buildIssues(objects, firstSeen));
+  const issueById = $derived(new Map(issues.map((i) => [i.id, i])));
+
+  // Per-issue facts, computed once per update instead of per template call.
+  // Pods are indexed by namespace and node so each issue scans only its slice.
+  const podIndex = $derived.by(() => {
+    const byNs = new Map<string, PodInfo[]>();
+    const byNode = new Map<string, PodInfo[]>();
+    for (const p of $pods) {
+      (byNs.get(p.namespace) ?? byNs.set(p.namespace, []).get(p.namespace)!).push(p);
+      if (p.node) (byNode.get(p.node) ?? byNode.set(p.node, []).get(p.node)!).push(p);
+    }
+    return { byNs, byNode };
+  });
+  const facts = $derived.by(() => {
+    const out = new Map<string, { pods: PodInfo[]; trigger: ReturnType<typeof findTrigger> }>();
+    for (const i of issues) {
+      const pool = i.kind === 'node' ? (podIndex.byNode.get(i.name) ?? []) : (podIndex.byNs.get(i.namespace ?? '') ?? []);
+      const mine = podsFor(i, pool);
+      const nodesOfIssue = [...new Set(mine.map((p) => p.node).filter((n): n is string => !!n))];
+      out.set(i.id, {
+        pods: i.kind === 'node' ? mine : mine.filter((p) => p.verdict.status !== 'ok'),
+        trigger: findTrigger(i, $activity, nodesOfIssue),
+      });
+    }
+    return out;
+  });
+  const podsOf = (i: Issue) => facts.get(i.id)?.pods ?? [];
+  const triggerOf = (i: Issue) => facts.get(i.id)?.trigger ?? null;
+
+  // 7: forget first-seen times of objects that recovered.
+  $effect(() => {
+    pruneFirstSeen(new Set(issues.map((i) => i.id)));
+  });
+
+  function impactOf(i: Issue): string {
+    const ps = podsOf(i);
+    if (i.kind === 'node') return ps.length ? `${ps.length} pods scheduled on this node` : 'No pods on this node';
+    const parts: string[] = [];
+    if (i.ready) parts.push(`${i.ready} ready`);
+    if (ps.length) parts.push(`${ps.length} ${ps.length === 1 ? 'pod' : 'pods'} unhealthy`);
+    return parts.join(' · ') || i.reason;
+  }
+
+  function triggerShort(i: Issue): string | null {
+    const t = triggerOf(i);
+    if (!t) return null;
+    const what = t.item.kind === 'rollout' ? 'rollout' : t.item.kind === 'scale' ? 'scale change' : t.item.text.charAt(0).toLowerCase() + t.item.text.slice(1);
+    return `started ${shortDuration(t.afterMs)} after ${what}`;
+  }
+
+  // History (re-read on every sample)
+  const series = $derived.by(() => {
+    void $historyTick;
+    const at = Date.now();
+    return {
+      cpu: lastHour('cpu', at),
+      mem: lastHour('mem', at),
+      disk: lastHour('disk', at),
+      health: lastHour('health', at),
+      workloads: lastHour('workloads', at),
     };
   });
 
-  // Resources with OK/FAIL status
-  interface StatusCard {
-    label: string;
-    key: 'pods' | 'deployments' | 'statefulsets' | 'daemonsets' | 'replicasets' | 'jobs';
-    icon: string;
-    color: string;
-    view: View;
-    hasStatus: true;
+  const reach = $derived(reachabilityPct($apiProbes.ok, $apiProbes.total));
+  const healthDelta = $derived(delta(series.health));
+  const workloadDelta = $derived(delta(series.workloads));
+
+  // Capacity numbers for the metric tiles
+  const pct = (used: number | null | undefined, of: number | undefined) =>
+    used != null && of ? Math.min(100, (used / of) * 100) : null;
+  const cpuPct = $derived($pulseMetrics?.metrics_available ? pct($pulseMetrics.cpu_usage, $pulseMetrics.cpu_allocatable) : null);
+  const memPct = $derived($pulseMetrics?.metrics_available ? pct($pulseMetrics.memory_usage, $pulseMetrics.memory_allocatable) : null);
+  const diskPct = $derived(worstDisk($nodeMetrics));
+  const worstDiskNode = $derived.by(() => {
+    let best: { name: string; p: number } | null = null;
+    for (const m of Object.values($nodeMetrics)) {
+      if (m.disk_usage == null || !m.disk_capacity) continue;
+      const p = (m.disk_usage / m.disk_capacity) * 100;
+      if (!best || p > best.p) best = { name: m.name, p };
+    }
+    return best?.name ?? null;
+  });
+  const cores = (m: number) => (m / 1000).toFixed(1);
+  const gib = (b: number) => (b / 1024 ** 3).toFixed(0);
+
+  const syncedAgo = $derived($lastSyncedAt ? Math.max(0, Math.round((now - $lastSyncedAt) / 1000)) : null);
+
+  // ---------- Health grid ----------
+  let gridMode = $state<'workloads' | 'nodes'>('workloads');
+  const SQUARE: Record<string, 'healthy' | 'warning' | 'failed' | 'unknown'> = { ok: 'healthy', warn: 'warning', fail: 'failed', unknown: 'unknown' };
+  const gridItems = $derived(
+    (gridMode === 'nodes' ? $nodeObjects : $workloads)
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name) || a.kind.localeCompare(b.kind))
+  );
+  const gridCount = (s: string) => gridItems.filter((o) => SQUARE[o.verdict.status] === s).length;
+
+  let tip = $state<{ x: number; y: number; obj: PulseObject; below: boolean } | null>(null);
+  function showTip(e: Event, obj: PulseObject) {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    tip = { x: r.left + r.width / 2, y: r.top < 80 ? r.bottom + 8 : r.top - 8, obj, below: r.top < 80 };
   }
 
-  // Resources with just count
-  interface CountCard {
-    label: string;
-    key: 'cronjobs' | 'services' | 'configmaps' | 'secrets' | 'pvs' | 'pvcs' | 'hpas' | 'ingresses' | 'network_policies' | 'service_accounts';
-    icon: string;
-    color: string;
-    view: View;
-    hasStatus: false;
+  // ---------- Selection, sheet, keyboard ----------
+  let sheetOpen = $state(false);
+  // The selection is anchored to an issue id. Issues re-sort on every
+  // update, so a row index alone could point Restart/Scale at a different
+  // workload than the one the sheet shows.
+  let selectedId = $state<string | null>(null);
+  let lastIndex = -1;
+  const selected = $derived(selectedId ? (issueById.get(selectedId) ?? null) : null);
+
+  $effect(() => {
+    totalRows.set(issues.length);
+  });
+  // j/k (or a click) moved the index: anchor to the issue now under it.
+  $effect(() => {
+    const idx = $selectedRowIndex;
+    untrack(() => {
+      lastIndex = idx;
+      selectedId = idx >= 0 && idx < issues.length ? issues[idx].id : null;
+    });
+  });
+  // Issues changed: move the index to wherever the anchored issue went.
+  $effect(() => {
+    const keys = issues.map((i) => i.id);
+    untrack(() => {
+      const next = anchorSelection(selectedId, lastIndex, keys);
+      // The sheet's issue resolved: close it rather than show a neighbour.
+      if (sheetOpen && selectedId && !keys.includes(selectedId)) sheetOpen = false;
+      lastIndex = next;
+      selectedId = next >= 0 ? keys[next] : null;
+      if (next !== get(selectedRowIndex)) selectedRowIndex.set(next);
+    });
+  });
+
+  let rowEls: HTMLTableRowElement[] = $state([]);
+  $effect(() => {
+    const i = $selectedRowIndex;
+    if ($keyboardNavActive && i >= 0) rowEls[i]?.scrollIntoView({ block: 'nearest' });
+  });
+
+  function openIssue(i: Issue) {
+    selectedId = i.id;
+    const idx = issues.findIndex((x) => x.id === i.id);
+    lastIndex = idx;
+    if (idx >= 0) selectedRowIndex.set(idx);
+    sheetOpen = true;
   }
 
-  type ResourceCard = StatusCard | CountCard;
-
-  const resourceCards: ResourceCard[] = [
-    { label: 'Pods', key: 'pods', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10', color: 'accent-primary', view: 'pods', hasStatus: true },
-    { label: 'Deployments', key: 'deployments', icon: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z', color: 'accent-success', view: 'deployments', hasStatus: true },
-    { label: 'StatefulSets', key: 'statefulsets', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10', color: 'accent-warning', view: 'statefulsets', hasStatus: true },
-    { label: 'DaemonSets', key: 'daemonsets', icon: 'M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z', color: 'purple-400', view: 'daemonsets', hasStatus: true },
-    { label: 'ReplicaSets', key: 'replicasets', icon: 'M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z', color: 'blue-400', view: 'replicasets', hasStatus: true },
-    { label: 'Jobs', key: 'jobs', icon: 'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z', color: 'cyan-400', view: 'jobs', hasStatus: true },
-    { label: 'CronJobs', key: 'cronjobs', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', color: 'pink-400', view: 'cronjobs', hasStatus: false },
-    { label: 'Services', key: 'services', icon: 'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9', color: 'accent-primary', view: 'services', hasStatus: false },
-    { label: 'ConfigMaps', key: 'configmaps', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', color: 'amber-400', view: 'configmaps', hasStatus: false },
-    { label: 'Secrets', key: 'secrets', icon: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z', color: 'accent-error', view: 'secrets', hasStatus: false },
-    { label: 'PVs', key: 'pvs', icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4', color: 'indigo-400', view: 'pvs', hasStatus: false },
-    { label: 'PVCs', key: 'pvcs', icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4', color: 'violet-400', view: 'pvcs', hasStatus: false },
-    { label: 'HPAs', key: 'hpas', icon: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6', color: 'emerald-400', view: 'hpas', hasStatus: false },
-    { label: 'Ingresses', key: 'ingresses', icon: 'M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064', color: 'orange-400', view: 'ingresses', hasStatus: false },
-    { label: 'NetPolicies', key: 'network_policies', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z', color: 'rose-400', view: 'network_policies', hasStatus: false },
-    { label: 'ServiceAccounts', key: 'service_accounts', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z', color: 'teal-400', view: 'serviceaccounts', hasStatus: false },
-  ];
-
-  function navigateToView(view: View) {
-    currentView.set(view);
+  function onKeydown(e: KeyboardEvent) {
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (isTypingTarget(document.activeElement) || confirm) return;
+    if (e.key === 'Escape' && sheetOpen) {
+      e.preventDefault();
+      sheetOpen = false;
+      return;
+    }
+    if (e.key === 'Enter' && selected && !sheetOpen) {
+      if ((document.activeElement as HTMLElement | null)?.tagName === 'BUTTON') return;
+      e.preventDefault();
+      sheetOpen = true;
+    }
   }
 
-  // Geist: neutral cards; only a failure count is coloured.
-  function getColorClass(_color: string, _hasFail: boolean = false) {
-    return 'text-secondary border-line bg-app';
+  // ---------- Actions ----------
+  const RESOURCE: Record<string, string> = { deployment: 'deployment', statefulset: 'statefulset', daemonset: 'daemonset', job: 'job', node: 'node' };
+
+  async function openDetail(kind: string, name: string, namespace: string | null, tab?: string) {
+    try {
+      await invoke('open_resource_detail', {
+        resourceType: kind,
+        name,
+        namespace: kind === 'node' ? '' : (namespace ?? ''),
+        context: $currentContext,
+        tab,
+      });
+    } catch (e) {
+      toast(`Couldn't open ${name}`, { health: 'failed' });
+      console.error(e);
+    }
+  }
+  const openObject = (o: { kind: string; name: string; namespace: string | null }) => openDetail(RESOURCE[o.kind], o.name, o.namespace);
+  const openPod = (p: PodInfo, tab?: string) => openDetail('pod', p.name, p.namespace, tab);
+  const logsTarget = (i: Issue) => (i.kind === 'node' ? null : (podsOf(i)[0] ?? null));
+  const canRestart = (i: Issue) => i.kind === 'deployment' || i.kind === 'statefulset';
+
+  function copyRef(i: Issue) {
+    const ref = `${KIND_SHORT[i.kind]}/${i.name}`;
+    const cmd = `kubectl ${i.namespace ? `-n ${i.namespace} ` : ''}describe ${ref} --context ${$currentContext}`;
+    navigator.clipboard?.writeText(cmd).then(
+      () => toast('Copied kubectl describe'),
+      () => toast("Couldn't copy to clipboard", { health: 'failed' })
+    );
   }
 
-  function getValue(card: ResourceCard): { ok: number; fail: number } | number {
-    if (!$pulseMetrics) return card.hasStatus ? { ok: 0, fail: 0 } : 0;
+  type ConfirmState = { mode: 'restart' | 'scale'; issue: Issue };
+  let confirm = $state<ConfirmState | null>(null);
+  let replicas = $state<number | null>(1);
+  const replicasValid = $derived(typeof replicas === 'number' && Number.isInteger(replicas) && replicas >= 0);
 
-    if (card.hasStatus) {
-      return $pulseMetrics[card.key] as ResourceCount;
+  function askRestart(i: Issue) {
+    confirm = { mode: 'restart', issue: i };
+  }
+  function askScale(i: Issue) {
+    replicas = i.desired ?? 1;
+    confirm = { mode: 'scale', issue: i };
+  }
+
+  async function runConfirm() {
+    if (!confirm) return;
+    const { mode, issue: i } = confirm;
+    const cmd = `${mode}_${i.kind}`;
+    if (mode === 'scale' && !replicasValid) throw new Error('Replicas must be a whole number, 0 or more');
+    if (mode === 'restart') {
+      await invoke(cmd, { namespace: i.namespace, name: i.name });
     } else {
-      return $pulseMetrics[card.key] as number;
+      await invoke(cmd, { namespace: i.namespace, name: i.name, replicas });
     }
+    recordAction({
+      kind: 'action',
+      objectKind: i.kind,
+      target: { kind: i.kind, name: i.name, namespace: i.namespace },
+      text: mode === 'restart' ? `Restart ${KIND_SHORT[i.kind]}/${i.name}` : `Scale ${KIND_SHORT[i.kind]}/${i.name} to ${replicas}`,
+      detail: i.namespace ?? '',
+    });
   }
 
-  function formatCpu(millicores: number): string {
-    if (millicores >= 1000) {
-      return `${(millicores / 1000).toFixed(1)}`;
+  // ---------- Activity ----------
+  let actOpen = $state(false);
+  function actIcon(a: ActivityItem): { cls: string; icon?: IconName; status?: Health } {
+    if (a.tone === 'apex') return { cls: 'a-apex', icon: 'restart' };
+    if (a.kind === 'warning') return { cls: 'a-warn', status: 'warning' };
+    if (a.kind === 'node') {
+      if (a.text.startsWith('Cordoned')) return { cls: 'a-warn', icon: 'cordon' };
+      return a.tone === 'bad' ? { cls: 'a-bad', status: 'failed' } : { cls: '', icon: 'node' };
     }
-    return `${millicores}m`;
+    if (a.kind === 'restart') return { cls: '', icon: 'restart' };
+    if (a.kind === 'scale') return { cls: '', icon: 'scale' };
+    return { cls: '', icon: 'deploy' };
   }
+  const ago = (t: number) => {
+    const m = Math.max(0, Math.round((now - t) / 60000));
+    return m < 1 ? 'just now' : `${m}m ago`;
+  };
+  const triggerIds = $derived(new Set(selected && sheetOpen ? [triggerOf(selected)?.item.id].filter(Boolean) : []));
 
-  function formatMemory(bytes: number): string {
-    const gb = bytes / (1024 * 1024 * 1024);
-    if (gb >= 1) {
-      return `${gb.toFixed(1)}`;
-    }
-    const mb = bytes / (1024 * 1024);
-    return `${mb.toFixed(0)}`;
-  }
-
-  function getStrokeDasharray(percentage: number, radius: number): string {
-    const circumference = 2 * Math.PI * radius;
-    const filled = (percentage / 100) * circumference;
-    return `${filled} ${circumference}`;
-  }
+  const fmtPct = (v: number | null, digits = 1) => (v === null ? '–' : `${v.toFixed(digits)}%`);
+  const nsLabel = $derived($selectedNamespace ?? 'all namespaces');
 </script>
 
-<div class="h-full overflow-y-auto bg-bg-primary">
-  {#if $pulseMetrics}
-    <!-- Pulse Title -->
-    <div class="px-6 py-4 border-b border-border-subtle">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <h1 class="text-lg font-semibold text-text-primary">Pulse</h1>
-          {#if $selectedNamespace}
-            <span class="px-2 py-0.5 border border-line-strong text-secondary text-base rounded-sm">
-              {$selectedNamespace}
-            </span>
-          {/if}
-        </div>
-        <div class="text-xs text-text-muted">
-          Last updated: {lastRefresh.toLocaleTimeString()}
-        </div>
+<div class="pulse">
+  <div class="page">
+    <div class="p4h">
+      <h1>Pulse</h1>
+      <span class="sub">
+        <span>{$currentContext}</span>
+        {#if $currentContextIsProd}<span class="prodtag">PROD</span>{/if}
+        <span>· {nsLabel}{syncedAgo !== null ? ` · synced ${syncedAgo}s ago` : ''}</span>
+      </span>
+      <div class="right">
+        <button
+          type="button"
+          class="btn"
+          onclick={() => {
+            loadPulseMetrics($selectedNamespace);
+            loadSlow($selectedNamespace);
+          }}><Icon name="restart" size={14} />Refresh</button
+        >
       </div>
     </div>
 
-    <!-- CPU & Memory Gauges -->
-    <div class="px-6 pt-6">
-      {#if $pulseMetrics.metrics_available}
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <!-- CPU Gauge -->
-          <div class="relative bg-app rounded-lg border border-line p-6 overflow-hidden">
-            <div class="relative flex items-center gap-6">
-              <!-- Ring Gauge -->
-              <div class="relative w-32 h-32 shrink-0">
-                <svg class="w-full h-full -rotate-90" viewBox="0 0 120 120">
-                  <!-- Background ring -->
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r="52"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="12"
-                    class="text-active"
-                  />
-                  <!-- Progress ring -->
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r="52"
-                    fill="none"
-                    stroke="var(--ui-accent)"
-                    stroke-width="12"
-                    stroke-linecap="round"
-                    stroke-dasharray={getStrokeDasharray(cpuUsage(), 52)}
-                    class="transition-all duration-300"
-                  />
-                </svg>
-                <!-- Center text -->
-                <div class="absolute inset-0 flex flex-col items-center justify-center">
-                  <span class="text-xl font-bold text-text-primary">{cpuUsage().toFixed(0)}%</span>
-                  <span class="text-xs text-text-muted">usage</span>
-                </div>
-              </div>
+    <!-- KPI strip -->
+    <div class="kpis">
+      <section class="kpi" class:k-warn={$kpis.healthPct !== null && $kpis.healthPct < 95} aria-label="Health {fmtPct($kpis.healthPct)}">
+        <div class="kl">Health</div>
+        <div class="kv2">{fmtPct($kpis.healthPct)}</div>
+        <div class="kd">
+          {#if series.health.length > 1}<LineSpark samples={series.health} {now} w={64} h={18} />{/if}
+          <span>{healthDelta === null ? 'healthy / total' : Math.abs(healthDelta) < 0.05 ? 'no change · 1h' : `${healthDelta > 0 ? '↑' : '↓'} ${Math.abs(healthDelta).toFixed(1)} pts · 1h`}</span>
+        </div>
+      </section>
+      <section class="kpi" aria-label="Active workloads {$kpis.total}">
+        <div class="kl">Active workloads</div>
+        <div class="kv2">{$kpis.total}</div>
+        <div class="kd">
+          <span>{workloadDelta === null || workloadDelta === 0 ? 'no change' : `${workloadDelta > 0 ? '+' : ''}${workloadDelta} in the last hour`}</span>
+        </div>
+      </section>
+      <section class="kpi" aria-label="Healthy {$kpis.healthy}">
+        <div class="kl"><StatusIcon health="healthy" /> Healthy</div>
+        <div class="kv2">{$kpis.healthy}</div>
+        <div class="kd"><span>{$kpis.total ? Math.round(($kpis.healthy / $kpis.total) * 100) : 0}% of workloads</span></div>
+      </section>
+      <section class="kpi" class:k-warn={$kpis.warning > 0} aria-label="Warning {$kpis.warning}">
+        <div class="kl"><StatusIcon health="warning" /> Warning</div>
+        <div class="kv2">{$kpis.warning}</div>
+        <div class="kd"><span>{$kpis.warning ? 'needs a look' : 'none'}</span></div>
+      </section>
+      <section class="kpi" class:k-crit={$kpis.critical > 0} aria-label="Critical {$kpis.critical}">
+        <div class="kl"><StatusIcon health="failed" /> Critical</div>
+        <div class="kv2">{$kpis.critical}</div>
+        <div class="kd"><span>{$kpis.critical ? 'act now' : 'none'}</span></div>
+      </section>
+      <section class="kpi" aria-label="Uptime {fmtPct(reach, 2)}">
+        <div class="kl">Uptime</div>
+        <div class="kv2">{reach === null ? '–' : reach === 100 ? '100%' : fmtPct(reach, 2)}</div>
+        <div class="kd"><span>API server · this session</span></div>
+      </section>
+    </div>
 
-              <!-- Info -->
-              <div class="flex-1">
-                <div class="flex items-center gap-2 mb-2">
-                  <svg class="w-5 h-5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                  </svg>
-                  <h3 class="text-[18px]/7 font-semibold text-text-primary">CPU</h3>
-                </div>
-                <div class="space-y-1">
-                  <div class="flex justify-between text-base">
-                    <span class="text-text-muted">Usage</span>
-                    <span class="text-muted font-mono">{formatCpu($pulseMetrics.cpu_usage ?? 0)} cores</span>
-                  </div>
-                  <div class="flex justify-between text-base">
-                    <span class="text-text-muted">Allocatable</span>
-                    <span class="text-text-primary font-mono">{formatCpu($pulseMetrics.cpu_allocatable)} cores</span>
-                  </div>
-                </div>
+    <div class="mgrid">
+      <div class="mleft">
+        <!-- Health grid -->
+        <section class="box" aria-label="Health grid">
+          <div class="bh">
+            <h2>Health grid</h2>
+            <span class="cnt">{gridItems.length} {gridMode}</span>
+            <div class="r">
+              <div class="seg" role="group" aria-label="Show">
+                <button type="button" aria-pressed={gridMode === 'workloads'} onclick={() => (gridMode = 'workloads')}>Workloads</button>
+                <button type="button" aria-pressed={gridMode === 'nodes'} onclick={() => (gridMode = 'nodes')}>Nodes</button>
               </div>
             </div>
           </div>
-
-          <!-- Memory Gauge -->
-          <div class="relative bg-app rounded-lg border border-line p-6 overflow-hidden">
-            <div class="relative flex items-center gap-6">
-              <!-- Ring Gauge -->
-              <div class="relative w-32 h-32 shrink-0">
-                <svg class="w-full h-full -rotate-90" viewBox="0 0 120 120">
-                  <!-- Background ring -->
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r="52"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="12"
-                    class="text-active"
-                  />
-                  <!-- Progress ring -->
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r="52"
-                    fill="none"
-                    stroke="var(--ui-accent)"
-                    stroke-width="12"
-                    stroke-linecap="round"
-                    stroke-dasharray={getStrokeDasharray(memoryUsage(), 52)}
-                    class="transition-all duration-300"
-                  />
-                </svg>
-                <!-- Center text -->
-                <div class="absolute inset-0 flex flex-col items-center justify-center">
-                  <span class="text-xl font-bold text-text-primary">{memoryUsage().toFixed(0)}%</span>
-                  <span class="text-xs text-text-muted">usage</span>
-                </div>
-              </div>
-
-              <!-- Info -->
-              <div class="flex-1">
-                <div class="flex items-center gap-2 mb-2">
-                  <svg class="w-5 h-5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
-                  </svg>
-                  <h3 class="text-[18px]/7 font-semibold text-text-primary">Memory</h3>
-                </div>
-                <div class="space-y-1">
-                  <div class="flex justify-between text-base">
-                    <span class="text-text-muted">Usage</span>
-                    <span class="text-muted font-mono">{formatMemory($pulseMetrics.memory_usage ?? 0)} Gi</span>
-                  </div>
-                  <div class="flex justify-between text-base">
-                    <span class="text-text-muted">Allocatable</span>
-                    <span class="text-text-primary font-mono">{formatMemory($pulseMetrics.memory_allocatable)} Gi</span>
-                  </div>
-                </div>
-              </div>
+          {#if gridItems.length}
+            <div
+              class="hgrid"
+              class:nodes={gridMode === 'nodes'}
+              role="group"
+              aria-label="{gridCount('healthy')} healthy, {gridCount('warning')} warning, {gridCount('failed')} critical, {gridCount('unknown')} unknown"
+            >
+              {#each gridItems as o (objectKey(o))}
+                {@const s = SQUARE[o.verdict.status]}
+                {@const issue = issueById.get(objectKey(o))}
+                <button
+                  type="button"
+                  class="hc s-{s}"
+                  tabindex="-1"
+                  aria-label="{KIND_SHORT[o.kind]}/{o.name}, {o.verdict.reason || s}"
+                  onmouseenter={(e) => showTip(e, o)}
+                  onmouseleave={() => (tip = null)}
+                  onfocus={(e) => showTip(e, o)}
+                  onblur={() => (tip = null)}
+                  onclick={() => (issue ? openIssue(issue) : openObject(o))}
+                >
+                  {#if s === 'failed'}
+                    <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3l4 4M7 3L3 7" /></svg>
+                  {:else if s === 'warning'}
+                    <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 2.4v3.2M5 7.6v.1" /></svg>
+                  {/if}
+                </button>
+              {/each}
             </div>
-          </div>
+            <div class="legend">
+              <span><i class="s-healthy"></i>Healthy <b>{gridCount('healthy')}</b></span>
+              <span><i class="s-warning"></i>Warning <b>{gridCount('warning')}</b></span>
+              <span><i class="s-failed"></i>Critical <b>{gridCount('failed')}</b></span>
+              <span><i class="s-unknown"></i>Unknown <b>{gridCount('unknown')}</b></span>
+              <span class="muted hide-s" style="margin-left:auto">hover for details · click to open</span>
+            </div>
+          {:else}
+            <div class="empty-grid">Loading {gridMode}…</div>
+          {/if}
+        </section>
+
+        <!-- CPU / Memory / Disk -->
+        <div class="mets">
+          {#each [
+            { name: 'CPU', v: cpuPct, s: series.cpu, sub: $pulseMetrics?.metrics_available ? `${cores($pulseMetrics.cpu_usage ?? 0)} / ${cores($pulseMetrics.cpu_allocatable)} cores allocatable` : 'metrics-server not available' },
+            { name: 'Memory', v: memPct, s: series.mem, sub: $pulseMetrics?.metrics_available ? `${gib($pulseMetrics.memory_usage ?? 0)} / ${gib($pulseMetrics.memory_allocatable)} Gi allocatable` : 'metrics-server not available' },
+            { name: 'Disk', v: diskPct, s: series.disk, sub: worstDiskNode ? `worst node · ${worstDiskNode}` : 'kubelet stats not available' },
+          ] as m (m.name)}
+            <section class="met" aria-label="{m.name} {m.v === null ? 'unavailable' : `${Math.round(m.v)} percent`}">
+              <div class="ml"><span>{m.name}</span><span class="tab">last 1h</span></div>
+              <div class="mv" class:cf={m.v !== null && m.v >= 90} class:cw={m.v !== null && m.v >= 75 && m.v < 90}>
+                {m.v === null ? '–' : `${Math.round(m.v)}%`}
+                {#if m.v !== null && m.v >= 90}<StatusIcon health="failed" size={14} colored={false} />{:else if m.v !== null && m.v >= 75}<StatusIcon health="warning" size={14} colored={false} />{/if}
+              </div>
+              <LineSpark samples={m.s} {now} fixed />
+              <div class="ms">{m.sub}</div>
+            </section>
+          {/each}
+        </div>
+      </div>
+
+      <!-- Activity -->
+      <section class="box actf" class:open={actOpen} aria-label="Activity">
+        <div class="bh">
+          <h2>Activity</h2>
+          <span class="cnt">last hour · {$activity.length}</span>
+          <button type="button" class="acttg" aria-expanded={actOpen} onclick={() => (actOpen = !actOpen)}>{actOpen ? 'Hide' : 'Show'}</button>
+        </div>
+        {#if $activity[0]}<div class="act-latest">Latest: {$activity[0].text} · {ago($activity[0].t)}</div>{/if}
+        {#if $activity.length}
+          <ul class="actl">
+            {#each $activity as a (a.id)}
+              {@const ic = actIcon(a)}
+              <li class:on={triggerIds.has(a.id)}>
+                <span class="ai {ic.cls}">
+                  {#if ic.status}<StatusIcon health={ic.status} size={13} colored={false} />{:else if ic.icon}<Icon name={ic.icon} size={13} />{/if}
+                </span>
+                <div class="at">
+                  <div>{a.text}</div>
+                  <div class="ad">{a.detail}{a.by ? ` · by ${a.by}` : ''}</div>
+                </div>
+                <span class="atime">{ago(a.t)}</span>
+              </li>
+            {/each}
+          </ul>
+        {:else}
+          <div class="act-empty">No changes in the last hour. Rollouts, scaling, restarts, node changes and Warning events show up here.</div>
+        {/if}
+      </section>
+    </div>
+
+    <!-- Issues -->
+    <section class="box" aria-label="Issues">
+      <div class="bh">
+        <h2>Issues</h2>
+        <span class="cnt">{issues.length}</span>
+        <div class="r"><span class="muted hide-s" style="font-size:12px">j/k move · Enter details · Esc close</span></div>
+      </div>
+      {#if !issues.length}
+        <div class="agood">
+          <StatusIcon health="healthy" size={20} />
+          <div><b>No issues on {$currentContext}.</b> Every workload is available and every node is ready.</div>
         </div>
       {:else}
-        <!-- Metrics unavailable message -->
-        <div class="mb-6 bg-bg-secondary rounded-lg border border-border-subtle p-6">
-          <div class="flex items-center gap-4">
-            <div class="p-3 rounded-lg bg-transparent">
-              <svg class="w-6 h-6 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div class="flex-1">
-              <h3 class="text-base font-medium text-text-primary">Metrics Unavailable</h3>
-              <p class="text-base text-text-muted">Install metrics-server to view cluster CPU and memory usage</p>
-            </div>
-            <div class="text-right text-base">
-              <div class="text-text-muted">Allocatable</div>
-              <div class="text-text-primary font-mono">{formatCpu($pulseMetrics.cpu_allocatable)} cores, {formatMemory($pulseMetrics.memory_allocatable)} Gi</div>
-            </div>
-          </div>
+        <div class="itab">
+          <table>
+            <thead>
+              <tr><th>Sev</th><th>Object</th><th>Reason</th><th>Impact</th><th>Age</th><th class="acol"><span class="sr-only">Action</span></th></tr>
+            </thead>
+            <tbody>
+              {#each issues as i, idx (i.id)}
+                {@const sel = i.id === selectedId}
+                {@const hint = triggerShort(i)}
+                {@const logPod = logsTarget(i)}
+                <tr
+                  bind:this={rowEls[idx]}
+                  class:sel
+                  aria-selected={sel}
+                  onclick={() => openIssue(i)}
+                >
+                  <td><span class="sevc {i.sev}"><StatusIcon health={i.sev === 'warn' ? 'warning' : 'failed'} colored={false} />{SEV_LABEL[i.sev]}</span></td>
+                  <td class="ob"><span class="k">{KIND_SHORT[i.kind]}/</span>{i.name}{#if i.namespace}<span class="k"> · {i.namespace}</span>{/if}</td>
+                  <td><StatusPill health={toDisplay(i.verdict).health} label={i.reason} variant="dot" /></td>
+                  <td>{impactOf(i)}{#if hint}<span class="hint"> · {hint}</span>{/if}</td>
+                  <td class="tab">{shortDuration(now - i.startedAt)}</td>
+                  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
+                  <td class="acol" onclick={(e) => e.stopPropagation()}>
+                    <span class="ac">
+                      {#if logPod}
+                        <button type="button" class="btn" onclick={() => openPod(logPod, 'logs')}>Logs</button>
+                      {:else}
+                        <button type="button" class="btn" onclick={() => openObject(i)}>Open</button>
+                      {/if}
+                      <button type="button" class="ib" aria-label="Details for {i.name}" title="Details · Enter" onclick={() => openIssue(i)}><Icon name="more" /></button>
+                    </span>
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
         </div>
       {/if}
-    </div>
+    </section>
+  </div>
 
-    <!-- Resource Grid -->
-    <div class="px-6 pb-6">
-      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-        {#each resourceCards as card}
-          {@const value = getValue(card)}
-          {@const hasStatus = card.hasStatus && typeof value === 'object'}
-          {@const hasFail = hasStatus && (value as ResourceCount).fail > 0}
-          <button
-            onclick={() => navigateToView(card.view)}
-            class="group relative overflow-hidden rounded-lg border {getColorClass(card.color, hasFail)} p-3 transition-colors hover:bg-hover text-left cursor-pointer"
-          >
-
-            <div class="relative">
-              <div class="flex items-center justify-between mb-1">
-                <div class="opacity-50">
-                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d={card.icon} />
-                  </svg>
-                </div>
-              </div>
-              {#if hasStatus}
-                {@const statusValue = value as ResourceCount}
-                <div class="text-lg font-bold">
-                  <span class="text-primary">{statusValue.ok}</span>
-                  {#if statusValue.fail > 0}
-                    <span class="text-text-muted">:</span>
-                    <span class="text-danger">{statusValue.fail}</span>
-                  {/if}
-                </div>
-              {:else}
-                <div class="text-xl font-bold">{value}</div>
-              {/if}
-              <div class="text-xs opacity-70 mt-0.5">{card.label}</div>
-            </div>
-          </button>
-        {/each}
-      </div>
-    </div>
-  {:else}
-    <!-- Loading State -->
-    <div class="flex items-center justify-center h-full">
-      <div class="text-center">
-        <div class="inline-flex items-center justify-center w-16 h-16 mb-4">
-          <svg class="w-10 h-10 text-accent-text animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-        </div>
-        <p class="text-text-muted">Loading cluster metrics...</p>
-      </div>
-    </div>
+  {#if sheetOpen && selected}
+    {@const logPod = logsTarget(selected)}
+    <IssueSheet
+      issue={selected}
+      impact={impactOf(selected)}
+      pods={podsOf(selected)}
+      events={eventsFor(selected, $clusterEvents)}
+      trigger={triggerOf(selected)}
+      prod={$currentContextIsProd}
+      {now}
+      canRestart={canRestart(selected)}
+      canScale={canRestart(selected)}
+      onClose={() => (sheetOpen = false)}
+      onLogs={logPod ? () => openPod(logPod, 'logs') : undefined}
+      onOpen={() => openObject(selected)}
+      onOpenPod={(p) => openPod(p)}
+      onRestart={() => askRestart(selected)}
+      onScale={() => askScale(selected)}
+      onCopy={() => copyRef(selected)}
+    />
   {/if}
 </div>
+
+{#if tip}
+  <div class="pulse-tip" style="left:{tip.x}px;top:{tip.y}px;transform:translate(-50%,{tip.below ? '0' : '-100%'})">
+    <div class="tn">{KIND_SHORT[tip.obj.kind]}/{tip.obj.name}{tip.obj.namespace ? ` · ${tip.obj.namespace}` : ''}</div>
+    <StatusPill health={toDisplay(tip.obj.verdict).health} label={tip.obj.verdict.reason || 'Healthy'} variant="dot" />
+  </div>
+{/if}
+
+{#if confirm}
+  {@const c = confirm}
+  <ConfirmDialog
+    open={true}
+    title={c.mode === 'restart' ? `Restart ${KIND_SHORT[c.issue.kind]}/${c.issue.name}?` : `Scale ${KIND_SHORT[c.issue.kind]}/${c.issue.name}`}
+    resource={{ kind: c.issue.kind === 'deployment' ? 'Deployment' : 'StatefulSet', name: c.issue.name, namespace: c.issue.namespace ?? undefined, context: $currentContext }}
+    confirmLabel={c.mode === 'restart' ? 'Restart' : 'Scale'}
+    body={c.mode === 'restart' ? 'Pods are replaced one by one (rolling restart). Running requests on old pods may be cut off.' : scaleBody}
+    successMessage={c.mode === 'restart' ? `Restarting ${c.issue.name}` : `Scaling ${c.issue.name} to ${replicas}`}
+    confirmDisabled={c.mode === 'scale' && !replicasValid}
+    onConfirm={runConfirm}
+    onClose={() => (confirm = null)}
+  />
+{/if}
+
+{#snippet scaleBody()}
+  <label class="block text-sm text-secondary">
+    Replicas
+    <input
+      type="number"
+      min="0"
+      step="1"
+      bind:value={replicas}
+      aria-invalid={!replicasValid}
+      class="mt-1.5 w-28 h-8 px-2.5 rounded-md bg-app border border-line-strong text-sm font-mono text-primary"
+    />
+  </label>
+{/snippet}
