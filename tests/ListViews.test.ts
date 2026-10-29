@@ -3,7 +3,7 @@
 // NodeList selection invariant (anchored by name across usage re-sorts).
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { mount, unmount, flushSync } from 'svelte';
-import { get } from 'svelte/store';
+import { get, writable, readable } from 'svelte/store';
 
 const invoke = vi.fn((..._args: unknown[]) => Promise.resolve());
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...args: unknown[]) => invoke(...args) }));
@@ -13,6 +13,8 @@ import NodeList from '../src/lib/components/views/NodeList.svelte';
 import SecretList from '../src/lib/components/views/SecretList.svelte';
 import EventList from '../src/lib/components/views/EventList.svelte';
 import ConfigMapList from '../src/lib/components/views/ConfigMapList.svelte';
+import ListView from '../src/lib/components/ui/ListView.svelte';
+import SecretCreator from '../src/lib/components/ui/SecretCreator.svelte';
 import {
   deployments,
   nodes,
@@ -27,7 +29,7 @@ import {
   type NodeInfo,
   type ClusterEventInfo,
 } from '../src/lib/stores/kubernetes';
-import { selectedRowIndex, keyboardNavActive } from '../src/lib/stores/keyboard';
+import { selectedRowIndex, keyboardNavActive, totalRows, rowNavPaused, moveDown } from '../src/lib/stores/keyboard';
 import type { Verdict } from '../src/lib/utils/health';
 
 const ok: Verdict = { status: 'ok', reason: 'Ready', ruleId: 'TRI-X-000' };
@@ -161,6 +163,10 @@ describe('ConfigMapList states', () => {
     input.dispatchEvent(new Event('input', { bubbles: true }));
     flushSync();
     expect(document.body.textContent).toContain('No configmaps match "nope"');
+    // The filter is remembered per view for the session: reset it.
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    flushSync();
   });
 });
 
@@ -214,6 +220,8 @@ describe('SecretList', () => {
     flushSync();
     key('d');
     expect(invoke.mock.calls.some((c) => String(c[0]).startsWith('delete'))).toBe(false);
+    // Like every list: `d` opens the detail window (review 6).
+    expect(invoke).toHaveBeenCalledWith('open_resource_detail', expect.objectContaining({ resourceType: 'secret', name: 'db-creds' }));
   });
 });
 
@@ -224,5 +232,93 @@ describe('EventList', () => {
     render(EventList);
     expect(rowKeys()).toEqual(['payments/w-new', 'payments/w-old', 'payments/n-new']);
     expect(document.querySelector('[aria-label="Normal, neutral"]')).not.toBeNull();
+  });
+});
+
+describe('stale data (review 4)', () => {
+  it('keeps rows on a failed refresh, with a banner, and they stay openable', () => {
+    configmaps.set([{ name: 'app-config', namespace: 'payments', data_count: 2, age: '1d' }]);
+    markSynced('configmaps');
+    markFailed('configmaps', 'connection refused');
+    render(ConfigMapList);
+    expect(rowKeys()).toEqual(['payments/app-config']);
+    expect(document.querySelector('[role="status"]')?.textContent).toContain("Couldn't refresh configmaps");
+    selectedRowIndex.set(0);
+    flushSync();
+    key('Enter');
+    expect(invoke).toHaveBeenCalledWith('open_resource_detail', expect.objectContaining({ name: 'app-config' }));
+  });
+});
+
+describe('context guard (review 1)', () => {
+  function fakeSource(rowsContext: string) {
+    return {
+      name: 'fake',
+      items: writable([{ name: 'db', namespace: 'payments' }]),
+      state: readable({ status: 'ready' as const }),
+      context: readable(rowsContext),
+      namespaced: true,
+      reset() {},
+    };
+  }
+  const props = (rowsContext: string) => ({
+    title: 'Things',
+    viewId: 'things',
+    itemLabel: 'things',
+    source: fakeSource(rowsContext),
+    columns: [{ id: 'name', label: 'Name', sortKey: 'name', primary: true }],
+    rowKey: (r: { name: string }) => r.name,
+    resourceType: 'secret',
+    shortcuts: { e: editSpy },
+  });
+  const editSpy = vi.fn();
+
+  it('refuses to open or act on rows loaded from another context', () => {
+    currentContext.set('ctx-b');
+    cmp = mount(ListView, { target: document.body, props: props('ctx-a') });
+    flushSync();
+    selectedRowIndex.set(0);
+    flushSync();
+    key('Enter');
+    key('e');
+    expect(invoke).not.toHaveBeenCalled();
+    expect(editSpy).not.toHaveBeenCalled();
+  });
+
+  it('opens with the context the rows came from', () => {
+    currentContext.set('ctx-b');
+    cmp = mount(ListView, { target: document.body, props: props('ctx-b') });
+    flushSync();
+    selectedRowIndex.set(0);
+    flushSync();
+    key('Enter');
+    expect(invoke).toHaveBeenCalledWith('open_resource_detail', expect.objectContaining({ name: 'db', context: 'ctx-b' }));
+  });
+
+  it('closes an open Secret editor when the context changes (external kubectx)', () => {
+    currentContext.set('ctx-a');
+    const onclose = vi.fn();
+    cmp = mount(SecretCreator, {
+      target: document.body,
+      props: { show: true, onclose, context: 'ctx-a', editData: { name: 'db', namespace: 'payments', secret_type: 'Opaque', data: {} } },
+    });
+    flushSync();
+    expect(onclose).not.toHaveBeenCalled();
+    currentContext.set('ctx-b');
+    flushSync();
+    expect(onclose).toHaveBeenCalled();
+  });
+});
+
+describe('keyboard while an editor is open (review 7)', () => {
+  it('pauses j/k movement and resumes after', () => {
+    totalRows.set(3);
+    selectedRowIndex.set(0);
+    rowNavPaused.set(true);
+    moveDown();
+    expect(get(selectedRowIndex)).toBe(0);
+    rowNavPaused.set(false);
+    moveDown();
+    expect(get(selectedRowIndex)).toBe(1);
   });
 });

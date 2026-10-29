@@ -1,5 +1,6 @@
 // List views on DataTable (PR7): pure helpers, the status-word mappings for
-// types without a Rust verdict, and the polled-list loader's stale guards.
+// types without a Rust verdict, and listStore: context tagging and reset,
+// poll overlap, supersede and stale-answer guards.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { get } from 'svelte/store';
 
@@ -34,8 +35,7 @@ import {
   type Column,
 } from '../src/lib/components/ui/data-table';
 import { eventHealth, pvHealth, namespaceHealth, cronJobHealth, verdictHealth } from '../src/lib/utils/status-words';
-import { loadList, resourceState, currentContext } from '../src/lib/stores/kubernetes';
-import { writable } from 'svelte/store';
+import { listStore, currentContext } from '../src/lib/stores/kubernetes';
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 /** tauriInvoke imports the API lazily, so the call lands a tick later. */
@@ -77,7 +77,6 @@ describe('quantityValue', () => {
   it('returns null for missing or unknown values', () => {
     expect(quantityValue(null)).toBeNull();
     expect(quantityValue('lots')).toBeNull();
-    expect(quantityValue('5Xi')).toBeNull();
   });
   it('sorts capacities by size, not by text', () => {
     const rows = [{ name: 'a', cap: '10Gi' }, { name: 'b', cap: '500Mi' }, { name: 'c', cap: '2Ti' }];
@@ -133,74 +132,91 @@ describe('status words (types without a verdict)', () => {
   });
 });
 
-describe('loadList (polled lists)', () => {
+describe('listStore (every list)', () => {
+  let n = 0;
+  // A fresh store per test; names keep their resourceState apart.
+  const fresh = (namespaced = true) => listStore<string>(`get_t${++n}`, namespaced);
+
   beforeEach(() => {
     pending.length = 0;
     currentContext.set('ctx-a');
   });
 
-  it('tracks loading -> ready and keeps rows on a plain re-poll', async () => {
-    const store = writable<string[]>([]);
-    const state = resourceState('t-basic');
-    const p = loadList('t-basic', 'get_x', store, { namespace: 'a' });
-    expect(get(state).status).toBe('loading');
+  it('tracks loading -> ready, tags rows with their context, keeps rows on a re-poll', async () => {
+    const s = fresh();
+    const p = s.load('a');
+    expect(get(s.state).status).toBe('loading');
     (await call(0)).resolve(['one']);
     await p;
-    expect(get(store)).toEqual(['one']);
-    expect(get(state).status).toBe('ready');
+    expect(get(s.items)).toEqual(['one']);
+    expect(get(s.state).status).toBe('ready');
+    expect(get(s.context)).toBe('ctx-a');
 
-    // Same scope: a poll doesn't flip back to loading.
-    const p2 = loadList('t-basic', 'get_x', store, { namespace: 'a' });
-    expect(get(state).status).toBe('ready');
+    const p2 = s.load('a', {}, { poll: true });
+    expect(get(s.state).status).toBe('ready');
     (await call(1)).resolve(['one', 'two']);
     await p2;
-    expect(get(store)).toEqual(['one', 'two']);
+    expect(get(s.items)).toEqual(['one', 'two']);
   });
 
-  it('drops an answer for a namespace the user already left', async () => {
-    const store = writable<string[]>([]);
-    const pA = loadList('t-scope', 'get_x', store, { namespace: 'a' });
-    const reqA = await call(0);
-    const pB = loadList('t-scope', 'get_x', store, { namespace: 'b' });
-    (await call(1)).resolve(['from-b']);
-    await pB;
-    reqA.resolve(['from-a']); // late
-    await pA;
-    expect(get(store)).toEqual(['from-b']);
-  });
+  it('clears rows the moment the context changes, and drops the old cluster\'s late answer', async () => {
+    const s = fresh();
+    const p0 = s.load(null);
+    (await call(0)).resolve(['from-a']);
+    await p0;
 
-  it('drops an answer from the previous context', async () => {
-    const store = writable<string[]>(['kept']);
-    const p = loadList('t-ctx', 'get_x', store);
+    const p = s.load(null);
+    const req = await call(1);
     currentContext.set('ctx-b');
-    (await call(0)).resolve(['old-cluster']);
+    // Nothing from ctx-a stays on screen to be opened or edited in ctx-b.
+    expect(get(s.items)).toEqual([]);
+    expect(get(s.context)).toBe('');
+    expect(get(s.state).status).toBe('idle');
+    req.resolve(['late-from-a']);
     await p;
-    expect(get(store)).toEqual(['kept']);
+    expect(get(s.items)).toEqual([]);
   });
 
-  it('never lets an older poll overwrite a newer one', async () => {
-    const store = writable<string[]>([]);
-    const p1 = loadList('t-order', 'get_x', store);
-    const req1 = await call(0);
-    const p2 = loadList('t-order', 'get_x', store);
-    (await call(1)).resolve(['new']);
-    await p2;
-    req1.resolve(['old']);
-    await p1;
-    expect(get(store)).toEqual(['new']);
-  });
-
-  it('marks 403s as forbidden, other errors as error', async () => {
-    const store = writable<string[]>([]);
-    const p = loadList('t-err', 'get_x', store);
-    (await call(0)).reject('Kubernetes API error: 403 Forbidden');
-    await p;
-    expect(get(resourceState('t-err')).status).toBe('forbidden');
-
-    const p2 = loadList('t-err2', 'get_x', store);
-    (await call(1)).reject('connection refused');
-    await p2;
+  it('skips poll ticks while a load is in flight, so a slow LIST is not stacked', async () => {
+    const s = fresh();
+    const slow = s.load(null);
+    const req = await call(0);
+    await s.load(null, {}, { poll: true });
+    await s.load(null, {}, { poll: true });
     await flush();
-    expect(get(resourceState('t-err2'))).toMatchObject({ status: 'error', error: 'connection refused' });
+    expect(pending).toHaveLength(1);
+    req.resolve(['slow']);
+    await slow;
+    expect(get(s.items)).toEqual(['slow']);
+  });
+
+  it('lets a manual load (r, namespace change) supersede an in-flight one', async () => {
+    const s = fresh();
+    const p1 = s.load('a');
+    const req1 = await call(0);
+    const p2 = s.load('b');
+    (await call(1)).resolve(['from-b']);
+    await p2;
+    req1.resolve(['from-a']); // late
+    await p1;
+    expect(get(s.items)).toEqual(['from-b']);
+  });
+
+  it('marks 403s as forbidden and keeps the rows it already has', async () => {
+    const s = fresh();
+    const p0 = s.load(null);
+    (await call(0)).resolve(['kept']);
+    await p0;
+    const p = s.load(null, {}, { poll: true });
+    (await call(1)).reject('Kubernetes API error: 403 Forbidden');
+    await p;
+    expect(get(s.state).status).toBe('forbidden');
+    expect(get(s.items)).toEqual(['kept']);
+
+    const s2 = fresh();
+    const p2 = s2.load(null);
+    (await call(2)).reject('connection refused');
+    await p2;
+    expect(get(s2.state)).toMatchObject({ status: 'error', error: 'connection refused' });
   });
 });

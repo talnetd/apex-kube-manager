@@ -96,7 +96,11 @@ describe('custom resource type ids', () => {
 });
 
 describe('listStore', () => {
-  beforeEach(() => invoke.mockReset());
+  beforeEach(() => {
+    invoke.mockReset();
+    // listStore goes through kubernetes.ts's Tauri guard.
+    (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
+  });
 
   it('passes the namespace only for namespaced lists and reports forbidden', async () => {
     const { currentContext } = await import('../src/lib/stores/kubernetes');
