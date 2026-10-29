@@ -275,7 +275,7 @@ All commands defined in `src-tauri/src/commands.rs`:
 **Polling invariants** (`loadNodeMetrics` in `kubernetes.ts`) — worth preserving when editing:
 - In-flight guard: a slow poll (unreachable kubelets) can outlast the 10s interval; without it, polls stack and a late response overwrites a newer one
 - Context guard: node names collide across clusters, so a poll resolving after a context switch must be dropped, not painted onto the new cluster's rows
-- `NodeList.svelte` re-anchors `selectedRowIndex` by node name after each re-sort — the usage columns are sortable and change every poll, so a positional selection would drift onto a different node
+- `DataTable.svelte` re-anchors `selectedRowIndex` by `rowKey` (the node name, for `NodeList.svelte`) after each re-sort — the usage columns are sortable and change every poll, so a positional selection would drift onto a different node
 
 ### Pod Operations
 | Command | Parameters | Returns |
@@ -452,6 +452,8 @@ const events = await invoke(`get_${resourceType}_events`, getInvokeParams());
 | `ConditionsTable.svelte` | Resource conditions table |
 | `CustomSelect.svelte` | Standard dropdown select (use this instead of native `<select>`) |
 | `UsageBar.svelte` | Compact table-cell usage bar (`percent: number \| null`, renders `–` when null) |
+| `DataTable.svelte` | Shared list table: sorting, keyboard nav, selection anchoring, loading/empty/filtered/error/forbidden states. Columns hide by window width via `hideBelow: BP.md / BP.wide / BP.lg` (`data-table.ts`) |
+| `ListView.svelte` | One list page in the Pods style: `PageHeader` (health segments + filter) over `DataTable`. Every list view except Pods is a column config on this; data loading stays in the view (`poll()` from `utils/poll.ts`, or a watch) |
 
 **CustomSelect Usage** - Use this component for all dropdown selects across the app:
 ```svelte
