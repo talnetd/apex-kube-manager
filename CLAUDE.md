@@ -29,15 +29,17 @@ apex-kube-manager/
 │   ├── lib/
 │   │   ├── components/
 │   │   │   ├── StartupScreen.svelte # Initialization loading screen
-│   │   │   ├── Sidebar.svelte   # Categorized navigation (Workloads, Network, Config, Storage, Cluster)
+│   │   │   ├── Sidebar.svelte   # Collapsible sections (see Sidebar Navigation below)
 │   │   │   ├── Header.svelte    # Context/namespace dropdowns, refresh button
 │   │   │   ├── MainPanel.svelte # View router for all resource views
 │   │   │   ├── Terminal.svelte  # xterm.js pod exec terminal
-│   │   │   ├── LogViewer.svelte # Pod logs viewer with auto-refresh
 │   │   │   ├── ui/              # Reusable UI components
-│   │   │   ├── views/           # All resource listing views (17 components)
+│   │   │   ├── views/           # Resource list views + Dashboard (Pulse) and pulse/ parts
+│   │   │   ├── shell/           # App shell, icons
+│   │   │   ├── tray/            # Menu bar popover (TrayPopover.svelte)
 │   │   │   └── detail/          # Resource detail window components
 │   │   │       ├── DetailWindow.svelte    # Window shell + router
+│   │   │       ├── kit/                   # DetailToolbar, DetailTabs (shared chrome)
 │   │   │       ├── ResourceDetail.svelte  # Unified component for 15 resource types
 │   │   │       ├── PodDetail.svelte       # Pod detail (logs, exec, containers)
 │   │   │       ├── DeploymentDetail.svelte # Deployment detail (scale, restart)
@@ -45,7 +47,8 @@ apex-kube-manager/
 │   │   └── stores/
 │   │       ├── startup.ts       # App initialization state
 │   │       ├── kubernetes.ts    # All K8s state (contexts, all resources, metrics)
-│   │       └── navigation.ts    # UI navigation state
+│   │       ├── navigation.ts    # UI navigation state
+│   │       └── detail.ts        # Detail window access (read-only guard, Switch back)
 │   ├── styles/app.css           # Tailwind import, `@theme` tokens, theme palettes, global styles
 │   ├── App.svelte               # Root component
 │   └── main.ts                  # Svelte mount entry point
@@ -182,11 +185,12 @@ The views in `views/more/` use the same `ListView.svelte` and `listStore` as eve
 
 ## Dashboard (Pulse View)
 
-The Dashboard (`Dashboard.svelte`) shows:
-- **Cluster Info**: Context, Cluster name, User, K8s version
-- **Resource Status Cards**: Shows OK:FAIL counts for workloads (Pods, Deployments, StatefulSets, DaemonSets, ReplicaSets, Jobs). FAIL = triage verdict `status: fail` (see Triage below), so a CrashLoopBackOff pod counts as FAIL even though its phase is Running
-- **Resource Count Cards**: Simple counts for other resources (CronJobs, Services, ConfigMaps, Secrets, etc.)
-- **CPU/Memory Gauges**: Animated ring gauges showing cluster resource capacity (allocatable vs capacity)
+`Dashboard.svelte` (parts in `views/pulse/`), top to bottom:
+- **KPI strip**: health %, active workloads, healthy / warning / critical counts, API uptime. Counts come from triage verdicts (see below), so a CrashLoopBackOff pod is critical even though its phase is Running
+- **Health grid**: one cell per workload object, coloured by verdict, filterable by kind; click opens its detail
+- **CPU / Memory / Disk**: cluster usage bars (disk via kubelet summary; `–` when unavailable)
+- **Activity**: recent warning events with sparklines (`pulse/history`)
+- **Issues**: worst-first list of failing objects; a row opens `IssueSheet` with reason, rule id and actions
 
 ## Triage verdicts (health)
 
@@ -272,18 +276,18 @@ All commands defined in `src-tauri/src/commands.rs`:
 | `get_node_metrics` | `context_name, node_names: Vec<String>` | `Vec<NodeMetricsInfo>` |
 
 **Node metrics sources** (`get_node_metrics`, polled every 10s by `NodeList.svelte`):
-- CPU/memory usage from metrics-server (`/apis/metrics.k8s.io/v1beta1/nodes`), as a percentage of **allocatable** — matches `kubectl top nodes`
+- CPU/memory usage from metrics-server (`/apis/metrics.k8s.io/v1beta1/nodes`), as a percentage of **allocatable**, matches `kubectl top nodes`
 - Disk usage from each kubelet's summary API (`/api/v1/nodes/{name}/proxy/stats/summary` → `node.fs`), which requires `nodes/proxy` RBAC access
-- Each source degrades independently: unavailable usage is `null` and the row renders `–` instead of a bar, never an app-wide error. A quantity that fails to parse is also `null` — never a confident `0%`
+- Each source degrades independently: unavailable usage is `null` and the row renders `–` instead of a bar, never an app-wide error. A quantity that fails to parse is also `null`, never a confident `0%`
 - `node_names` is supplied by the caller from its watch stream, so polling never re-LISTs node objects; allocatable denominators ride along on `NodeInfo`
-- The two sources are fetched concurrently, and the disk sweep is time-boxed to 3s (8 kubelets at a time, 2s per probe). CPU/memory come from one cheap call and must never queue behind a large or unhealthy fleet — whatever answers in time is cached, the rest fills in on later polls
+- The two sources are fetched concurrently, and the disk sweep is time-boxed to 3s (8 kubelets at a time, 2s per probe). CPU/memory come from one cheap call and must never queue behind a large or unhealthy fleet, whatever answers in time is cached, the rest fills in on later polls
 - Disk results are cached 60s per cluster. A **finished** sweep in which every node refuses backs off for 10 min rather than re-probing each poll; a partial sweep never condemns the endpoint, since it says nothing about nodes it didn't reach
-- 401/403 backs off immediately (the cluster won't serve this to anyone), but 404 needs *two* consecutive such sweeps — a node deleted mid-sweep 404s exactly like an absent subresource, and on a single-node cluster that one 404 would otherwise disable disk for 10 min. See `classify_sweep` in `kubernetes.rs`, which is unit-tested
+- 401/403 backs off immediately (the cluster won't serve this to anyone), but 404 needs *two* consecutive such sweeps, a node deleted mid-sweep 404s exactly like an absent subresource, and on a single-node cluster that one 404 would otherwise disable disk for 10 min. See `classify_sweep` in `kubernetes.rs`, which is unit-tested
 
-**Polling invariants** (`loadNodeMetrics` in `kubernetes.ts`) — worth preserving when editing:
+**Polling invariants** (`loadNodeMetrics` in `kubernetes.ts`), worth preserving when editing:
 - In-flight guard: a slow poll (unreachable kubelets) can outlast the 10s interval; without it, polls stack and a late response overwrites a newer one
 - Context guard: node names collide across clusters, so a poll resolving after a context switch must be dropped, not painted onto the new cluster's rows
-- `DataTable.svelte` re-anchors `selectedRowIndex` by `rowKey` (the node name, for `NodeList.svelte`) after each re-sort — the usage columns are sortable and change every poll, so a positional selection would drift onto a different node
+- `DataTable.svelte` re-anchors `selectedRowIndex` by `rowKey` (the node name, for `NodeList.svelte`) after each re-sort, the usage columns are sortable and change every poll, so a positional selection would drift onto a different node
 
 ### Pod Operations
 | Command | Parameters | Returns |
@@ -352,8 +356,8 @@ To add a kind here: a list fn + row struct, a detail builder, one arm in each di
 
 - **One shared context** for every window (main, detail, terminal, tray). Rust is the source of truth (`src-tauri/src/shell.rs`): `switch_context` writes the kubeconfig once and broadcasts `context-changed { context, seq }`; one 3s watcher in Rust catches outside kubectx changes. Windows apply it in `startContextPolling()` (`kubernetes.ts`, now an event listener; `acceptContextEvent` drops stale `seq`). The namespace stays per window and resets on a switch
 - **New Window**: File > New Window / ⌘N (macOS menu; Ctrl+N handled in `App.svelte` elsewhere) opens `main-<n>` via `open_main_window`. Main windows are min 400 px wide; every view must work at sm/md/lg (13.2). `windows-changed` drives the header's "N windows" marker (`stores/windows.ts`)
-- **Detail windows** keep the context they opened on. When the shared context moves away they turn read-only (`utils/detail-access.ts` + `stores/detail.ts`) and show "This resource is on <ctx>" with **Switch back**. Every mutating handler starts with `if (!guard('<action>')) return;` (restart, delete, scale, exec, cordon, taint, edit, apply) and its button gets `disabled={$detailReadOnly}`. New detail actions must do both
-- **Menu bar item** (macOS, `src-tauri/src/tray.rs`, Tauri `tray-icon` feature): drawn icon, a template image when healthy and a coloured dot for the worst cluster (critical verdict or unreachable = red, other issues = amber). The current context gets a verdict summary, other contexts only a 5s `/version` probe, every 60s and only while enabled. Popover window `tray` (`tray.html`, `components/tray/TrayPopover.svelte`) gets `tray-status`; switching into a prod context from it goes through `ConfirmDialog`. File > Show in Menu Bar toggles it (persisted in `<app config>/tray.json`); with it on, closing the last window keeps Apex running. With it off, closing the last main window quits, and asks first (`confirm-quit`) when terminal windows are still open. Clients are cached per context (the current one too, so its sign-in plugin only runs when its token expires) and dropped when the kubeconfig file changes
+- **Detail windows** keep the context they opened on. When the shared context moves away they turn read-only (`utils/detail-access.ts` + `stores/detail.ts`) and show "This resource is on <ctx>" with **Switch back**. Every mutating handler starts with `if (!guard('<action>')) return;` (restart, delete, scale, exec, cordon, taint, edit, apply) and its button gets `disabled={$detailReadOnly}`. New detail actions must do both. Detail windows pass their own `context_name` to every mutating command and `kubectl --context` for exec, so they never act on whatever the shared context is now
+- **Menu bar item** (macOS, `src-tauri/src/tray.rs`, Tauri `tray-icon` feature): drawn icon, a template image when healthy and a coloured dot for the worst cluster (critical verdict or unreachable = red, other issues = amber). The current context gets a verdict summary, other contexts only a 5s `/version` probe, every 60s and only while enabled. Popover window `tray` (`tray.html`, `components/tray/TrayPopover.svelte`) gets `tray-status`; switching into a prod context from it goes through `ConfirmDialog`. File > Show in Menu Bar toggles it (persisted in `<app config>/tray.json`); with it on, closing the last window keeps Apex running. With it off, closing the last main window quits, and asks first (`confirm-quit`) when terminal windows are still open. The window must ack (`confirm_quit_shown`) within 4s (`ACK_WITHIN` in `shell.rs`) or the close goes through; a second close within 3s always forces it. Clients are cached per context (the current one too, so its sign-in plugin only runs when its token expires) and dropped when the kubeconfig file changes
 
 | Command | Parameters | Returns |
 |---------|------------|---------|
@@ -383,40 +387,30 @@ isLoading, error, connectionStatus
 loadContexts(), switchContext(name), loadNamespaces()
 loadPods(ns?), loadDeployments(ns?), loadStatefulSets(ns?), ...
 loadPulseMetrics(ns?), loadClusterMetrics()
-deletePod(ns, name), getPodLogs(ns, name, container?, lines?)
+deletePod(ns, name)
+startPodWatch(ns?), listStore(...), listWatch(...)  // see Key Patterns > Lists
 ```
 
 ### navigation.ts
 ```typescript
 currentView: View  // 'dashboard' | 'pods' | ... | 'roles' | 'pdbs' | 'crds' | 'customresources' (33 views)
-sidebarCollapsed: boolean
 ```
 
-## UI Theme (TailwindCSS)
+## UI Theme (Geist)
 
-Theme tokens live in `src/styles/app.css` (`@theme inline`). Each theme class (`.dark`, `.light`, `.neon` on `<html>`) sets raw `R G B` triplets as `--rgb-*`; utilities resolve `rgb(var(--rgb-*))` so opacity modifiers (`bg-accent-primary/20`) work. Dark values:
-```javascript
-colors: {
-  bg: {
-    primary: '#0a0a0a',    // Main background
-    secondary: '#111111',  // Sidebar, cards
-    tertiary: '#1a1a1a',   // Hover states
-    card: '#141414',       // Card backgrounds
-  },
-  border: { subtle: '#222222' },
-  accent: {
-    primary: '#00d4aa',    // Teal
-    warning: '#f59e0b',    // Amber
-    error: '#ef4444',      // Red
-    success: '#22c55e',    // Green
-  },
-  text: {
-    primary: '#ffffff',
-    secondary: '#888888',
-    muted: '#555555',
-  }
-}
-```
+Tokens live in `src/styles/app.css`. Each theme (`.dark` default, `.light` on `<html>`) sets `--ui-*` CSS variables; `@theme inline` maps them to utilities (`bg-app`, `bg-surface`, `bg-hover`, `bg-selected`, `border-line`, `text-primary`, `text-secondary`, `text-muted`, `text-accent-text`, `text-danger`, `text-warning`, `text-success`). Dark values:
+
+| Token | Dark | Use |
+|-------|------|-----|
+| `--ui-app` | `#000000` | Window background |
+| `--ui-surface` | `#0a0a0a` | Panels, sidebar |
+| `--ui-hover` / `--ui-active` / `--ui-selected` | `#111` / `#1a1a1a` / `#141414` | Row states |
+| `--ui-line` / `--ui-line-strong` | `#1f1f1f` / `#2e2e2e` | Borders, dividers |
+| `--ui-primary` / `--ui-secondary` / `--ui-muted` | `#ededed` / `#a1a1a1` / `#8f8f8f` | Text |
+| `--ui-accent` / `--ui-accent-text` | `#0070f3` / `#52a8ff` | Links, focus, primary action |
+| `--ui-danger` / `--ui-warning` / `--ui-success` | `#e5484d` / `#ffb224` / `#45a557` | Status only |
+
+Light mirrors it (`#ffffff` app, `#eaeaea` lines). Rules: no gradients, glows, purple, emoji or shadowed rounded cards; colour means status, everything else stays neutral. Popovers and dialogs use a 1px `--ui-line-strong` ring, not a shadow. Breakpoints are sm < 640, md 640 to 1199, lg ≥ 1200, written as min/max-width queries (older macOS WebKit ignores range syntax).
 
 ## Key Patterns
 
@@ -425,6 +419,7 @@ One model, in `stores/kubernetes.ts`:
 - **`ListSource`**: `items`, `state` (`resourceState`: idle/loading/ready/error/forbidden), `context` (the context the rows came from), `reset()`. Rows clear the moment the context changes, so a row from one cluster is never shown, opened or edited under another
 - **`listStore(command, namespaced, { name?, items? })`**: polled loader. `load(ns, extra, { poll, namespaced })`; a `poll: true` tick is skipped while a load is in flight, any other load supersedes it; late answers (older generation or another context) are dropped
 - **`listWatch`**: list + watch on a source (deployments, jobs, nodes, events), generation-guarded so double starts can't leak listeners
+- **Pods stay on their own watch** (`startPodWatch`, see Triage above) on purpose: it batches events every 100ms, re-checks aging verdicts and has its own tests (`tests/podWatch.test.ts`), and `PodList` has pod-only shortcuts. Moving it onto `listWatch`/`ListView` would mean giving `listWatch` batching first; not worth the risk until then
 - `ListView` refuses to open or run shortcuts on rows whose `context` isn't current, and passes the row's context to `open_resource_detail`. Editors (`SecretCreator`, `NetworkPolicyCreator`) take a `context` prop fixed at open and close themselves if the live context moves
 - A failed refresh keeps the rows on screen with a banner (DataTable); the full error state is only for an empty table
 
@@ -529,16 +524,16 @@ const events = await invoke(`get_${resourceType}_events`, getInvokeParams());
 ## Implementation Status
 
 ### Completed
-- [x] All 17 resource type listings
+- [x] Resource listings (33 views incl. RBAC, storage classes, policy, CRDs)
 - [x] Namespace filtering on header (global)
 - [x] Context switching (persists to kubeconfig)
 - [x] Pulse dashboard with OK:FAIL metrics
-- [x] CPU/Memory animated gauges
+- [x] CPU/Memory/Disk usage on Pulse
 - [x] Categorized sidebar navigation
 - [x] Pod logs viewer (with search, download, previous logs)
 - [x] Pod deletion (detail window only; no list-level delete)
 - [x] Shared triage verdicts in Rust (`spec/triage/`), Pods list on DataTable + StatusPill
-- [x] Status indicators (colored dots, badges)
+- [x] Status pills from triage verdicts
 - [x] Auto-refresh (10s intervals)
 - [x] Resource detail panels for all 18 resource types
 - [x] Unified ResourceDetail component (handles 15 types)
@@ -550,11 +545,13 @@ const events = await invoke(`get_${resourceType}_events`, getInvokeParams());
 - [x] Node taint management (add/remove taints with effect dropdown)
 - [x] Node cordon/uncordon (toggle scheduling with confirmation)
 - [x] Update checker (checks GitHub releases, badge in header when update available)
+- [x] Search/filter within tables (DataTable filter, ⌘F) and global search (⌘K)
+- [x] Multi-window with one shared context, menu bar item (tray), read-only detail windows on a stale context
+- [x] Geist redesign (shell, Pulse, detail windows)
 
 ### TODO (Next Features)
+- [ ] Move Pods onto `listWatch` once it supports batching (see Lists)
 - [ ] Command palette with actions (restart deploy, scale, logs, exec - all from keyboard)
-- [x] Fix YAML editor typing (read-only and theme now live in CodeMirror compartments; theme-aware highlight style)
-- [ ] Search/filter within tables
 - [x] More resource types: RBAC, StorageClasses, EndpointSlices, IngressClasses, PDBs, ResourceQuotas, LimitRanges, PriorityClasses, CRDs + generic custom resource browser
 - [ ] Resource deletion (deployments, services, configmaps, etc.)
 - [ ] Node drain (evict pods with options)
@@ -572,9 +569,9 @@ const events = await invoke(`get_${resourceType}_events`, getInvokeParams());
 
 1. **Startup Flow**: `StartupScreen.svelte` runs sequential checks before showing main app
 2. **State Management**: Svelte writable stores, data fetched via Tauri IPC
-3. **Refresh Strategy**: 10-second auto-refresh intervals + manual refresh buttons
+3. **Refresh Strategy**: watch streams where available (pods, deployments, jobs, nodes, events), 10s polling elsewhere, plus manual refresh
 4. **Namespace Filtering**: Global selector in header, all views react to `selectedNamespace`
-5. **Context Switching**: Writes to kubeconfig file, reloads all data
+5. **Context Switching**: Rust writes the kubeconfig once and broadcasts `context-changed` to every window (see Multi-window)
 6. **Error Handling**: Rust errors via `thiserror`, displayed in frontend
 7. **Destructive Actions in Detail Views**: Impactful operations (scale, restart, cordon, taints, delete) are placed in detail views, NOT list views. This creates deliberate "speed bumps":
    - User must click specific resource → opens detail (confirms identity)
@@ -618,8 +615,9 @@ Press `?` anytime to show the keyboard shortcuts help modal.
 ### Implementation Details
 - Keyboard store: `src/lib/stores/keyboard.ts`
 - Help modal: `src/lib/components/ui/KeyboardHelp.svelte`
-- Global handlers in `App.svelte`; list views on `DataTable` get Enter/y/r/d and view `shortcuts` from it (Pods), unmigrated views keep per-view handlers
-- Row selection uses `selectedRowIndex` store with teal highlight (`bg-accent-primary/20`)
+- Global handlers in `App.svelte`; list views on `DataTable`/`ListView` get Enter/y/r/d, plus per-view `shortcuts` (Pods: l, e)
+- Detail windows: tabs are a `DetailTabs` tablist (←/→/Home/End move and activate, ignored with ⌥/⌘/Ctrl held), each tab controls the `role="tabpanel"` below it
+- Row selection uses the `selectedRowIndex` store and the neutral `bg-selected` row token (no accent tint)
 - Scrolls selected row into view automatically
 
 ## Key Dependencies
