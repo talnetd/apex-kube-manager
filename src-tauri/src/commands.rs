@@ -54,9 +54,11 @@ pub async fn get_current_context() -> Result<String> {
     kubernetes::get_current_context_name().await
 }
 
+/// Switches the one shared context (kubeconfig) and broadcasts
+/// `context-changed` to every window (spec 13.3).
 #[tauri::command]
-pub async fn switch_context(context_name: String) -> Result<()> {
-    kubernetes::switch_to_context(&context_name).await
+pub async fn switch_context(app: AppHandle, context_name: String) -> Result<()> {
+    crate::shell::switch_shared_context(&app, &context_name).await
 }
 
 #[tauri::command]
@@ -1324,4 +1326,42 @@ pub async fn get_custom_resource_events(
     let ns = if target.namespaced { namespace } else { None };
     let api_version = target.api_version();
     resources::object_events(&client, &target.kind, Some(&api_version), ns.as_deref(), &name).await
+}
+
+// ============ Multi-window + menu bar (shell.rs, tray.rs) ============
+
+#[tauri::command]
+pub async fn open_main_window(app: AppHandle) -> Result<()> {
+    crate::shell::open_main_window(&app)
+}
+
+#[tauri::command]
+pub async fn focus_main_window(app: AppHandle) -> Result<()> {
+    crate::shell::focus_or_open_main(&app)
+}
+
+#[tauri::command]
+pub fn get_main_window_count(app: AppHandle) -> usize {
+    crate::shell::main_window_count(&app)
+}
+
+#[tauri::command]
+pub fn get_tray_status(app: AppHandle) -> crate::tray::TraySnapshot {
+    crate::tray::snapshot(&app)
+}
+
+#[tauri::command]
+pub async fn refresh_tray_status(app: AppHandle) -> Result<()> {
+    crate::tray::poll_once(&app).await;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_tray_enabled(app: AppHandle, enabled: bool) -> Result<()> {
+    crate::tray::set_enabled(&app, enabled)
+}
+
+#[tauri::command]
+pub fn hide_tray_popover(app: AppHandle) {
+    crate::tray::hide_popover(&app);
 }
