@@ -1,5 +1,5 @@
 <script lang="ts">
-  import ResourceListView from '../ResourceListView.svelte';
+  import ListView from '../../ui/ListView.svelte';
   import IconButton from '../../ui/IconButton.svelte';
   import { crds, customResources, selectedCrdName, type CrdInfo } from '../../../stores/resources';
   import { currentView } from '../../../stores/navigation';
@@ -29,12 +29,12 @@
   </IconButton>
 {/snippet}
 
-<ResourceListView
+<ListView
   title="Definitions"
   subtitle="CustomResourceDefinitions"
   itemLabel="definitions"
   viewId="crds"
-  store={crds}
+  source={crds}
   {columns}
   rowKey={(r) => r.name}
   resourceType="crd"

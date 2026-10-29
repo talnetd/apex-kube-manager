@@ -2,6 +2,8 @@
   import { invoke } from '@tauri-apps/api/core';
   import { currentContext, selectedNamespace, namespaces, loadNetworkPolicies } from '../../stores/kubernetes';
   import CustomSelect from './CustomSelect.svelte';
+  import ConfirmDialog from './ConfirmDialog.svelte';
+  import { toast } from '../../stores/toast';
 
   // Edit data structure matching backend NetworkPolicyDetail
   interface EditData {
@@ -23,9 +25,37 @@
     show: boolean;
     onclose: () => void;
     editData?: EditData | null;
+    /**
+     * The context this form targets, fixed by the caller when it opens (for
+     * an edit: the context the row was loaded from). Every call uses it,
+     * never the live context, and the editor closes if the live context
+     * moves (a switch, or an external kubectx picked up by polling).
+     */
+    context: string;
   }
 
-  let { show, onclose, editData = null }: Props = $props();
+  let { show, onclose, editData = null, context }: Props = $props();
+
+  $effect(() => {
+    if (show && context && $currentContext !== context) {
+      toast(`Context changed to ${$currentContext}. Closed the editor for ${context}.`);
+      confirmDelete = false;
+      handleClose();
+    }
+  });
+
+  // Delete lives here, in edit mode, behind a ConfirmDialog: the list rows
+  // never delete (CLAUDE.md, Architecture Note 7), and the editor is the one
+  // place the user has already picked this exact object.
+  let confirmDelete = $state(false);
+  let deleted = false;
+
+  async function deleteEdited() {
+    if (!editData) return;
+    await invoke('delete_network_policy', { contextName: context, namespace: editData.namespace, name: editData.name });
+    deleted = true;
+    loadNetworkPolicies($selectedNamespace);
+  }
 
   // Form state
   let name = $state('');
@@ -300,7 +330,7 @@
 
       if (isEditMode) {
         await invoke('update_network_policy', {
-          contextName: $currentContext,
+          contextName: context,
           namespace,
           name: name.trim(),
           podSelector,
@@ -310,7 +340,7 @@
         });
       } else {
         await invoke('create_network_policy', {
-          contextName: $currentContext,
+          contextName: context,
           namespace,
           name: name.trim(),
           podSelector,
@@ -851,6 +881,14 @@
       <div class="flex items-center justify-between p-4 border-t border-border-subtle">
         {#if error}
           <p class="text-base text-danger">{error}</p>
+        {:else if isEditMode}
+          <button
+            onclick={() => (confirmDelete = true)}
+            disabled={isCreating}
+            class="px-3 py-2 text-base text-danger rounded-sm hover:bg-hover transition-colors disabled:opacity-50"
+          >
+            Delete…
+          </button>
         {:else}
           <div></div>
         {/if}
@@ -872,4 +910,24 @@
       </div>
     </div>
   </div>
+{/if}
+
+{#if confirmDelete && editData}
+  <ConfirmDialog
+    open={true}
+    title={`Delete network policy ${editData.name}?`}
+    resource={{ kind: 'NetworkPolicy', name: editData.name, namespace: editData.namespace, context }}
+    body="Traffic this policy allows or blocks changes immediately for the pods it selects. This can't be undone."
+    confirmLabel="Delete"
+    tone="danger"
+    successMessage={`Deleted ${editData.name}`}
+    onConfirm={deleteEdited}
+    onClose={() => {
+      confirmDelete = false;
+      if (deleted) {
+        deleted = false;
+        handleClose();
+      }
+    }}
+  />
 {/if}

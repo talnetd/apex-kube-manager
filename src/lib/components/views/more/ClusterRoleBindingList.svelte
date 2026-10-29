@@ -1,5 +1,5 @@
 <script lang="ts">
-  import ResourceListView from '../ResourceListView.svelte';
+  import ListView from '../../ui/ListView.svelte';
   import { clusterRoleBindings, type ClusterRoleBindingInfo } from '../../../stores/resources';
   import type { Column } from '../../ui/data-table';
 
@@ -11,11 +11,11 @@
   ];
 </script>
 
-<ResourceListView
+<ListView
   title="Cluster Role Bindings"
   itemLabel="cluster role bindings"
   viewId="clusterrolebindings"
-  store={clusterRoleBindings}
+  source={clusterRoleBindings}
   {columns}
   rowKey={(r) => r.name}
   resourceType="clusterrolebinding"

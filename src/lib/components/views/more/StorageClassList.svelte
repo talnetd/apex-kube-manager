@@ -1,5 +1,5 @@
 <script lang="ts">
-  import ResourceListView from '../ResourceListView.svelte';
+  import ListView from '../../ui/ListView.svelte';
   import { storageClasses, type StorageClassInfo } from '../../../stores/resources';
   import type { Column } from '../../ui/data-table';
 
@@ -16,11 +16,11 @@
 {#snippet nameCell(r: StorageClassInfo)}{r.name}{#if r.is_default}<span class="deftag">default</span>{/if}{/snippet}
 {#snippet expansionCell(r: StorageClassInfo)}{r.allow_expansion ? 'Allowed' : '–'}{/snippet}
 
-<ResourceListView
+<ListView
   title="Storage Classes"
   itemLabel="storage classes"
   viewId="storageclasses"
-  store={storageClasses}
+  source={storageClasses}
   {columns}
   rowKey={(r) => r.name}
   resourceType="storageclass"

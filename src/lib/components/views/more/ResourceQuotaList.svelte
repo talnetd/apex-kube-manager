@@ -1,5 +1,5 @@
 <script lang="ts">
-  import ResourceListView from '../ResourceListView.svelte';
+  import ListView from '../../ui/ListView.svelte';
   import StatusPill from '../../ui/StatusPill.svelte';
   import { resourceQuotas, type ResourceQuotaInfo } from '../../../stores/resources';
   import { HEALTH_SORT_ID, type Column } from '../../ui/data-table';
@@ -40,11 +40,11 @@
 {/snippet}
 {#snippet usageCell(q: ResourceQuotaInfo)}{summary(q) || '–'}{/snippet}
 
-<ResourceListView
+<ListView
   title="Resource Quotas"
   itemLabel="resource quotas"
   viewId="resourcequotas"
-  store={resourceQuotas}
+  source={resourceQuotas}
   {columns}
   rowKey={(r) => `${r.namespace}/${r.name}`}
   resourceType="resourcequota"

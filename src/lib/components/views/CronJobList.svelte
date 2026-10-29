@@ -1,150 +1,40 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { invoke } from '@tauri-apps/api/core';
-  import SortableHeader from '../ui/SortableHeader.svelte';
-  import { sortData, toggleSort, type SortState } from '../../utils/sort';
+  import ListView from '../ui/ListView.svelte';
+  import StatusPill from '../ui/StatusPill.svelte';
+  import { BP, HEALTH_SORT_ID, type Column } from '../ui/data-table';
+  import { cronJobHealth } from '../../utils/status-words';
+  import { parseAge } from '../../utils/sort';
   import {
-    cronjobs,
-    selectedNamespace,
-    currentContext,
-    refreshTrigger,
-    loadCronJobs,
+    cronJobList,
+    type CronJobInfo,
   } from '../../stores/kubernetes';
-  import { filterBySearch } from '../../stores/search';
-  import ViewFilter from '../ui/ViewFilter.svelte';
 
-  let sort = $state<SortState>({ field: 'name', direction: 'asc' });
-  let filterQuery = $state('');
-
-  async function openDetail(cj: { name: string; namespace: string }) {
-    try {
-      await invoke('open_resource_detail', {
-        resourceType: 'cronjob',
-        name: cj.name,
-        namespace: cj.namespace,
-        context: $currentContext
-      });
-    } catch (e) {
-      console.error('Failed to open detail:', e);
-    }
-  }
-
-  const sortedData = $derived(() => {
-    const filtered = filterBySearch($cronjobs, filterQuery, ['name', 'namespace', 'schedule']);
-    return sortData(filtered, sort.field, sort.direction);
-  });
-
-  function handleSort(field: string) {
-    sort = toggleSort(sort, field);
-  }
-
-  onMount(() => {
-    loadCronJobs($selectedNamespace);
-    const interval = setInterval(() => loadCronJobs($selectedNamespace), 10000);
-    return () => clearInterval(interval);
-  });
-
-  $effect(() => {
-    const ctx = $currentContext;
-    const trigger = $refreshTrigger;
-    if (!ctx) return;
-    loadCronJobs($selectedNamespace);
-  });
+  const columns: Column<CronJobInfo>[] = [
+    { id: 'name', label: 'Name', sortKey: 'name', primary: true },
+    { id: 'namespace', label: 'Namespace', sortKey: 'namespace', width: '14%', hideBelow: BP.md },
+    { id: 'schedule', label: 'Schedule', sortKey: 'schedule', mono: true, width: '16%', hideBelow: BP.md },
+    { id: 'status', label: 'Status', width: '16%', sortKey: (c) => cronJobHealth(c).rank, cell: statusCell },
+    { id: 'active', label: 'Active', sortKey: 'active', numeric: true, width: '64px', hideBelow: BP.lg },
+    { id: 'last_schedule', label: 'Last run', sortKey: (c) => (c.last_schedule ? parseAge(c.last_schedule) : null), numeric: true, width: '84px', hideBelow: BP.wide },
+    { id: 'age', label: 'Age', sortKey: 'age', numeric: true, width: '64px' },
+  ];
 </script>
 
-<div class="h-full flex flex-col overflow-hidden">
-  <!-- Toolbar -->
-  <div class="px-6 py-4 border-b border-border-subtle">
-    <div class="flex items-center justify-between">
-      <h1 class="text-lg font-semibold text-text-primary">CronJobs</h1>
-      <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter cronjobs..." />
-    </div>
-  </div>
+{#snippet statusCell(c: CronJobInfo)}
+  {@const h = cronJobHealth(c)}
+  <StatusPill health={h.health} label={h.label} />
+{/snippet}
 
-  <!-- Table -->
-  <div class="flex-1 overflow-auto p-6 pt-4">
-    <table class="w-full">
-      <thead>
-        <tr class="text-left border-b border-border-subtle">
-          <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Namespace" field="namespace" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Schedule" field="schedule" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Suspend" field="suspend" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Active" field="active" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Last Schedule" field="last_schedule" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Age" field="age" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <th class="pb-3 text-xs text-text-muted uppercase tracking-wide font-medium w-24">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each sortedData() as cj}
-          <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer" onclick={() => openDetail(cj)}>
-            <td class="py-3 pr-4">
-              <span class="text-accent-text font-medium hover:underline">{cj.name}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{cj.namespace}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <code class="text-xs bg-bg-tertiary px-2 py-0.5 rounded-sm text-accent-text">{cj.schedule}</code>
-            </td>
-            <td class="py-3 pr-4">
-              {#if cj.suspend}
-                <span class="px-2 py-0.5 rounded-sm text-xs font-medium text-warning bg-accent-warning/10">Suspended</span>
-              {:else}
-                <span class="px-2 py-0.5 rounded-sm text-xs font-medium text-success bg-accent-success/10">Active</span>
-              {/if}
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{cj.active}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{cj.last_schedule || 'Never'}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{cj.age}</span>
-            </td>
-            <td class="py-3">
-              <div class="flex items-center gap-1">
-                <button
-                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-success transition-colors"
-                  title="Trigger Now"
-                >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </button>
-                <button
-                  class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-warning transition-colors"
-                  title="{cj.suspend ? 'Resume' : 'Suspend'}"
-                >
-                  {#if cj.suspend}
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                    </svg>
-                  {:else}
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  {/if}
-                </button>
-              </div>
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
-
-    {#if sortedData().length === 0}
-      <div class="flex items-center justify-center h-48">
-        <div class="text-center">
-          <svg class="w-12 h-12 text-text-muted mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <p class="text-text-muted">No cronjobs found</p>
-        </div>
-      </div>
-    {/if}
-  </div>
-</div>
+<ListView
+  title="CronJobs"
+  viewId="cronjobs"
+  itemLabel="cronjobs"
+  source={cronJobList}
+  {columns}
+  rowKey={(c) => `${c.namespace}/${c.name}`}
+  filterFields={['name', 'namespace', 'schedule']}
+  health={cronJobHealth}
+  segmentLabels={{ progressing: 'Active', healthy: 'Scheduled', neutral: 'Suspended' }}
+  defaultSort={{ id: HEALTH_SORT_ID, dir: 'asc' }}
+  resourceType="cronjob"
+/>
