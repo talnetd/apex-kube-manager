@@ -24,31 +24,7 @@
     }
   }
 
-  function getStatusIcon(status: string) {
-    switch (status) {
-      case 'success':
-        return 'M5 13l4 4L19 7';
-      case 'error':
-        return 'M6 18L18 6M6 6l12 12';
-      case 'running':
-        return 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15';
-      default:
-        return 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z';
-    }
-  }
 
-  function getStatusColor(status: string) {
-    switch (status) {
-      case 'success':
-        return 'text-success';
-      case 'error':
-        return 'text-danger';
-      case 'running':
-        return 'text-accent-text';
-      default:
-        return 'text-text-muted';
-    }
-  }
 </script>
 
 <div class="fixed inset-0 bg-bg-primary flex items-center justify-center">
