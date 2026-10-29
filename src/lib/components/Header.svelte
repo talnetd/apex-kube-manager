@@ -279,7 +279,7 @@
         <div class="menu absolute top-full right-0 mt-1 w-64 p-3!" onclick={(e) => e.stopPropagation()}>
           <div class="text-sm font-medium text-primary mb-2">Update available</div>
           <div class="flex justify-between text-sm mb-1">
-            <span class="text-muted">Current</span><span class="font-mono text-secondary">v{$updateInfo.current_version}</span>
+            <span class="text-muted">Current</span><span class="font-mono text-secondary">v{$updateInfo.current_version}{$updateInfo.build_label ? ` (${$updateInfo.build_label})` : ''}</span>
           </div>
           <div class="flex justify-between text-sm mb-3">
             <span class="text-muted">Latest</span><span class="font-mono text-primary">v{$updateInfo.latest_version}</span>
