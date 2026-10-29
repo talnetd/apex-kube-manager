@@ -12,9 +12,11 @@
     placeholder?: string;
     disabled?: boolean;
     onchange?: (value: string) => void;
+    /** Accessible name when no <label for> can point at the button. */
+    ariaLabel?: string;
   }
 
-  let { options, value = $bindable(), placeholder = 'Select...', disabled = false, onchange }: Props = $props();
+  let { options, value = $bindable(), placeholder = 'Select...', disabled = false, onchange, ariaLabel }: Props = $props();
 
   let isOpen = $state(false);
   let openUpward = $state(false);
@@ -82,6 +84,7 @@
     bind:this={buttonRef}
     type="button"
     onclick={toggle}
+    aria-label={ariaLabel}
     {disabled}
     class="w-full flex items-center justify-between px-3 py-2 bg-bg-primary border border-border-subtle rounded-lg text-base text-left focus:outline-hidden focus:border-accent-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
     class:text-text-primary={value}

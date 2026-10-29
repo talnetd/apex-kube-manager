@@ -46,7 +46,7 @@
       role="tab"
       id={`tab-${t.id}`}
       aria-selected={t.id === active}
-      aria-controls={`panel-${t.id}`}
+      aria-controls={t.id === active ? `panel-${t.id}` : undefined}
       tabindex={t.id === stop ? 0 : -1}
       class:on={t.id === active}
       onclick={() => onchange(t.id)}
