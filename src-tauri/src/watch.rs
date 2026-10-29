@@ -1,15 +1,15 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
-use tokio::task::JoinHandle;
-use kube::Api;
-use kube::runtime::watcher::{self, Event};
+use futures::TryStreamExt;
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::batch::v1::Job;
 use k8s_openapi::api::core::v1::{Event as K8sEvent, Node, Pod};
-use futures::TryStreamExt;
+use kube::runtime::watcher::{self, Event};
+use kube::Api;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
+use tokio::sync::RwLock;
+use tokio::task::JoinHandle;
 use uuid::Uuid;
 
 use crate::error::Result;
@@ -30,7 +30,9 @@ struct Recheck<T> {
 
 impl<T: Clone> Recheck<T> {
     fn new() -> Self {
-        Self { items: HashMap::new() }
+        Self {
+            items: HashMap::new(),
+        }
     }
 
     fn observe(&mut self, key: String, obj: &T, verdict: &Verdict) {
@@ -249,12 +251,16 @@ impl WatchManager {
             }
         });
 
-        self.watchers.write().await.insert(watch_id.clone(), WatchHandle {
-            shutdown_tx,
-            task,
-        });
+        self.watchers
+            .write()
+            .await
+            .insert(watch_id.clone(), WatchHandle { shutdown_tx, task });
 
-        tracing::info!("Started pod watch {} for namespace {:?}", watch_id, namespace);
+        tracing::info!(
+            "Started pod watch {} for namespace {:?}",
+            watch_id,
+            namespace
+        );
         Ok(watch_id)
     }
 
@@ -332,8 +338,15 @@ impl WatchManager {
             }
         });
 
-        self.watchers.write().await.insert(watch_id.clone(), WatchHandle { shutdown_tx, task });
-        tracing::info!("Started deployment watch {} for namespace {:?}", watch_id, namespace);
+        self.watchers
+            .write()
+            .await
+            .insert(watch_id.clone(), WatchHandle { shutdown_tx, task });
+        tracing::info!(
+            "Started deployment watch {} for namespace {:?}",
+            watch_id,
+            namespace
+        );
         Ok(watch_id)
     }
 
@@ -398,15 +411,19 @@ impl WatchManager {
             }
         });
 
-        self.watchers.write().await.insert(watch_id.clone(), WatchHandle { shutdown_tx, task });
-        tracing::info!("Started job watch {} for namespace {:?}", watch_id, namespace);
+        self.watchers
+            .write()
+            .await
+            .insert(watch_id.clone(), WatchHandle { shutdown_tx, task });
+        tracing::info!(
+            "Started job watch {} for namespace {:?}",
+            watch_id,
+            namespace
+        );
         Ok(watch_id)
     }
 
-    pub async fn start_node_watch(
-        &self,
-        app: AppHandle,
-    ) -> Result<String> {
+    pub async fn start_node_watch(&self, app: AppHandle) -> Result<String> {
         let watch_id = Uuid::new_v4().to_string();
         let client = kubernetes::create_client().await?;
 
@@ -461,7 +478,10 @@ impl WatchManager {
             }
         });
 
-        self.watchers.write().await.insert(watch_id.clone(), WatchHandle { shutdown_tx, task });
+        self.watchers
+            .write()
+            .await
+            .insert(watch_id.clone(), WatchHandle { shutdown_tx, task });
         tracing::info!("Started node watch {}", watch_id);
         Ok(watch_id)
     }
@@ -525,8 +545,15 @@ impl WatchManager {
             }
         });
 
-        self.watchers.write().await.insert(watch_id.clone(), WatchHandle { shutdown_tx, task });
-        tracing::info!("Started event watch {} for namespace {:?}", watch_id, namespace);
+        self.watchers
+            .write()
+            .await
+            .insert(watch_id.clone(), WatchHandle { shutdown_tx, task });
+        tracing::info!(
+            "Started event watch {} for namespace {:?}",
+            watch_id,
+            namespace
+        );
         Ok(watch_id)
     }
 
@@ -572,7 +599,10 @@ mod owner_tests {
         m.set_owner("w1", "main").await;
         m.set_owner("w2", "main-2").await;
         assert_eq!(m.stop_owned_by("main-2").await, 1);
-        assert_eq!(ids_owned_by(&*m.owners.read().await, "main-2"), Vec::<String>::new());
+        assert_eq!(
+            ids_owned_by(&*m.owners.read().await, "main-2"),
+            Vec::<String>::new()
+        );
         assert_eq!(ids_owned_by(&*m.owners.read().await, "main"), vec!["w1"]);
     }
 }
@@ -606,7 +636,9 @@ mod tests {
         r.observe(object_key(&pod.metadata), &pod, &v0);
 
         // 2 minutes in: nothing changed, nothing emitted.
-        assert!(r.due(created + Duration::from_secs(120), triage::pod_verdict).is_empty());
+        assert!(r
+            .due(created + Duration::from_secs(120), triage::pod_verdict)
+            .is_empty());
 
         // 6 minutes in: one emit, now a warning.
         let t6 = created + Duration::from_secs(360);
@@ -616,7 +648,9 @@ mod tests {
         assert_eq!(changed[0].1.rule_id, "TRI-POD-008");
 
         // Same verdict on the next tick: no repeat emit.
-        assert!(r.due(t6 + Duration::from_secs(30), triage::pod_verdict).is_empty());
+        assert!(r
+            .due(t6 + Duration::from_secs(30), triage::pod_verdict)
+            .is_empty());
     }
 
     #[test]
@@ -626,7 +660,11 @@ mod tests {
         let key = object_key(&pod.metadata);
         r.observe(key.clone(), &pod, &Verdict::ok("TRI-POD-000", "Running"));
         assert!(r.items.is_empty());
-        r.observe(key.clone(), &pod, &Verdict::progressing("TRI-POD-011", "Pending"));
+        r.observe(
+            key.clone(),
+            &pod,
+            &Verdict::progressing("TRI-POD-011", "Pending"),
+        );
         assert_eq!(r.items.len(), 1);
         r.forget(&key);
         assert!(r.items.is_empty());
@@ -652,7 +690,10 @@ mod tests {
         let rule = |now: Timestamp| move |seen| triage::statefulset_verdict(s, now, seen);
 
         let v = tr.eval("u1", t0, rule(t0));
-        assert_eq!((v.reason.as_str(), v.tone), ("Scaling", Some(triage::Tone::Progressing)));
+        assert_eq!(
+            (v.reason.as_str(), v.tone),
+            ("Scaling", Some(triage::Tone::Progressing))
+        );
         // Polled every 10s (a gap > 60s would start a fresh clock).
         for s in (10..11 * 60).step_by(10) {
             let t = t0 + Duration::from_secs(s);
@@ -660,7 +701,10 @@ mod tests {
         }
         let t11 = t0 + Duration::from_secs(11 * 60);
         let v = tr.eval("u1", t11, rule(t11));
-        assert_eq!((v.reason.as_str(), v.status), ("3/5 ready", triage::Status::Warn));
+        assert_eq!(
+            (v.reason.as_str(), v.status),
+            ("3/5 ready", triage::Status::Warn)
+        );
         assert_eq!(v.since.as_deref(), Some("2026-10-28T12:00:00Z"));
     }
 

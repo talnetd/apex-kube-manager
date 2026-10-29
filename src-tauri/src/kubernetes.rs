@@ -1,15 +1,15 @@
+use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
+use k8s_openapi::api::autoscaling::v1::HorizontalPodAutoscaler;
+use k8s_openapi::api::batch::v1::{CronJob, Job};
+use k8s_openapi::api::core::v1::{
+    ConfigMap, Namespace, Node, PersistentVolume, PersistentVolumeClaim, Pod, Secret, Service,
+    ServiceAccount,
+};
+use k8s_openapi::api::networking::v1::{Ingress, NetworkPolicy};
 use kube::{
     api::{Api, DeleteParams, ListParams, LogParams, Patch, PatchParams},
     Client, Config,
 };
-use k8s_openapi::api::core::v1::{
-    Namespace, Node, PersistentVolume, PersistentVolumeClaim, Pod, Secret,
-    Service, ServiceAccount, ConfigMap,
-};
-use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
-use k8s_openapi::api::batch::v1::{CronJob, Job};
-use k8s_openapi::api::networking::v1::{Ingress, NetworkPolicy};
-use k8s_openapi::api::autoscaling::v1::HorizontalPodAutoscaler;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -470,8 +470,8 @@ pub struct NodeInfo {
     pub taints: Vec<NodeTaintInfo>,
     // Denominators for the usage columns, carried here so the metrics poll
     // doesn't have to re-LIST every node object just to read them.
-    pub cpu_allocatable: i64,      // millicores
-    pub memory_allocatable: i64,   // bytes
+    pub cpu_allocatable: i64,    // millicores
+    pub memory_allocatable: i64, // bytes
 }
 
 /// Live per-node resource usage for the node list.
@@ -648,10 +648,8 @@ fn find_wsl_kubeconfig() -> Option<PathBuf> {
     // Also check root home directory (some setups use /root)
     for wsl_root in &wsl_roots {
         for distro in &distros {
-            let root_kubeconfig = PathBuf::from(format!(
-                "{}\\{}\\root\\.kube\\config",
-                wsl_root, distro
-            ));
+            let root_kubeconfig =
+                PathBuf::from(format!("{}\\{}\\root\\.kube\\config", wsl_root, distro));
             if root_kubeconfig.exists() {
                 tracing::info!("Found WSL root kubeconfig at: {:?}", root_kubeconfig);
                 return Some(root_kubeconfig);
@@ -789,9 +787,7 @@ pub async fn list_pods(client: &Client, namespace: Option<&str>) -> Result<Vec<P
                         .map(|c| {
                             let container_status = status
                                 .and_then(|st| st.container_statuses.as_ref())
-                                .and_then(|statuses| {
-                                    statuses.iter().find(|cs| cs.name == c.name)
-                                });
+                                .and_then(|statuses| statuses.iter().find(|cs| cs.name == c.name));
 
                             ContainerInfo {
                                 name: c.name.clone(),
@@ -842,17 +838,13 @@ pub fn pod_to_info(pod: &Pod) -> Option<PodInfo> {
                 .map(|c| {
                     let container_status = status
                         .and_then(|st| st.container_statuses.as_ref())
-                        .and_then(|statuses| {
-                            statuses.iter().find(|cs| cs.name == c.name)
-                        });
+                        .and_then(|statuses| statuses.iter().find(|cs| cs.name == c.name));
 
                     ContainerInfo {
                         name: c.name.clone(),
                         image: c.image.clone().unwrap_or_default(),
                         ready: container_status.map(|cs| cs.ready).unwrap_or(false),
-                        restart_count: container_status
-                            .map(|cs| cs.restart_count)
-                            .unwrap_or(0),
+                        restart_count: container_status.map(|cs| cs.restart_count).unwrap_or(0),
                         state: get_container_state(container_status),
                     }
                 })
@@ -921,24 +913,22 @@ pub fn job_to_info(job: &Job) -> Option<JobInfo> {
         "Pending".to_string()
     };
 
-    let duration = status
-        .and_then(|s| s.start_time.as_ref())
-        .map(|start| {
-            let end = status
-                .and_then(|s| s.completion_time.as_ref())
-                .and_then(|t| chrono::DateTime::parse_from_rfc3339(&t.0.to_rfc3339()).ok())
-                .unwrap_or_else(|| chrono::Utc::now().into());
-            let start_dt = chrono::DateTime::parse_from_rfc3339(&start.0.to_rfc3339())
-                .unwrap_or_else(|_| chrono::Utc::now().into());
-            let dur = end.signed_duration_since(start_dt);
-            if dur.num_hours() > 0 {
-                format!("{}h{}m", dur.num_hours(), dur.num_minutes() % 60)
-            } else if dur.num_minutes() > 0 {
-                format!("{}m{}s", dur.num_minutes(), dur.num_seconds() % 60)
-            } else {
-                format!("{}s", dur.num_seconds())
-            }
-        });
+    let duration = status.and_then(|s| s.start_time.as_ref()).map(|start| {
+        let end = status
+            .and_then(|s| s.completion_time.as_ref())
+            .and_then(|t| chrono::DateTime::parse_from_rfc3339(&t.0.to_rfc3339()).ok())
+            .unwrap_or_else(|| chrono::Utc::now().into());
+        let start_dt = chrono::DateTime::parse_from_rfc3339(&start.0.to_rfc3339())
+            .unwrap_or_else(|_| chrono::Utc::now().into());
+        let dur = end.signed_duration_since(start_dt);
+        if dur.num_hours() > 0 {
+            format!("{}h{}m", dur.num_hours(), dur.num_minutes() % 60)
+        } else if dur.num_minutes() > 0 {
+            format!("{}m{}s", dur.num_minutes(), dur.num_seconds() % 60)
+        } else {
+            format!("{}s", dur.num_seconds())
+        }
+    });
 
     Some(JobInfo {
         verdict: triage::job_verdict(job, triage_now()),
@@ -962,7 +952,8 @@ pub fn node_to_info(node: &Node) -> Option<NodeInfo> {
         .labels
         .as_ref()
         .map(|labels| {
-            labels.iter()
+            labels
+                .iter()
                 .filter_map(|(k, _)| {
                     if k.starts_with("node-role.kubernetes.io/") {
                         Some(k.trim_start_matches("node-role.kubernetes.io/").to_string())
@@ -977,11 +968,13 @@ pub fn node_to_info(node: &Node) -> Option<NodeInfo> {
     // Get node status
     let node_status = status
         .and_then(|s| s.conditions.as_ref())
-        .and_then(|conditions| {
-            conditions.iter().find(|c| c.type_ == "Ready")
-        })
+        .and_then(|conditions| conditions.iter().find(|c| c.type_ == "Ready"))
         .map(|c| {
-            if c.status == "True" { "Ready" } else { "NotReady" }
+            if c.status == "True" {
+                "Ready"
+            } else {
+                "NotReady"
+            }
         })
         .unwrap_or("Unknown")
         .to_string();
@@ -996,23 +989,24 @@ pub fn node_to_info(node: &Node) -> Option<NodeInfo> {
 
     let node_info = status.and_then(|s| s.node_info.as_ref());
 
-    let internal_ip = status
-        .and_then(|s| s.addresses.as_ref())
-        .and_then(|addrs| {
-            addrs.iter()
-                .find(|a| a.type_ == "InternalIP")
-                .map(|a| a.address.clone())
-        });
+    let internal_ip = status.and_then(|s| s.addresses.as_ref()).and_then(|addrs| {
+        addrs
+            .iter()
+            .find(|a| a.type_ == "InternalIP")
+            .map(|a| a.address.clone())
+    });
 
     // Extract taints
     let taints: Vec<NodeTaintInfo> = spec
         .and_then(|s| s.taints.as_ref())
         .map(|t| {
-            t.iter().map(|taint| NodeTaintInfo {
-                key: taint.key.clone(),
-                value: taint.value.clone(),
-                effect: taint.effect.clone(),
-            }).collect()
+            t.iter()
+                .map(|taint| NodeTaintInfo {
+                    key: taint.key.clone(),
+                    value: taint.value.clone(),
+                    effect: taint.effect.clone(),
+                })
+                .collect()
         })
         .unwrap_or_default();
 
@@ -1022,13 +1016,23 @@ pub fn node_to_info(node: &Node) -> Option<NodeInfo> {
         verdict: triage::node_verdict(node, triage_now()),
         name: metadata.name.clone()?,
         status: final_status,
-        roles: if roles.is_empty() { vec!["<none>".to_string()] } else { roles },
+        roles: if roles.is_empty() {
+            vec!["<none>".to_string()]
+        } else {
+            roles
+        },
         age: get_age(metadata.creation_timestamp.as_ref()),
-        version: node_info.map(|i| i.kubelet_version.clone()).unwrap_or_default(),
+        version: node_info
+            .map(|i| i.kubelet_version.clone())
+            .unwrap_or_default(),
         internal_ip,
         os_image: node_info.map(|i| i.os_image.clone()).unwrap_or_default(),
-        kernel: node_info.map(|i| i.kernel_version.clone()).unwrap_or_default(),
-        container_runtime: node_info.map(|i| i.container_runtime_version.clone()).unwrap_or_default(),
+        kernel: node_info
+            .map(|i| i.kernel_version.clone())
+            .unwrap_or_default(),
+        container_runtime: node_info
+            .map(|i| i.container_runtime_version.clone())
+            .unwrap_or_default(),
         taints,
         cpu_allocatable,
         memory_allocatable,
@@ -1049,7 +1053,14 @@ fn node_allocatable(status: Option<&k8s_openapi::api::core::v1::NodeStatus>) -> 
     (cpu, memory)
 }
 
-pub async fn get_logs(client: &Client, namespace: &str, pod_name: &str, container: Option<&str>, tail_lines: Option<i64>, previous: Option<bool>) -> Result<String> {
+pub async fn get_logs(
+    client: &Client,
+    namespace: &str,
+    pod_name: &str,
+    container: Option<&str>,
+    tail_lines: Option<i64>,
+    previous: Option<bool>,
+) -> Result<String> {
     let pods: Api<Pod> = Api::namespaced(client.clone(), namespace);
 
     // Check if we need to fetch all containers
@@ -1058,7 +1069,9 @@ pub async fn get_logs(client: &Client, namespace: &str, pod_name: &str, containe
     if fetch_all {
         // Get pod to find all container names
         let pod = pods.get(pod_name).await?;
-        let spec = pod.spec.ok_or_else(|| crate::error::AppError::Custom("Pod has no spec".to_string()))?;
+        let spec = pod
+            .spec
+            .ok_or_else(|| crate::error::AppError::Custom("Pod has no spec".to_string()))?;
 
         let mut all_containers: Vec<String> = Vec::new();
 
@@ -1076,7 +1089,9 @@ pub async fn get_logs(client: &Client, namespace: &str, pod_name: &str, containe
 
         // Collect all log lines with timestamps for sorting
         let mut all_log_lines: Vec<(String, String, String)> = Vec::new(); // (timestamp, container, message)
-        let per_container_lines = tail_lines.map(|t| t / all_containers.len() as i64).unwrap_or(100);
+        let per_container_lines = tail_lines
+            .map(|t| t / all_containers.len() as i64)
+            .unwrap_or(100);
 
         for container_name in &all_containers {
             let log_params = LogParams {
@@ -1129,7 +1144,8 @@ pub async fn get_logs(client: &Client, namespace: &str, pod_name: &str, containe
             if timestamp.is_empty() {
                 combined_logs.push_str(&format!("[{}] {}\n", container_name, message));
             } else {
-                combined_logs.push_str(&format!("{} [{}] {}\n", timestamp, container_name, message));
+                combined_logs
+                    .push_str(&format!("{} [{}] {}\n", timestamp, container_name, message));
             }
         }
 
@@ -1157,7 +1173,10 @@ pub async fn delete_pod_by_name(client: &Client, namespace: &str, pod_name: &str
     Ok(())
 }
 
-pub async fn list_deployments(client: &Client, namespace: Option<&str>) -> Result<Vec<DeploymentInfo>> {
+pub async fn list_deployments(
+    client: &Client,
+    namespace: Option<&str>,
+) -> Result<Vec<DeploymentInfo>> {
     let deployments: Api<Deployment> = match namespace {
         Some(ns) => Api::namespaced(client.clone(), ns),
         None => Api::all(client.clone()),
@@ -1195,7 +1214,12 @@ pub async fn list_deployments(client: &Client, namespace: Option<&str>) -> Resul
 
 // ============ Deployment Operations ============
 
-pub async fn scale_deployment(client: &Client, namespace: &str, name: &str, replicas: i32) -> Result<()> {
+pub async fn scale_deployment(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+    replicas: i32,
+) -> Result<()> {
     let deployments: Api<Deployment> = Api::namespaced(client.clone(), namespace);
 
     let patch = serde_json::json!({
@@ -1204,7 +1228,9 @@ pub async fn scale_deployment(client: &Client, namespace: &str, name: &str, repl
         }
     });
 
-    deployments.patch(name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
+    deployments
+        .patch(name, &PatchParams::default(), &Patch::Merge(&patch))
+        .await?;
     Ok(())
 }
 
@@ -1225,11 +1251,17 @@ pub async fn restart_deployment(client: &Client, namespace: &str, name: &str) ->
         }
     });
 
-    deployments.patch(name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
+    deployments
+        .patch(name, &PatchParams::default(), &Patch::Merge(&patch))
+        .await?;
     Ok(())
 }
 
-pub async fn get_deployment_detail(client: &Client, namespace: &str, name: &str) -> Result<DeploymentDetail> {
+pub async fn get_deployment_detail(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<DeploymentDetail> {
     let deployments: Api<Deployment> = Api::namespaced(client.clone(), namespace);
     let deploy = deployments.get(name).await?;
     let verdict = triage::deployment_verdict(&deploy, triage_now());
@@ -1315,7 +1347,11 @@ pub async fn get_deployment_yaml(client: &Client, namespace: &str, name: &str) -
     Ok(yaml)
 }
 
-pub async fn get_deployment_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<DeploymentEvent>> {
+pub async fn get_deployment_events(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<Vec<DeploymentEvent>> {
     use k8s_openapi::api::core::v1::Event;
 
     let events: Api<Event> = Api::namespaced(client.clone(), namespace);
@@ -1329,27 +1365,29 @@ pub async fn get_deployment_events(client: &Client, namespace: &str, name: &str)
     let deployment_events: Vec<DeploymentEvent> = event_list
         .items
         .iter()
-        .map(|e| {
-            DeploymentEvent {
-                event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
-                reason: e.reason.clone().unwrap_or_default(),
-                message: e.message.clone().unwrap_or_default(),
-                count: e.count.unwrap_or(1),
-                first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-                last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-                source: e
-                    .source
-                    .as_ref()
-                    .and_then(|s| s.component.clone())
-                    .unwrap_or_default(),
-            }
+        .map(|e| DeploymentEvent {
+            event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+            reason: e.reason.clone().unwrap_or_default(),
+            message: e.message.clone().unwrap_or_default(),
+            count: e.count.unwrap_or(1),
+            first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            source: e
+                .source
+                .as_ref()
+                .and_then(|s| s.component.clone())
+                .unwrap_or_default(),
         })
         .collect();
 
     Ok(deployment_events)
 }
 
-pub async fn get_deployment_pods(client: &Client, namespace: &str, name: &str) -> Result<Vec<PodInfo>> {
+pub async fn get_deployment_pods(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<Vec<PodInfo>> {
     // First get the deployment to find its selector
     let deployments: Api<Deployment> = Api::namespaced(client.clone(), namespace);
     let deploy = deployments.get(name).await?;
@@ -1402,15 +1440,26 @@ pub async fn get_deployment_pods(client: &Client, namespace: &str, name: &str) -
                     statuses
                         .iter()
                         .map(|cs| {
-                            let state = if cs.state.as_ref().and_then(|s| s.running.as_ref()).is_some() {
-                                "Running".to_string()
-                            } else if let Some(waiting) = cs.state.as_ref().and_then(|s| s.waiting.as_ref()) {
-                                waiting.reason.clone().unwrap_or_else(|| "Waiting".to_string())
-                            } else if let Some(terminated) = cs.state.as_ref().and_then(|s| s.terminated.as_ref()) {
-                                terminated.reason.clone().unwrap_or_else(|| "Terminated".to_string())
-                            } else {
-                                "Unknown".to_string()
-                            };
+                            let state =
+                                if cs.state.as_ref().and_then(|s| s.running.as_ref()).is_some() {
+                                    "Running".to_string()
+                                } else if let Some(waiting) =
+                                    cs.state.as_ref().and_then(|s| s.waiting.as_ref())
+                                {
+                                    waiting
+                                        .reason
+                                        .clone()
+                                        .unwrap_or_else(|| "Waiting".to_string())
+                                } else if let Some(terminated) =
+                                    cs.state.as_ref().and_then(|s| s.terminated.as_ref())
+                                {
+                                    terminated
+                                        .reason
+                                        .clone()
+                                        .unwrap_or_else(|| "Terminated".to_string())
+                                } else {
+                                    "Unknown".to_string()
+                                };
 
                             ContainerInfo {
                                 name: cs.name.clone(),
@@ -1442,7 +1491,10 @@ pub async fn get_deployment_pods(client: &Client, namespace: &str, name: &str) -
     Ok(pod_infos)
 }
 
-pub async fn list_statefulsets(client: &Client, namespace: Option<&str>) -> Result<Vec<StatefulSetInfo>> {
+pub async fn list_statefulsets(
+    client: &Client,
+    namespace: Option<&str>,
+) -> Result<Vec<StatefulSetInfo>> {
     let statefulsets: Api<StatefulSet> = match namespace {
         Some(ns) => Api::namespaced(client.clone(), ns),
         None => Api::all(client.clone()),
@@ -1479,7 +1531,12 @@ pub async fn list_statefulsets(client: &Client, namespace: Option<&str>) -> Resu
 
 // ============ StatefulSet Operations ============
 
-pub async fn scale_statefulset(client: &Client, namespace: &str, name: &str, replicas: i32) -> Result<()> {
+pub async fn scale_statefulset(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+    replicas: i32,
+) -> Result<()> {
     let statefulsets: Api<StatefulSet> = Api::namespaced(client.clone(), namespace);
 
     let patch = serde_json::json!({
@@ -1488,7 +1545,9 @@ pub async fn scale_statefulset(client: &Client, namespace: &str, name: &str, rep
         }
     });
 
-    statefulsets.patch(name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
+    statefulsets
+        .patch(name, &PatchParams::default(), &Patch::Merge(&patch))
+        .await?;
     Ok(())
 }
 
@@ -1509,11 +1568,17 @@ pub async fn restart_statefulset(client: &Client, namespace: &str, name: &str) -
         }
     });
 
-    statefulsets.patch(name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
+    statefulsets
+        .patch(name, &PatchParams::default(), &Patch::Merge(&patch))
+        .await?;
     Ok(())
 }
 
-pub async fn get_statefulset_detail(client: &Client, namespace: &str, name: &str) -> Result<StatefulSetDetail> {
+pub async fn get_statefulset_detail(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<StatefulSetDetail> {
     let statefulsets: Api<StatefulSet> = Api::namespaced(client.clone(), namespace);
     let sts = statefulsets.get(name).await?;
     let verdict = triage::statefulset_tracked(&sts, triage_now());
@@ -1584,7 +1649,9 @@ pub async fn get_statefulset_detail(client: &Client, namespace: &str, name: &str
         ready_replicas: status.and_then(|s| s.ready_replicas).unwrap_or(0),
         current_replicas: status.and_then(|s| s.current_replicas).unwrap_or(0),
         updated_replicas: status.and_then(|s| s.updated_replicas).unwrap_or(0),
-        service_name: spec.and_then(|s| s.service_name.clone()).unwrap_or_default(),
+        service_name: spec
+            .and_then(|s| s.service_name.clone())
+            .unwrap_or_default(),
         pod_management_policy,
         update_strategy,
         revision_history_limit: spec.and_then(|s| s.revision_history_limit),
@@ -1602,12 +1669,18 @@ pub async fn get_statefulset_yaml(client: &Client, namespace: &str, name: &str) 
     Ok(yaml)
 }
 
-pub async fn get_statefulset_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<StatefulSetEvent>> {
+pub async fn get_statefulset_events(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<Vec<StatefulSetEvent>> {
     use k8s_openapi::api::core::v1::Event;
 
     let events: Api<Event> = Api::namespaced(client.clone(), namespace);
-    let lp = ListParams::default()
-        .fields(&format!("involvedObject.name={},involvedObject.kind=StatefulSet", name));
+    let lp = ListParams::default().fields(&format!(
+        "involvedObject.name={},involvedObject.kind=StatefulSet",
+        name
+    ));
     let event_list = events.list(&lp).await?;
 
     let sts_events: Vec<StatefulSetEvent> = event_list
@@ -1631,7 +1704,11 @@ pub async fn get_statefulset_events(client: &Client, namespace: &str, name: &str
     Ok(sts_events)
 }
 
-pub async fn get_statefulset_pods(client: &Client, namespace: &str, name: &str) -> Result<Vec<PodInfo>> {
+pub async fn get_statefulset_pods(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<Vec<PodInfo>> {
     // First get the statefulset to find its selector
     let statefulsets: Api<StatefulSet> = Api::namespaced(client.clone(), namespace);
     let sts = statefulsets.get(name).await?;
@@ -1684,15 +1761,26 @@ pub async fn get_statefulset_pods(client: &Client, namespace: &str, name: &str) 
                     statuses
                         .iter()
                         .map(|cs| {
-                            let state = if cs.state.as_ref().and_then(|s| s.running.as_ref()).is_some() {
-                                "Running".to_string()
-                            } else if let Some(waiting) = cs.state.as_ref().and_then(|s| s.waiting.as_ref()) {
-                                waiting.reason.clone().unwrap_or_else(|| "Waiting".to_string())
-                            } else if let Some(terminated) = cs.state.as_ref().and_then(|s| s.terminated.as_ref()) {
-                                terminated.reason.clone().unwrap_or_else(|| "Terminated".to_string())
-                            } else {
-                                "Unknown".to_string()
-                            };
+                            let state =
+                                if cs.state.as_ref().and_then(|s| s.running.as_ref()).is_some() {
+                                    "Running".to_string()
+                                } else if let Some(waiting) =
+                                    cs.state.as_ref().and_then(|s| s.waiting.as_ref())
+                                {
+                                    waiting
+                                        .reason
+                                        .clone()
+                                        .unwrap_or_else(|| "Waiting".to_string())
+                                } else if let Some(terminated) =
+                                    cs.state.as_ref().and_then(|s| s.terminated.as_ref())
+                                {
+                                    terminated
+                                        .reason
+                                        .clone()
+                                        .unwrap_or_else(|| "Terminated".to_string())
+                                } else {
+                                    "Unknown".to_string()
+                                };
 
                             ContainerInfo {
                                 name: cs.name.clone(),
@@ -1724,7 +1812,10 @@ pub async fn get_statefulset_pods(client: &Client, namespace: &str, name: &str) 
     Ok(pod_infos)
 }
 
-pub async fn list_daemonsets(client: &Client, namespace: Option<&str>) -> Result<Vec<DaemonSetInfo>> {
+pub async fn list_daemonsets(
+    client: &Client,
+    namespace: Option<&str>,
+) -> Result<Vec<DaemonSetInfo>> {
     let daemonsets: Api<DaemonSet> = match namespace {
         Some(ns) => Api::namespaced(client.clone(), ns),
         None => Api::all(client.clone()),
@@ -1768,7 +1859,10 @@ pub async fn list_daemonsets(client: &Client, namespace: Option<&str>) -> Result
     Ok(ds_infos)
 }
 
-pub async fn list_replicasets(client: &Client, namespace: Option<&str>) -> Result<Vec<ReplicaSetInfo>> {
+pub async fn list_replicasets(
+    client: &Client,
+    namespace: Option<&str>,
+) -> Result<Vec<ReplicaSetInfo>> {
     let replicasets: Api<ReplicaSet> = match namespace {
         Some(ns) => Api::namespaced(client.clone(), ns),
         None => Api::all(client.clone()),
@@ -1836,24 +1930,22 @@ pub async fn list_jobs(client: &Client, namespace: Option<&str>) -> Result<Vec<J
                 "Pending".to_string()
             };
 
-            let duration = status
-                .and_then(|s| s.start_time.as_ref())
-                .map(|start| {
-                    let end = status
-                        .and_then(|s| s.completion_time.as_ref())
-                        .and_then(|t| chrono::DateTime::parse_from_rfc3339(&t.0.to_rfc3339()).ok())
-                        .unwrap_or_else(|| chrono::Utc::now().into());
-                    let start_dt = chrono::DateTime::parse_from_rfc3339(&start.0.to_rfc3339())
-                        .unwrap_or_else(|_| chrono::Utc::now().into());
-                    let dur = end.signed_duration_since(start_dt);
-                    if dur.num_hours() > 0 {
-                        format!("{}h{}m", dur.num_hours(), dur.num_minutes() % 60)
-                    } else if dur.num_minutes() > 0 {
-                        format!("{}m{}s", dur.num_minutes(), dur.num_seconds() % 60)
-                    } else {
-                        format!("{}s", dur.num_seconds())
-                    }
-                });
+            let duration = status.and_then(|s| s.start_time.as_ref()).map(|start| {
+                let end = status
+                    .and_then(|s| s.completion_time.as_ref())
+                    .and_then(|t| chrono::DateTime::parse_from_rfc3339(&t.0.to_rfc3339()).ok())
+                    .unwrap_or_else(|| chrono::Utc::now().into());
+                let start_dt = chrono::DateTime::parse_from_rfc3339(&start.0.to_rfc3339())
+                    .unwrap_or_else(|_| chrono::Utc::now().into());
+                let dur = end.signed_duration_since(start_dt);
+                if dur.num_hours() > 0 {
+                    format!("{}h{}m", dur.num_hours(), dur.num_minutes() % 60)
+                } else if dur.num_minutes() > 0 {
+                    format!("{}m{}s", dur.num_minutes(), dur.num_seconds() % 60)
+                } else {
+                    format!("{}s", dur.num_seconds())
+                }
+            });
 
             JobInfo {
                 verdict: triage::job_verdict(job, triage_now()),
@@ -1895,7 +1987,10 @@ pub async fn list_cronjobs(client: &Client, namespace: Option<&str>) -> Result<V
                 namespace: metadata.namespace.clone().unwrap_or_default(),
                 schedule: spec.schedule.clone(),
                 suspend: spec.suspend.unwrap_or(false),
-                active: status.and_then(|s| s.active.as_ref()).map(|a| a.len() as i32).unwrap_or(0),
+                active: status
+                    .and_then(|s| s.active.as_ref())
+                    .map(|a| a.len() as i32)
+                    .unwrap_or(0),
                 last_schedule,
                 age: get_age(metadata.creation_timestamp.as_ref()),
             }
@@ -1964,7 +2059,11 @@ pub async fn list_services(client: &Client, namespace: Option<&str>) -> Result<V
 
 // ============ Service Operations ============
 
-pub async fn get_service_detail(client: &Client, namespace: &str, name: &str) -> Result<ServiceDetail> {
+pub async fn get_service_detail(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<ServiceDetail> {
     let services: Api<Service> = Api::namespaced(client.clone(), namespace);
     let svc = services.get(name).await?;
 
@@ -1982,10 +2081,16 @@ pub async fn get_service_detail(client: &Client, namespace: &str, name: &str) ->
                     name: p.name.clone(),
                     protocol: p.protocol.clone().unwrap_or_else(|| "TCP".to_string()),
                     port: p.port,
-                    target_port: p.target_port.as_ref()
+                    target_port: p
+                        .target_port
+                        .as_ref()
                         .map(|tp| match tp {
-                            k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(i) => i.to_string(),
-                            k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::String(s) => s.clone(),
+                            k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(i) => {
+                                i.to_string()
+                            }
+                            k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::String(
+                                s,
+                            ) => s.clone(),
                         })
                         .unwrap_or_default(),
                     node_port: p.node_port,
@@ -2017,13 +2122,19 @@ pub async fn get_service_detail(client: &Client, namespace: &str, name: &str) ->
             .unwrap_or_default(),
         labels: metadata.labels.clone().unwrap_or_default(),
         annotations: metadata.annotations.clone().unwrap_or_default(),
-        service_type: spec.and_then(|s| s.type_.clone()).unwrap_or_else(|| "ClusterIP".to_string()),
+        service_type: spec
+            .and_then(|s| s.type_.clone())
+            .unwrap_or_else(|| "ClusterIP".to_string()),
         cluster_ip: spec.and_then(|s| s.cluster_ip.clone()),
         cluster_ips: spec.and_then(|s| s.cluster_ips.clone()).unwrap_or_default(),
-        external_ips: spec.and_then(|s| s.external_ips.clone()).unwrap_or_default(),
+        external_ips: spec
+            .and_then(|s| s.external_ips.clone())
+            .unwrap_or_default(),
         ports,
         selector: spec.and_then(|s| s.selector.clone()).unwrap_or_default(),
-        session_affinity: spec.and_then(|s| s.session_affinity.clone()).unwrap_or_else(|| "None".to_string()),
+        session_affinity: spec
+            .and_then(|s| s.session_affinity.clone())
+            .unwrap_or_else(|| "None".to_string()),
         load_balancer_ip: spec.and_then(|s| s.load_balancer_ip.clone()),
         load_balancer_ingress,
         external_name: spec.and_then(|s| s.external_name.clone()),
@@ -2040,12 +2151,18 @@ pub async fn get_service_yaml(client: &Client, namespace: &str, name: &str) -> R
     Ok(yaml)
 }
 
-pub async fn get_service_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<ServiceEvent>> {
+pub async fn get_service_events(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<Vec<ServiceEvent>> {
     use k8s_openapi::api::core::v1::Event;
 
     let events: Api<Event> = Api::namespaced(client.clone(), namespace);
-    let lp = ListParams::default()
-        .fields(&format!("involvedObject.name={},involvedObject.kind=Service", name));
+    let lp = ListParams::default().fields(&format!(
+        "involvedObject.name={},involvedObject.kind=Service",
+        name
+    ));
     let event_list = events.list(&lp).await?;
 
     let svc_events: Vec<ServiceEvent> = event_list
@@ -2069,7 +2186,11 @@ pub async fn get_service_events(client: &Client, namespace: &str, name: &str) ->
     Ok(svc_events)
 }
 
-pub async fn get_service_endpoints(client: &Client, namespace: &str, name: &str) -> Result<Vec<ServiceEndpoint>> {
+pub async fn get_service_endpoints(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<Vec<ServiceEndpoint>> {
     use k8s_openapi::api::core::v1::Endpoints;
 
     let endpoints: Api<Endpoints> = Api::namespaced(client.clone(), namespace);
@@ -2144,11 +2265,7 @@ pub async fn list_ingresses(client: &Client, namespace: Option<&str>) -> Result<
 
             let hosts: Vec<String> = spec
                 .and_then(|s| s.rules.as_ref())
-                .map(|rules| {
-                    rules.iter()
-                        .filter_map(|r| r.host.clone())
-                        .collect()
-                })
+                .map(|rules| rules.iter().filter_map(|r| r.host.clone()).collect())
                 .unwrap_or_default();
 
             let address = status
@@ -2179,7 +2296,11 @@ pub async fn list_ingresses(client: &Client, namespace: Option<&str>) -> Result<
 
 // ============ Ingress Detail Functions ============
 
-pub async fn get_ingress_detail(client: &Client, namespace: &str, name: &str) -> Result<IngressDetail> {
+pub async fn get_ingress_detail(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<IngressDetail> {
     let ingresses: Api<Ingress> = Api::namespaced(client.clone(), namespace);
     let ingress = ingresses.get(name).await?;
 
@@ -2195,46 +2316,59 @@ pub async fn get_ingress_detail(client: &Client, namespace: &str, name: &str) ->
     let rules: Vec<IngressRuleDetail> = spec
         .and_then(|s| s.rules.as_ref())
         .map(|rules| {
-            rules.iter().map(|rule| {
-                let paths: Vec<IngressPathDetail> = rule.http.as_ref()
-                    .map(|http| {
-                        http.paths.iter().map(|path| {
-                            let backend_service = path.backend.service.as_ref().map(|s| s.name.clone());
-                            let backend_port = path.backend.service.as_ref()
-                                .and_then(|s| s.port.as_ref())
-                                .map(|p| {
-                                    p.name.clone().unwrap_or_else(|| {
-                                        p.number.map(|n| n.to_string()).unwrap_or_default()
-                                    })
-                                });
+            rules
+                .iter()
+                .map(|rule| {
+                    let paths: Vec<IngressPathDetail> = rule
+                        .http
+                        .as_ref()
+                        .map(|http| {
+                            http.paths
+                                .iter()
+                                .map(|path| {
+                                    let backend_service =
+                                        path.backend.service.as_ref().map(|s| s.name.clone());
+                                    let backend_port = path
+                                        .backend
+                                        .service
+                                        .as_ref()
+                                        .and_then(|s| s.port.as_ref())
+                                        .map(|p| {
+                                            p.name.clone().unwrap_or_else(|| {
+                                                p.number.map(|n| n.to_string()).unwrap_or_default()
+                                            })
+                                        });
 
-                            IngressPathDetail {
-                                path: path.path.clone().unwrap_or_else(|| "/".to_string()),
-                                path_type: path.path_type.clone(),
-                                backend_service,
-                                backend_port,
-                            }
-                        }).collect()
-                    })
-                    .unwrap_or_default();
+                                    IngressPathDetail {
+                                        path: path.path.clone().unwrap_or_else(|| "/".to_string()),
+                                        path_type: path.path_type.clone(),
+                                        backend_service,
+                                        backend_port,
+                                    }
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default();
 
-                IngressRuleDetail {
-                    host: rule.host.clone(),
-                    paths,
-                }
-            }).collect()
+                    IngressRuleDetail {
+                        host: rule.host.clone(),
+                        paths,
+                    }
+                })
+                .collect()
         })
         .unwrap_or_default();
 
     let tls: Vec<IngressTlsDetail> = spec
         .and_then(|s| s.tls.as_ref())
         .map(|tls_list| {
-            tls_list.iter().map(|tls| {
-                IngressTlsDetail {
+            tls_list
+                .iter()
+                .map(|tls| IngressTlsDetail {
                     hosts: tls.hosts.clone().unwrap_or_default(),
                     secret_name: tls.secret_name.clone(),
-                }
-            }).collect()
+                })
+                .collect()
         })
         .unwrap_or_default();
 
@@ -2242,8 +2376,14 @@ pub async fn get_ingress_detail(client: &Client, namespace: &str, name: &str) ->
         .and_then(|s| s.default_backend.as_ref())
         .and_then(|db| db.service.as_ref())
         .map(|svc| {
-            let port = svc.port.as_ref()
-                .map(|p| p.name.clone().unwrap_or_else(|| p.number.map(|n| n.to_string()).unwrap_or_default()))
+            let port = svc
+                .port
+                .as_ref()
+                .map(|p| {
+                    p.name
+                        .clone()
+                        .unwrap_or_else(|| p.number.map(|n| n.to_string()).unwrap_or_default())
+                })
                 .unwrap_or_default();
             IngressBackendDetail {
                 service_name: svc.name.clone(),
@@ -2255,7 +2395,8 @@ pub async fn get_ingress_detail(client: &Client, namespace: &str, name: &str) ->
         .and_then(|s| s.load_balancer.as_ref())
         .and_then(|lb| lb.ingress.as_ref())
         .map(|ingress_list| {
-            ingress_list.iter()
+            ingress_list
+                .iter()
                 .filter_map(|i| i.ip.clone().or_else(|| i.hostname.clone()))
                 .collect()
         })
@@ -2265,7 +2406,8 @@ pub async fn get_ingress_detail(client: &Client, namespace: &str, name: &str) ->
         name: metadata.name.clone().unwrap_or_default(),
         namespace: metadata.namespace.clone().unwrap_or_default(),
         uid: metadata.uid.clone().unwrap_or_default(),
-        creation_timestamp: metadata.creation_timestamp
+        creation_timestamp: metadata
+            .creation_timestamp
             .as_ref()
             .map(|t| t.0.to_chrono().format("%Y-%m-%d %H:%M:%S UTC").to_string())
             .unwrap_or_default(),
@@ -2286,31 +2428,57 @@ pub async fn get_ingress_yaml(client: &Client, namespace: &str, name: &str) -> R
         .map_err(|e| AppError::Custom(format!("Failed to serialize ingress to YAML: {}", e)))
 }
 
-pub async fn get_ingress_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<IngressEvent>> {
+pub async fn get_ingress_events(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<Vec<IngressEvent>> {
     use k8s_openapi::api::core::v1::Event;
 
     let events: Api<Event> = Api::namespaced(client.clone(), namespace);
-    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=Ingress", name));
+    let lp = ListParams::default().fields(&format!(
+        "involvedObject.name={},involvedObject.kind=Ingress",
+        name
+    ));
     let event_list = events.list(&lp).await?;
 
-    let result: Vec<IngressEvent> = event_list.items.iter().map(|e| {
-        IngressEvent {
+    let result: Vec<IngressEvent> = event_list
+        .items
+        .iter()
+        .map(|e| IngressEvent {
             event_type: e.type_.clone().unwrap_or_else(|| "Unknown".to_string()),
             reason: e.reason.clone().unwrap_or_default(),
             message: e.message.clone().unwrap_or_default(),
             count: e.count.unwrap_or(1),
-            first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_chrono().format("%Y-%m-%d %H:%M:%S").to_string()),
-            last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_chrono().format("%Y-%m-%d %H:%M:%S").to_string()),
-            source: e.source.as_ref()
-                .map(|s| format!("{}/{}", s.component.as_deref().unwrap_or(""), s.host.as_deref().unwrap_or("")))
+            first_timestamp: e
+                .first_timestamp
+                .as_ref()
+                .map(|t| t.0.to_chrono().format("%Y-%m-%d %H:%M:%S").to_string()),
+            last_timestamp: e
+                .last_timestamp
+                .as_ref()
+                .map(|t| t.0.to_chrono().format("%Y-%m-%d %H:%M:%S").to_string()),
+            source: e
+                .source
+                .as_ref()
+                .map(|s| {
+                    format!(
+                        "{}/{}",
+                        s.component.as_deref().unwrap_or(""),
+                        s.host.as_deref().unwrap_or("")
+                    )
+                })
                 .unwrap_or_default(),
-        }
-    }).collect();
+        })
+        .collect();
 
     Ok(result)
 }
 
-pub async fn list_network_policies(client: &Client, namespace: Option<&str>) -> Result<Vec<NetworkPolicyInfo>> {
+pub async fn list_network_policies(
+    client: &Client,
+    namespace: Option<&str>,
+) -> Result<Vec<NetworkPolicyInfo>> {
     let netpols: Api<NetworkPolicy> = match namespace {
         Some(ns) => Api::namespaced(client.clone(), ns),
         None => Api::all(client.clone()),
@@ -2327,9 +2495,12 @@ pub async fn list_network_policies(client: &Client, namespace: Option<&str>) -> 
 
             let pod_selector = spec
                 .map(|s| {
-                    s.pod_selector.as_ref().and_then(|ps| ps.match_labels.as_ref())
+                    s.pod_selector
+                        .as_ref()
+                        .and_then(|ps| ps.match_labels.as_ref())
                         .map(|labels| {
-                            labels.iter()
+                            labels
+                                .iter()
                                 .map(|(k, v)| format!("{}={}", k, v))
                                 .collect::<Vec<_>>()
                                 .join(", ")
@@ -2356,7 +2527,10 @@ pub async fn list_network_policies(client: &Client, namespace: Option<&str>) -> 
 }
 
 // Config resources
-pub async fn list_configmaps(client: &Client, namespace: Option<&str>) -> Result<Vec<ConfigMapInfo>> {
+pub async fn list_configmaps(
+    client: &Client,
+    namespace: Option<&str>,
+) -> Result<Vec<ConfigMapInfo>> {
     let configmaps: Api<ConfigMap> = match namespace {
         Some(ns) => Api::namespaced(client.clone(), ns),
         None => Api::all(client.clone()),
@@ -2428,7 +2602,10 @@ pub async fn list_hpas(client: &Client, namespace: Option<&str>) -> Result<Vec<H
             let spec = &hpa.spec;
             let status = hpa.status.as_ref();
 
-            let reference = format!("{}/{}", spec.scale_target_ref.kind, spec.scale_target_ref.name);
+            let reference = format!(
+                "{}/{}",
+                spec.scale_target_ref.kind, spec.scale_target_ref.name
+            );
 
             let current_cpu = status
                 .and_then(|s| s.current_cpu_utilization_percentage)
@@ -2481,15 +2658,21 @@ pub async fn list_pvs(client: &Client) -> Result<Vec<PersistentVolumeInfo>> {
                 .and_then(|s| s.access_modes.clone())
                 .unwrap_or_default();
 
-            let claim = spec
-                .and_then(|s| s.claim_ref.as_ref())
-                .map(|c| format!("{}/{}", c.namespace.as_deref().unwrap_or(""), c.name.as_deref().unwrap_or("")));
+            let claim = spec.and_then(|s| s.claim_ref.as_ref()).map(|c| {
+                format!(
+                    "{}/{}",
+                    c.namespace.as_deref().unwrap_or(""),
+                    c.name.as_deref().unwrap_or("")
+                )
+            });
 
             PersistentVolumeInfo {
                 name: metadata.name.clone().unwrap_or_default(),
                 capacity,
                 access_modes,
-                reclaim_policy: spec.and_then(|s| s.persistent_volume_reclaim_policy.clone()).unwrap_or_default(),
+                reclaim_policy: spec
+                    .and_then(|s| s.persistent_volume_reclaim_policy.clone())
+                    .unwrap_or_default(),
                 status: status.and_then(|s| s.phase.clone()).unwrap_or_default(),
                 claim,
                 storage_class: spec.and_then(|s| s.storage_class_name.clone()),
@@ -2519,7 +2702,10 @@ async fn storage_class_binding_modes(client: &Client) -> std::collections::HashM
     }
 }
 
-pub async fn list_pvcs(client: &Client, namespace: Option<&str>) -> Result<Vec<PersistentVolumeClaimInfo>> {
+pub async fn list_pvcs(
+    client: &Client,
+    namespace: Option<&str>,
+) -> Result<Vec<PersistentVolumeClaimInfo>> {
     let pvcs: Api<PersistentVolumeClaim> = match namespace {
         Some(ns) => Api::namespaced(client.clone(), ns),
         None => Api::all(client.clone()),
@@ -2608,7 +2794,8 @@ pub async fn list_nodes(client: &Client) -> Result<Vec<NodeInfo>> {
                 .labels
                 .as_ref()
                 .map(|labels| {
-                    labels.iter()
+                    labels
+                        .iter()
                         .filter_map(|(k, _)| {
                             if k.starts_with("node-role.kubernetes.io/") {
                                 Some(k.trim_start_matches("node-role.kubernetes.io/").to_string())
@@ -2623,11 +2810,13 @@ pub async fn list_nodes(client: &Client) -> Result<Vec<NodeInfo>> {
             // Get node status
             let node_status = status
                 .and_then(|s| s.conditions.as_ref())
-                .and_then(|conditions| {
-                    conditions.iter().find(|c| c.type_ == "Ready")
-                })
+                .and_then(|conditions| conditions.iter().find(|c| c.type_ == "Ready"))
                 .map(|c| {
-                    if c.status == "True" { "Ready" } else { "NotReady" }
+                    if c.status == "True" {
+                        "Ready"
+                    } else {
+                        "NotReady"
+                    }
                 })
                 .unwrap_or("Unknown")
                 .to_string();
@@ -2642,23 +2831,24 @@ pub async fn list_nodes(client: &Client) -> Result<Vec<NodeInfo>> {
 
             let node_info = status.and_then(|s| s.node_info.as_ref());
 
-            let internal_ip = status
-                .and_then(|s| s.addresses.as_ref())
-                .and_then(|addrs| {
-                    addrs.iter()
-                        .find(|a| a.type_ == "InternalIP")
-                        .map(|a| a.address.clone())
-                });
+            let internal_ip = status.and_then(|s| s.addresses.as_ref()).and_then(|addrs| {
+                addrs
+                    .iter()
+                    .find(|a| a.type_ == "InternalIP")
+                    .map(|a| a.address.clone())
+            });
 
             // Extract taints
             let taints: Vec<NodeTaintInfo> = spec
                 .and_then(|s| s.taints.as_ref())
                 .map(|t| {
-                    t.iter().map(|taint| NodeTaintInfo {
-                        key: taint.key.clone(),
-                        value: taint.value.clone(),
-                        effect: taint.effect.clone(),
-                    }).collect()
+                    t.iter()
+                        .map(|taint| NodeTaintInfo {
+                            key: taint.key.clone(),
+                            value: taint.value.clone(),
+                            effect: taint.effect.clone(),
+                        })
+                        .collect()
                 })
                 .unwrap_or_default();
 
@@ -2668,13 +2858,23 @@ pub async fn list_nodes(client: &Client) -> Result<Vec<NodeInfo>> {
                 verdict: triage::node_verdict(node, triage_now()),
                 name: metadata.name.clone().unwrap_or_default(),
                 status: final_status,
-                roles: if roles.is_empty() { vec!["<none>".to_string()] } else { roles },
+                roles: if roles.is_empty() {
+                    vec!["<none>".to_string()]
+                } else {
+                    roles
+                },
                 age: get_age(metadata.creation_timestamp.as_ref()),
-                version: node_info.map(|i| i.kubelet_version.clone()).unwrap_or_default(),
+                version: node_info
+                    .map(|i| i.kubelet_version.clone())
+                    .unwrap_or_default(),
                 internal_ip,
                 os_image: node_info.map(|i| i.os_image.clone()).unwrap_or_default(),
-                kernel: node_info.map(|i| i.kernel_version.clone()).unwrap_or_default(),
-                container_runtime: node_info.map(|i| i.container_runtime_version.clone()).unwrap_or_default(),
+                kernel: node_info
+                    .map(|i| i.kernel_version.clone())
+                    .unwrap_or_default(),
+                container_runtime: node_info
+                    .map(|i| i.container_runtime_version.clone())
+                    .unwrap_or_default(),
                 taints,
                 cpu_allocatable,
                 memory_allocatable,
@@ -2685,7 +2885,10 @@ pub async fn list_nodes(client: &Client) -> Result<Vec<NodeInfo>> {
     Ok(node_infos)
 }
 
-pub async fn list_service_accounts(client: &Client, namespace: Option<&str>) -> Result<Vec<ServiceAccountInfo>> {
+pub async fn list_service_accounts(
+    client: &Client,
+    namespace: Option<&str>,
+) -> Result<Vec<ServiceAccountInfo>> {
     let sas: Api<ServiceAccount> = match namespace {
         Some(ns) => Api::namespaced(client.clone(), ns),
         None => Api::all(client.clone()),
@@ -2716,10 +2919,16 @@ pub fn event_to_info(event: &k8s_openapi::api::core::v1::Event) -> ClusterEventI
     let metadata = &event.metadata;
     let involved = &event.involved_object;
 
-    let source = event.source.as_ref()
-        .map(|s| format!("{}/{}",
-            s.component.as_deref().unwrap_or(""),
-            s.host.as_deref().unwrap_or("")))
+    let source = event
+        .source
+        .as_ref()
+        .map(|s| {
+            format!(
+                "{}/{}",
+                s.component.as_deref().unwrap_or(""),
+                s.host.as_deref().unwrap_or("")
+            )
+        })
         .unwrap_or_default();
 
     ClusterEventInfo {
@@ -2738,7 +2947,10 @@ pub fn event_to_info(event: &k8s_openapi::api::core::v1::Event) -> ClusterEventI
     }
 }
 
-pub async fn list_events(client: &Client, namespace: Option<&str>) -> Result<Vec<ClusterEventInfo>> {
+pub async fn list_events(
+    client: &Client,
+    namespace: Option<&str>,
+) -> Result<Vec<ClusterEventInfo>> {
     use k8s_openapi::api::core::v1::Event;
 
     let events: Api<Event> = match namespace {
@@ -2751,15 +2963,18 @@ pub async fn list_events(client: &Client, namespace: Option<&str>) -> Result<Vec
     // Sort raw events by last_timestamp (most recent first) before converting
     let mut items = event_list.items;
     items.sort_by(|a, b| {
-        let a_time = a.last_timestamp.as_ref().or(a.metadata.creation_timestamp.as_ref());
-        let b_time = b.last_timestamp.as_ref().or(b.metadata.creation_timestamp.as_ref());
+        let a_time = a
+            .last_timestamp
+            .as_ref()
+            .or(a.metadata.creation_timestamp.as_ref());
+        let b_time = b
+            .last_timestamp
+            .as_ref()
+            .or(b.metadata.creation_timestamp.as_ref());
         b_time.cmp(&a_time)
     });
 
-    let event_infos: Vec<ClusterEventInfo> = items
-        .iter()
-        .map(event_to_info)
-        .collect();
+    let event_infos: Vec<ClusterEventInfo> = items.iter().map(event_to_info).collect();
 
     Ok(event_infos)
 }
@@ -2825,16 +3040,23 @@ pub async fn get_pulse_metrics(client: &Client, namespace: Option<&str>) -> Resu
     // Get cluster info from kubeconfig
     let kubeconfig = kube::config::Kubeconfig::read_from(get_kubeconfig_path())?;
     let current_context_name = kubeconfig.current_context.clone().unwrap_or_default();
-    let current_ctx = kubeconfig.contexts.iter().find(|c| c.name == current_context_name);
+    let current_ctx = kubeconfig
+        .contexts
+        .iter()
+        .find(|c| c.name == current_context_name);
     let context_info = current_ctx.and_then(|c| c.context.as_ref());
 
     let cluster_name = context_info.map(|c| c.cluster.clone()).unwrap_or_default();
-    let user_name = context_info.and_then(|c| c.user.clone()).unwrap_or_default();
+    let user_name = context_info
+        .and_then(|c| c.user.clone())
+        .unwrap_or_default();
 
     // Get K8s version from nodes
     let nodes_api: Api<Node> = Api::all(client.clone());
     let nodes = nodes_api.list(&ListParams::default()).await?;
-    let k8s_version = nodes.items.first()
+    let k8s_version = nodes
+        .items
+        .first()
         .and_then(|n| n.status.as_ref())
         .and_then(|s| s.node_info.as_ref())
         .map(|info| info.kubelet_version.clone())
@@ -2909,8 +3131,25 @@ pub async fn get_pulse_metrics(client: &Client, namespace: Option<&str>) -> Resu
     let params = ListParams::default();
 
     // Execute all queries
-    let (pods, deployments, statefulsets, daemonsets, replicasets, jobs, cronjobs,
-         services, configmaps, secrets, pvs, pvcs, hpas, ingresses, netpols, sas, nss) = tokio::try_join!(
+    let (
+        pods,
+        deployments,
+        statefulsets,
+        daemonsets,
+        replicasets,
+        jobs,
+        cronjobs,
+        services,
+        configmaps,
+        secrets,
+        pvs,
+        pvcs,
+        hpas,
+        ingresses,
+        netpols,
+        sas,
+        nss,
+    ) = tokio::try_join!(
         pods_api.list(&params),
         deployments_api.list(&params),
         statefulsets_api.list(&params),
@@ -2968,10 +3207,14 @@ pub async fn get_pulse_metrics(client: &Client, namespace: Option<&str>) -> Resu
         (items.len() as i32 - fail, fail)
     }
     let (pods_ok, pods_fail) = ok_fail(&pods.items, |p| triage::pod_verdict(p, now));
-    let (deployments_ok, deployments_fail) = ok_fail(&deployments.items, |d| triage::deployment_verdict(d, now));
-    let (statefulsets_ok, statefulsets_fail) = ok_fail(&statefulsets.items, |s| triage::statefulset_tracked(s, now));
-    let (daemonsets_ok, daemonsets_fail) = ok_fail(&daemonsets.items, |d| triage::daemonset_tracked(d, now));
-    let (replicasets_ok, replicasets_fail) = ok_fail(&replicasets.items, |r| triage::replicaset_tracked(r, now));
+    let (deployments_ok, deployments_fail) =
+        ok_fail(&deployments.items, |d| triage::deployment_verdict(d, now));
+    let (statefulsets_ok, statefulsets_fail) =
+        ok_fail(&statefulsets.items, |s| triage::statefulset_tracked(s, now));
+    let (daemonsets_ok, daemonsets_fail) =
+        ok_fail(&daemonsets.items, |d| triage::daemonset_tracked(d, now));
+    let (replicasets_ok, replicasets_fail) =
+        ok_fail(&replicasets.items, |r| triage::replicaset_tracked(r, now));
     let (jobs_ok, jobs_fail) = ok_fail(&jobs.items, |j| triage::job_verdict(j, now));
 
     Ok(PulseMetrics {
@@ -2979,12 +3222,30 @@ pub async fn get_pulse_metrics(client: &Client, namespace: Option<&str>) -> Resu
         cluster: cluster_name,
         user: user_name,
         k8s_version,
-        pods: ResourceCount { ok: pods_ok, fail: pods_fail },
-        deployments: ResourceCount { ok: deployments_ok, fail: deployments_fail },
-        statefulsets: ResourceCount { ok: statefulsets_ok, fail: statefulsets_fail },
-        daemonsets: ResourceCount { ok: daemonsets_ok, fail: daemonsets_fail },
-        replicasets: ResourceCount { ok: replicasets_ok, fail: replicasets_fail },
-        jobs: ResourceCount { ok: jobs_ok, fail: jobs_fail },
+        pods: ResourceCount {
+            ok: pods_ok,
+            fail: pods_fail,
+        },
+        deployments: ResourceCount {
+            ok: deployments_ok,
+            fail: deployments_fail,
+        },
+        statefulsets: ResourceCount {
+            ok: statefulsets_ok,
+            fail: statefulsets_fail,
+        },
+        daemonsets: ResourceCount {
+            ok: daemonsets_ok,
+            fail: daemonsets_fail,
+        },
+        replicasets: ResourceCount {
+            ok: replicasets_ok,
+            fail: replicasets_fail,
+        },
+        jobs: ResourceCount {
+            ok: jobs_ok,
+            fail: jobs_fail,
+        },
         cronjobs: cronjobs.items.len() as i32,
         services: services.items.len() as i32,
         configmaps: configmaps.items.len() as i32,
@@ -3013,9 +3274,7 @@ async fn get_node_metrics(client: &Client) -> Option<(i64, i64)> {
     // Try to fetch from metrics.k8s.io/v1beta1/nodes
     let url = "/apis/metrics.k8s.io/v1beta1/nodes";
 
-    let request = http::Request::get(url)
-        .body(Default::default())
-        .ok()?;
+    let request = http::Request::get(url).body(Default::default()).ok()?;
 
     let response: serde_json::Value = client.request(request).await.ok()?;
 
@@ -3078,7 +3337,9 @@ pub async fn list_node_metrics(
 
 /// CPU (millicores) and memory (bytes) usage per node name from metrics-server.
 /// A node whose quantities don't parse is omitted rather than reported as 0.
-async fn get_per_node_usage(client: &Client) -> Option<std::collections::HashMap<String, (i64, i64)>> {
+async fn get_per_node_usage(
+    client: &Client,
+) -> Option<std::collections::HashMap<String, (i64, i64)>> {
     let request = http::Request::get("/apis/metrics.k8s.io/v1beta1/nodes")
         .body(Default::default())
         .ok()?;
@@ -3133,7 +3394,8 @@ struct DiskStatsCache {
     consecutive_not_found: u32,
 }
 
-static DISK_CACHE: std::sync::OnceLock<std::sync::Mutex<DiskStatsCache>> = std::sync::OnceLock::new();
+static DISK_CACHE: std::sync::OnceLock<std::sync::Mutex<DiskStatsCache>> =
+    std::sync::OnceLock::new();
 
 fn disk_cache() -> &'static std::sync::Mutex<DiskStatsCache> {
     DISK_CACHE.get_or_init(|| {
@@ -3249,9 +3511,8 @@ async fn get_per_node_disk(
     // Collect as results arrive rather than awaiting the whole set, so that
     // spending the budget still leaves us with everything that did answer.
     let mut probed: Vec<(String, DiskProbe)> = Vec::new();
-    let mut stream = Box::pin(
-        futures::stream::iter(probes).buffer_unordered(DISK_PROBE_CONCURRENCY),
-    );
+    let mut stream =
+        Box::pin(futures::stream::iter(probes).buffer_unordered(DISK_PROBE_CONCURRENCY));
     let deadline = tokio::time::Instant::now() + DISK_SWEEP_BUDGET;
     loop {
         match tokio::time::timeout_at(deadline, stream.next()).await {
@@ -3315,7 +3576,10 @@ async fn get_per_node_disk(
 /// Root filesystem (used, capacity) in bytes from the kubelet summary API,
 /// reached through the API server's node proxy.
 async fn probe_node_disk(client: &Client, node: &str) -> DiskProbe {
-    let url = format!("/api/v1/nodes/{}/proxy/stats/summary", urlencoding::encode(node));
+    let url = format!(
+        "/api/v1/nodes/{}/proxy/stats/summary",
+        urlencoding::encode(node)
+    );
     let request = match http::Request::get(url).body(Default::default()) {
         Ok(request) => request,
         Err(_) => return DiskProbe::Failed,
@@ -3341,7 +3605,9 @@ async fn probe_node_disk(client: &Client, node: &str) -> DiskProbe {
         Ok(Ok(response)) => response,
     };
 
-    let used = response.pointer("/node/fs/usedBytes").and_then(|v| v.as_i64());
+    let used = response
+        .pointer("/node/fs/usedBytes")
+        .and_then(|v| v.as_i64());
     let capacity = response
         .pointer("/node/fs/capacityBytes")
         .and_then(|v| v.as_i64());
@@ -3365,9 +3631,15 @@ fn get_container_state(status: Option<&k8s_openapi::api::core::v1::ContainerStat
             if state.running.is_some() {
                 "Running".to_string()
             } else if let Some(waiting) = &state.waiting {
-                waiting.reason.clone().unwrap_or_else(|| "Waiting".to_string())
+                waiting
+                    .reason
+                    .clone()
+                    .unwrap_or_else(|| "Waiting".to_string())
             } else if let Some(terminated) = &state.terminated {
-                terminated.reason.clone().unwrap_or_else(|| "Terminated".to_string())
+                terminated
+                    .reason
+                    .clone()
+                    .unwrap_or_else(|| "Terminated".to_string())
             } else {
                 "Unknown".to_string()
             }
@@ -3387,17 +3659,13 @@ fn pod_to_pod_info(pod: &Pod) -> PodInfo {
                 .map(|c| {
                     let container_status = status
                         .and_then(|st| st.container_statuses.as_ref())
-                        .and_then(|statuses| {
-                            statuses.iter().find(|cs| cs.name == c.name)
-                        });
+                        .and_then(|statuses| statuses.iter().find(|cs| cs.name == c.name));
 
                     ContainerInfo {
                         name: c.name.clone(),
                         image: c.image.clone().unwrap_or_default(),
                         ready: container_status.map(|cs| cs.ready).unwrap_or(false),
-                        restart_count: container_status
-                            .map(|cs| cs.restart_count)
-                            .unwrap_or(0),
+                        restart_count: container_status.map(|cs| cs.restart_count).unwrap_or(0),
                         state: get_container_state(container_status),
                     }
                 })
@@ -3423,7 +3691,9 @@ fn pod_to_pod_info(pod: &Pod) -> PodInfo {
     }
 }
 
-pub(crate) fn get_age(timestamp: Option<&k8s_openapi::apimachinery::pkg::apis::meta::v1::Time>) -> String {
+pub(crate) fn get_age(
+    timestamp: Option<&k8s_openapi::apimachinery::pkg::apis::meta::v1::Time>,
+) -> String {
     timestamp
         .map(|ts| {
             let now = chrono::Utc::now();
@@ -3463,7 +3733,10 @@ fn try_parse_cpu_quantity(quantity: &str) -> Option<i64> {
         stripped.parse::<f64>().ok().map(|v| (v / 1_000.0) as i64)
     } else if let Some(stripped) = quantity.strip_suffix('n') {
         // Nanocores to millicores
-        stripped.parse::<f64>().ok().map(|v| (v / 1_000_000.0) as i64)
+        stripped
+            .parse::<f64>()
+            .ok()
+            .map(|v| (v / 1_000_000.0) as i64)
     } else {
         // Whole cores to millicores — multiply before the cast, or "3.5" truncates to 3000m
         quantity.parse::<f64>().ok().map(|v| (v * 1000.0) as i64)
@@ -3496,7 +3769,10 @@ fn try_parse_memory_quantity(quantity: &str) -> Option<i64> {
 
     for (suffix, multiplier) in UNITS {
         if let Some(stripped) = quantity.strip_suffix(suffix) {
-            return stripped.parse::<f64>().ok().map(|v| (v * multiplier) as i64);
+            return stripped
+                .parse::<f64>()
+                .ok()
+                .map(|v| (v * multiplier) as i64);
         }
     }
 
@@ -3573,7 +3849,7 @@ pub struct EnvVarInfo {
     pub value: Option<String>,
     pub source: String, // "literal", "configMapKeyRef", "secretKeyRef", "fieldRef", "resourceFieldRef"
     pub source_name: Option<String>, // name of configmap/secret/field
-    pub source_key: Option<String>,  // key in configmap/secret
+    pub source_key: Option<String>, // key in configmap/secret
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -3624,91 +3900,125 @@ pub async fn get_pod_detail(client: &Client, namespace: &str, name: &str) -> Res
                         .and_then(|st| st.container_statuses.as_ref())
                         .and_then(|statuses| statuses.iter().find(|cs| cs.name == c.name));
 
-                    let (state, state_reason, started_at) = get_container_state_detail(container_status);
+                    let (state, state_reason, started_at) =
+                        get_container_state_detail(container_status);
 
-                    let ports: Vec<ContainerPort> = c.ports.as_ref()
-                        .map(|ps| ps.iter().map(|p| ContainerPort {
-                            name: p.name.clone(),
-                            container_port: p.container_port,
-                            protocol: p.protocol.clone().unwrap_or_else(|| "TCP".to_string()),
-                        }).collect())
+                    let ports: Vec<ContainerPort> = c
+                        .ports
+                        .as_ref()
+                        .map(|ps| {
+                            ps.iter()
+                                .map(|p| ContainerPort {
+                                    name: p.name.clone(),
+                                    container_port: p.container_port,
+                                    protocol: p
+                                        .protocol
+                                        .clone()
+                                        .unwrap_or_else(|| "TCP".to_string()),
+                                })
+                                .collect()
+                        })
                         .unwrap_or_default();
 
                     let resources = c.resources.as_ref();
                     let container_resources = ContainerResources {
-                        cpu_request: resources.and_then(|r| r.requests.as_ref())
-                            .and_then(|req| req.get("cpu")).map(|q| q.0.clone()),
-                        cpu_limit: resources.and_then(|r| r.limits.as_ref())
-                            .and_then(|lim| lim.get("cpu")).map(|q| q.0.clone()),
-                        memory_request: resources.and_then(|r| r.requests.as_ref())
-                            .and_then(|req| req.get("memory")).map(|q| q.0.clone()),
-                        memory_limit: resources.and_then(|r| r.limits.as_ref())
-                            .and_then(|lim| lim.get("memory")).map(|q| q.0.clone()),
+                        cpu_request: resources
+                            .and_then(|r| r.requests.as_ref())
+                            .and_then(|req| req.get("cpu"))
+                            .map(|q| q.0.clone()),
+                        cpu_limit: resources
+                            .and_then(|r| r.limits.as_ref())
+                            .and_then(|lim| lim.get("cpu"))
+                            .map(|q| q.0.clone()),
+                        memory_request: resources
+                            .and_then(|r| r.requests.as_ref())
+                            .and_then(|req| req.get("memory"))
+                            .map(|q| q.0.clone()),
+                        memory_limit: resources
+                            .and_then(|r| r.limits.as_ref())
+                            .and_then(|lim| lim.get("memory"))
+                            .map(|q| q.0.clone()),
                     };
 
-                    let volume_mounts: Vec<VolumeMountInfo> = c.volume_mounts.as_ref()
-                        .map(|vms| vms.iter().map(|vm| VolumeMountInfo {
-                            name: vm.name.clone(),
-                            mount_path: vm.mount_path.clone(),
-                            read_only: vm.read_only.unwrap_or(false),
-                            sub_path: vm.sub_path.clone(),
-                        }).collect())
+                    let volume_mounts: Vec<VolumeMountInfo> = c
+                        .volume_mounts
+                        .as_ref()
+                        .map(|vms| {
+                            vms.iter()
+                                .map(|vm| VolumeMountInfo {
+                                    name: vm.name.clone(),
+                                    mount_path: vm.mount_path.clone(),
+                                    read_only: vm.read_only.unwrap_or(false),
+                                    sub_path: vm.sub_path.clone(),
+                                })
+                                .collect()
+                        })
                         .unwrap_or_default();
 
-                    let env_vars: Vec<EnvVarInfo> = c.env.as_ref()
-                        .map(|envs| envs.iter().map(|e| {
-                            if let Some(value_from) = &e.value_from {
-                                if let Some(config_map_ref) = &value_from.config_map_key_ref {
-                                    EnvVarInfo {
-                                        name: e.name.clone(),
-                                        value: None,
-                                        source: "configMapKeyRef".to_string(),
-                                        source_name: Some(config_map_ref.name.clone()),
-                                        source_key: Some(config_map_ref.key.clone()),
+                    let env_vars: Vec<EnvVarInfo> = c
+                        .env
+                        .as_ref()
+                        .map(|envs| {
+                            envs.iter()
+                                .map(|e| {
+                                    if let Some(value_from) = &e.value_from {
+                                        if let Some(config_map_ref) = &value_from.config_map_key_ref
+                                        {
+                                            EnvVarInfo {
+                                                name: e.name.clone(),
+                                                value: None,
+                                                source: "configMapKeyRef".to_string(),
+                                                source_name: Some(config_map_ref.name.clone()),
+                                                source_key: Some(config_map_ref.key.clone()),
+                                            }
+                                        } else if let Some(secret_ref) = &value_from.secret_key_ref
+                                        {
+                                            EnvVarInfo {
+                                                name: e.name.clone(),
+                                                value: None,
+                                                source: "secretKeyRef".to_string(),
+                                                source_name: Some(secret_ref.name.clone()),
+                                                source_key: Some(secret_ref.key.clone()),
+                                            }
+                                        } else if let Some(field_ref) = &value_from.field_ref {
+                                            EnvVarInfo {
+                                                name: e.name.clone(),
+                                                value: None,
+                                                source: "fieldRef".to_string(),
+                                                source_name: Some(field_ref.field_path.clone()),
+                                                source_key: None,
+                                            }
+                                        } else if let Some(resource_ref) =
+                                            &value_from.resource_field_ref
+                                        {
+                                            EnvVarInfo {
+                                                name: e.name.clone(),
+                                                value: None,
+                                                source: "resourceFieldRef".to_string(),
+                                                source_name: Some(resource_ref.resource.clone()),
+                                                source_key: resource_ref.container_name.clone(),
+                                            }
+                                        } else {
+                                            EnvVarInfo {
+                                                name: e.name.clone(),
+                                                value: e.value.clone(),
+                                                source: "literal".to_string(),
+                                                source_name: None,
+                                                source_key: None,
+                                            }
+                                        }
+                                    } else {
+                                        EnvVarInfo {
+                                            name: e.name.clone(),
+                                            value: e.value.clone(),
+                                            source: "literal".to_string(),
+                                            source_name: None,
+                                            source_key: None,
+                                        }
                                     }
-                                } else if let Some(secret_ref) = &value_from.secret_key_ref {
-                                    EnvVarInfo {
-                                        name: e.name.clone(),
-                                        value: None,
-                                        source: "secretKeyRef".to_string(),
-                                        source_name: Some(secret_ref.name.clone()),
-                                        source_key: Some(secret_ref.key.clone()),
-                                    }
-                                } else if let Some(field_ref) = &value_from.field_ref {
-                                    EnvVarInfo {
-                                        name: e.name.clone(),
-                                        value: None,
-                                        source: "fieldRef".to_string(),
-                                        source_name: Some(field_ref.field_path.clone()),
-                                        source_key: None,
-                                    }
-                                } else if let Some(resource_ref) = &value_from.resource_field_ref {
-                                    EnvVarInfo {
-                                        name: e.name.clone(),
-                                        value: None,
-                                        source: "resourceFieldRef".to_string(),
-                                        source_name: Some(resource_ref.resource.clone()),
-                                        source_key: resource_ref.container_name.clone(),
-                                    }
-                                } else {
-                                    EnvVarInfo {
-                                        name: e.name.clone(),
-                                        value: e.value.clone(),
-                                        source: "literal".to_string(),
-                                        source_name: None,
-                                        source_key: None,
-                                    }
-                                }
-                            } else {
-                                EnvVarInfo {
-                                    name: e.name.clone(),
-                                    value: e.value.clone(),
-                                    source: "literal".to_string(),
-                                    source_name: None,
-                                    source_key: None,
-                                }
-                            }
-                        }).collect())
+                                })
+                                .collect()
+                        })
                         .unwrap_or_default();
 
                     ContainerDetail {
@@ -3739,63 +4049,78 @@ pub async fn get_pod_detail(client: &Client, namespace: &str, name: &str) -> Res
                         .and_then(|st| st.init_container_statuses.as_ref())
                         .and_then(|statuses| statuses.iter().find(|cs| cs.name == c.name));
 
-                    let (state, state_reason, started_at) = get_container_state_detail(container_status);
+                    let (state, state_reason, started_at) =
+                        get_container_state_detail(container_status);
 
-                    let env_vars: Vec<EnvVarInfo> = c.env.as_ref()
-                        .map(|envs| envs.iter().map(|e| {
-                            if let Some(value_from) = &e.value_from {
-                                if let Some(config_map_ref) = &value_from.config_map_key_ref {
-                                    EnvVarInfo {
-                                        name: e.name.clone(),
-                                        value: None,
-                                        source: "configMapKeyRef".to_string(),
-                                        source_name: Some(config_map_ref.name.clone()),
-                                        source_key: Some(config_map_ref.key.clone()),
+                    let env_vars: Vec<EnvVarInfo> = c
+                        .env
+                        .as_ref()
+                        .map(|envs| {
+                            envs.iter()
+                                .map(|e| {
+                                    if let Some(value_from) = &e.value_from {
+                                        if let Some(config_map_ref) = &value_from.config_map_key_ref
+                                        {
+                                            EnvVarInfo {
+                                                name: e.name.clone(),
+                                                value: None,
+                                                source: "configMapKeyRef".to_string(),
+                                                source_name: Some(config_map_ref.name.clone()),
+                                                source_key: Some(config_map_ref.key.clone()),
+                                            }
+                                        } else if let Some(secret_ref) = &value_from.secret_key_ref
+                                        {
+                                            EnvVarInfo {
+                                                name: e.name.clone(),
+                                                value: None,
+                                                source: "secretKeyRef".to_string(),
+                                                source_name: Some(secret_ref.name.clone()),
+                                                source_key: Some(secret_ref.key.clone()),
+                                            }
+                                        } else if let Some(field_ref) = &value_from.field_ref {
+                                            EnvVarInfo {
+                                                name: e.name.clone(),
+                                                value: None,
+                                                source: "fieldRef".to_string(),
+                                                source_name: Some(field_ref.field_path.clone()),
+                                                source_key: None,
+                                            }
+                                        } else {
+                                            EnvVarInfo {
+                                                name: e.name.clone(),
+                                                value: e.value.clone(),
+                                                source: "literal".to_string(),
+                                                source_name: None,
+                                                source_key: None,
+                                            }
+                                        }
+                                    } else {
+                                        EnvVarInfo {
+                                            name: e.name.clone(),
+                                            value: e.value.clone(),
+                                            source: "literal".to_string(),
+                                            source_name: None,
+                                            source_key: None,
+                                        }
                                     }
-                                } else if let Some(secret_ref) = &value_from.secret_key_ref {
-                                    EnvVarInfo {
-                                        name: e.name.clone(),
-                                        value: None,
-                                        source: "secretKeyRef".to_string(),
-                                        source_name: Some(secret_ref.name.clone()),
-                                        source_key: Some(secret_ref.key.clone()),
-                                    }
-                                } else if let Some(field_ref) = &value_from.field_ref {
-                                    EnvVarInfo {
-                                        name: e.name.clone(),
-                                        value: None,
-                                        source: "fieldRef".to_string(),
-                                        source_name: Some(field_ref.field_path.clone()),
-                                        source_key: None,
-                                    }
-                                } else {
-                                    EnvVarInfo {
-                                        name: e.name.clone(),
-                                        value: e.value.clone(),
-                                        source: "literal".to_string(),
-                                        source_name: None,
-                                        source_key: None,
-                                    }
-                                }
-                            } else {
-                                EnvVarInfo {
-                                    name: e.name.clone(),
-                                    value: e.value.clone(),
-                                    source: "literal".to_string(),
-                                    source_name: None,
-                                    source_key: None,
-                                }
-                            }
-                        }).collect())
+                                })
+                                .collect()
+                        })
                         .unwrap_or_default();
 
-                    let volume_mounts: Vec<VolumeMountInfo> = c.volume_mounts.as_ref()
-                        .map(|vms| vms.iter().map(|vm| VolumeMountInfo {
-                            name: vm.name.clone(),
-                            mount_path: vm.mount_path.clone(),
-                            read_only: vm.read_only.unwrap_or(false),
-                            sub_path: vm.sub_path.clone(),
-                        }).collect())
+                    let volume_mounts: Vec<VolumeMountInfo> = c
+                        .volume_mounts
+                        .as_ref()
+                        .map(|vms| {
+                            vms.iter()
+                                .map(|vm| VolumeMountInfo {
+                                    name: vm.name.clone(),
+                                    mount_path: vm.mount_path.clone(),
+                                    read_only: vm.read_only.unwrap_or(false),
+                                    sub_path: vm.sub_path.clone(),
+                                })
+                                .collect()
+                        })
                         .unwrap_or_default();
 
                     ContainerDetail {
@@ -3825,14 +4150,16 @@ pub async fn get_pod_detail(client: &Client, namespace: &str, name: &str) -> Res
     let conditions: Vec<PodCondition> = status
         .and_then(|s| s.conditions.as_ref())
         .map(|conds| {
-            conds.iter().map(|c| PodCondition {
-                type_: c.type_.clone(),
-                status: c.status.clone(),
-                reason: c.reason.clone(),
-                message: c.message.clone(),
-                last_transition_time: c.last_transition_time.as_ref()
-                    .map(|t| t.0.to_rfc3339()),
-            }).collect()
+            conds
+                .iter()
+                .map(|c| PodCondition {
+                    type_: c.type_.clone(),
+                    status: c.status.clone(),
+                    reason: c.reason.clone(),
+                    message: c.message.clone(),
+                    last_transition_time: c.last_transition_time.as_ref().map(|t| t.0.to_rfc3339()),
+                })
+                .collect()
         })
         .unwrap_or_default();
 
@@ -3840,25 +4167,29 @@ pub async fn get_pod_detail(client: &Client, namespace: &str, name: &str) -> Res
     let volumes: Vec<VolumeInfo> = spec
         .and_then(|s| s.volumes.as_ref())
         .map(|vols| {
-            vols.iter().map(|v| {
-                let volume_type = get_volume_type(v);
-                let source_name: Option<String> = if let Some(cm) = &v.config_map {
-                    Some(cm.name.clone())
-                } else if let Some(secret) = &v.secret {
-                    secret.secret_name.clone()
-                } else if let Some(pvc) = &v.persistent_volume_claim {
-                    Some(pvc.claim_name.clone())
-                } else if let Some(hp) = &v.host_path {
-                    Some(hp.path.clone())
-                } else {
-                    v.nfs.as_ref().map(|nfs| format!("{}:{}", nfs.server, nfs.path))
-                };
-                VolumeInfo {
-                    name: v.name.clone(),
-                    volume_type,
-                    source_name,
-                }
-            }).collect()
+            vols.iter()
+                .map(|v| {
+                    let volume_type = get_volume_type(v);
+                    let source_name: Option<String> = if let Some(cm) = &v.config_map {
+                        Some(cm.name.clone())
+                    } else if let Some(secret) = &v.secret {
+                        secret.secret_name.clone()
+                    } else if let Some(pvc) = &v.persistent_volume_claim {
+                        Some(pvc.claim_name.clone())
+                    } else if let Some(hp) = &v.host_path {
+                        Some(hp.path.clone())
+                    } else {
+                        v.nfs
+                            .as_ref()
+                            .map(|nfs| format!("{}:{}", nfs.server, nfs.path))
+                    };
+                    VolumeInfo {
+                        name: v.name.clone(),
+                        volume_type,
+                        source_name,
+                    }
+                })
+                .collect()
         })
         .unwrap_or_default();
 
@@ -3867,7 +4198,9 @@ pub async fn get_pod_detail(client: &Client, namespace: &str, name: &str) -> Res
         name: metadata.name.clone().unwrap_or_default(),
         namespace: metadata.namespace.clone().unwrap_or_default(),
         uid: metadata.uid.clone().unwrap_or_default(),
-        creation_timestamp: metadata.creation_timestamp.as_ref()
+        creation_timestamp: metadata
+            .creation_timestamp
+            .as_ref()
             .map(|t| t.0.to_rfc3339())
             .unwrap_or_default(),
         labels: metadata.labels.clone().unwrap_or_default(),
@@ -3884,7 +4217,9 @@ pub async fn get_pod_detail(client: &Client, namespace: &str, name: &str) -> Res
     })
 }
 
-fn get_container_state_detail(status: Option<&k8s_openapi::api::core::v1::ContainerStatus>) -> (String, Option<String>, Option<String>) {
+fn get_container_state_detail(
+    status: Option<&k8s_openapi::api::core::v1::ContainerStatus>,
+) -> (String, Option<String>, Option<String>) {
     status
         .and_then(|s| s.state.as_ref())
         .map(|state| {
@@ -3938,12 +4273,15 @@ pub async fn get_pod_yaml(client: &Client, namespace: &str, name: &str) -> Resul
     Ok(yaml)
 }
 
-pub async fn get_pod_events(client: &Client, namespace: &str, pod_name: &str) -> Result<Vec<PodEvent>> {
+pub async fn get_pod_events(
+    client: &Client,
+    namespace: &str,
+    pod_name: &str,
+) -> Result<Vec<PodEvent>> {
     use k8s_openapi::api::core::v1::Event;
 
     let events: Api<Event> = Api::namespaced(client.clone(), namespace);
-    let lp = ListParams::default()
-        .fields(&format!("involvedObject.name={}", pod_name));
+    let lp = ListParams::default().fields(&format!("involvedObject.name={}", pod_name));
 
     let event_list = events.list(&lp).await?;
 
@@ -3951,8 +4289,16 @@ pub async fn get_pod_events(client: &Client, namespace: &str, pod_name: &str) ->
         .items
         .iter()
         .map(|e| {
-            let source = e.source.as_ref()
-                .map(|s| format!("{}/{}", s.component.as_deref().unwrap_or(""), s.host.as_deref().unwrap_or("")))
+            let source = e
+                .source
+                .as_ref()
+                .map(|s| {
+                    format!(
+                        "{}/{}",
+                        s.component.as_deref().unwrap_or(""),
+                        s.host.as_deref().unwrap_or("")
+                    )
+                })
                 .unwrap_or_default();
 
             PodEvent {
@@ -3995,7 +4341,11 @@ pub struct ConfigMapEvent {
     pub source: String,
 }
 
-pub async fn get_configmap_detail(client: &Client, namespace: &str, name: &str) -> Result<ConfigMapDetail> {
+pub async fn get_configmap_detail(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<ConfigMapDetail> {
     let cms: Api<ConfigMap> = Api::namespaced(client.clone(), namespace);
     let cm = cms.get(name).await?;
 
@@ -4005,13 +4355,17 @@ pub async fn get_configmap_detail(client: &Client, namespace: &str, name: &str) 
         name: metadata.name.unwrap_or_default(),
         namespace: metadata.namespace.unwrap_or_default(),
         uid: metadata.uid.unwrap_or_default(),
-        creation_timestamp: metadata.creation_timestamp
+        creation_timestamp: metadata
+            .creation_timestamp
             .map(|t| t.0.to_rfc3339())
             .unwrap_or_default(),
         labels: metadata.labels.unwrap_or_default(),
         annotations: metadata.annotations.unwrap_or_default(),
         data: cm.data.unwrap_or_default(),
-        binary_data_keys: cm.binary_data.map(|b| b.keys().cloned().collect()).unwrap_or_default(),
+        binary_data_keys: cm
+            .binary_data
+            .map(|b| b.keys().cloned().collect())
+            .unwrap_or_default(),
     })
 }
 
@@ -4021,20 +4375,35 @@ pub async fn get_configmap_yaml(client: &Client, namespace: &str, name: &str) ->
     Ok(serde_yaml::to_string(&cm)?)
 }
 
-pub async fn get_configmap_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<ConfigMapEvent>> {
+pub async fn get_configmap_events(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<Vec<ConfigMapEvent>> {
     let events: Api<k8s_openapi::api::core::v1::Event> = Api::namespaced(client.clone(), namespace);
-    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=ConfigMap", name));
+    let lp = ListParams::default().fields(&format!(
+        "involvedObject.name={},involvedObject.kind=ConfigMap",
+        name
+    ));
     let event_list = events.list(&lp).await?;
 
-    Ok(event_list.items.iter().map(|e| ConfigMapEvent {
-        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
-        reason: e.reason.clone().unwrap_or_default(),
-        message: e.message.clone().unwrap_or_default(),
-        count: e.count.unwrap_or(1),
-        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
-    }).collect())
+    Ok(event_list
+        .items
+        .iter()
+        .map(|e| ConfigMapEvent {
+            event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+            reason: e.reason.clone().unwrap_or_default(),
+            message: e.message.clone().unwrap_or_default(),
+            count: e.count.unwrap_or(1),
+            first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            source: e
+                .source
+                .as_ref()
+                .map(|s| s.component.clone().unwrap_or_default())
+                .unwrap_or_default(),
+        })
+        .collect())
 }
 
 // ============ Secret Detail ============
@@ -4063,8 +4432,13 @@ pub struct SecretEvent {
     pub source: String,
 }
 
-pub async fn get_secret_detail(client: &Client, namespace: &str, name: &str) -> Result<SecretDetail> {
-    let secrets: Api<k8s_openapi::api::core::v1::Secret> = Api::namespaced(client.clone(), namespace);
+pub async fn get_secret_detail(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<SecretDetail> {
+    let secrets: Api<k8s_openapi::api::core::v1::Secret> =
+        Api::namespaced(client.clone(), namespace);
     let secret = secrets.get(name).await?;
 
     let metadata = secret.metadata;
@@ -4073,50 +4447,76 @@ pub async fn get_secret_detail(client: &Client, namespace: &str, name: &str) -> 
         name: metadata.name.unwrap_or_default(),
         namespace: metadata.namespace.unwrap_or_default(),
         uid: metadata.uid.unwrap_or_default(),
-        creation_timestamp: metadata.creation_timestamp
+        creation_timestamp: metadata
+            .creation_timestamp
             .map(|t| t.0.to_rfc3339())
             .unwrap_or_default(),
         labels: metadata.labels.unwrap_or_default(),
         annotations: metadata.annotations.unwrap_or_default(),
         secret_type: secret.type_.unwrap_or_else(|| "Opaque".to_string()),
-        data_keys: secret.data.map(|d| d.keys().cloned().collect()).unwrap_or_default(),
+        data_keys: secret
+            .data
+            .map(|d| d.keys().cloned().collect())
+            .unwrap_or_default(),
         immutable: secret.immutable.unwrap_or(false),
     })
 }
 
 pub async fn get_secret_yaml(client: &Client, namespace: &str, name: &str) -> Result<String> {
-    let secrets: Api<k8s_openapi::api::core::v1::Secret> = Api::namespaced(client.clone(), namespace);
+    let secrets: Api<k8s_openapi::api::core::v1::Secret> =
+        Api::namespaced(client.clone(), namespace);
     let secret = secrets.get(name).await?;
     Ok(serde_yaml::to_string(&secret)?)
 }
 
-pub async fn get_secret_data(client: &Client, namespace: &str, name: &str) -> Result<std::collections::BTreeMap<String, String>> {
-    let secrets: Api<k8s_openapi::api::core::v1::Secret> = Api::namespaced(client.clone(), namespace);
+pub async fn get_secret_data(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<std::collections::BTreeMap<String, String>> {
+    let secrets: Api<k8s_openapi::api::core::v1::Secret> =
+        Api::namespaced(client.clone(), namespace);
     let secret = secrets.get(name).await?;
 
     let data = secret.data.unwrap_or_default();
     let mut decoded = std::collections::BTreeMap::new();
     for (key, value) in data {
-        let decoded_value = String::from_utf8(value.0).unwrap_or_else(|_| "<binary data>".to_string());
+        let decoded_value =
+            String::from_utf8(value.0).unwrap_or_else(|_| "<binary data>".to_string());
         decoded.insert(key, decoded_value);
     }
     Ok(decoded)
 }
 
-pub async fn get_secret_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<SecretEvent>> {
+pub async fn get_secret_events(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<Vec<SecretEvent>> {
     let events: Api<k8s_openapi::api::core::v1::Event> = Api::namespaced(client.clone(), namespace);
-    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=Secret", name));
+    let lp = ListParams::default().fields(&format!(
+        "involvedObject.name={},involvedObject.kind=Secret",
+        name
+    ));
     let event_list = events.list(&lp).await?;
 
-    Ok(event_list.items.iter().map(|e| SecretEvent {
-        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
-        reason: e.reason.clone().unwrap_or_default(),
-        message: e.message.clone().unwrap_or_default(),
-        count: e.count.unwrap_or(1),
-        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
-    }).collect())
+    Ok(event_list
+        .items
+        .iter()
+        .map(|e| SecretEvent {
+            event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+            reason: e.reason.clone().unwrap_or_default(),
+            message: e.message.clone().unwrap_or_default(),
+            count: e.count.unwrap_or(1),
+            first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            source: e
+                .source
+                .as_ref()
+                .map(|s| s.component.clone().unwrap_or_default())
+                .unwrap_or_default(),
+        })
+        .collect())
 }
 
 // ============ Job Detail ============
@@ -4178,24 +4578,37 @@ pub async fn get_job_detail(client: &Client, namespace: &str, name: &str) -> Res
     let spec = job.spec.unwrap_or_default();
     let status = job.status.unwrap_or_default();
 
-    let container_images: Vec<String> = spec.template.spec
-        .map(|s| s.containers.iter().map(|c| c.image.clone().unwrap_or_default()).collect())
+    let container_images: Vec<String> = spec
+        .template
+        .spec
+        .map(|s| {
+            s.containers
+                .iter()
+                .map(|c| c.image.clone().unwrap_or_default())
+                .collect()
+        })
         .unwrap_or_default();
 
-    let conditions = status.conditions.unwrap_or_default().iter().map(|c| JobCondition {
-        condition_type: c.type_.clone(),
-        status: c.status.clone(),
-        reason: c.reason.clone(),
-        message: c.message.clone(),
-        last_transition_time: c.last_transition_time.as_ref().map(|t| t.0.to_rfc3339()),
-    }).collect();
+    let conditions = status
+        .conditions
+        .unwrap_or_default()
+        .iter()
+        .map(|c| JobCondition {
+            condition_type: c.type_.clone(),
+            status: c.status.clone(),
+            reason: c.reason.clone(),
+            message: c.message.clone(),
+            last_transition_time: c.last_transition_time.as_ref().map(|t| t.0.to_rfc3339()),
+        })
+        .collect();
 
     Ok(JobDetail {
         verdict,
         name: metadata.name.unwrap_or_default(),
         namespace: metadata.namespace.unwrap_or_default(),
         uid: metadata.uid.unwrap_or_default(),
-        creation_timestamp: metadata.creation_timestamp
+        creation_timestamp: metadata
+            .creation_timestamp
             .map(|t| t.0.to_rfc3339())
             .unwrap_or_default(),
         labels: metadata.labels.unwrap_or_default(),
@@ -4205,7 +4618,9 @@ pub async fn get_job_detail(client: &Client, namespace: &str, name: &str) -> Res
         backoff_limit: spec.backoff_limit,
         active_deadline_seconds: spec.active_deadline_seconds,
         ttl_seconds_after_finished: spec.ttl_seconds_after_finished,
-        completion_mode: spec.completion_mode.unwrap_or_else(|| "NonIndexed".to_string()),
+        completion_mode: spec
+            .completion_mode
+            .unwrap_or_else(|| "NonIndexed".to_string()),
         suspend: spec.suspend.unwrap_or(false),
         active: status.active.unwrap_or(0),
         succeeded: status.succeeded.unwrap_or(0),
@@ -4213,7 +4628,10 @@ pub async fn get_job_detail(client: &Client, namespace: &str, name: &str) -> Res
         start_time: status.start_time.as_ref().map(|t| t.0.to_rfc3339()),
         completion_time: status.completion_time.as_ref().map(|t| t.0.to_rfc3339()),
         conditions,
-        selector: spec.selector.map(|s| s.match_labels.unwrap_or_default()).unwrap_or_default(),
+        selector: spec
+            .selector
+            .map(|s| s.match_labels.unwrap_or_default())
+            .unwrap_or_default(),
         container_images,
     })
 }
@@ -4227,21 +4645,36 @@ pub async fn get_job_yaml(client: &Client, namespace: &str, name: &str) -> Resul
 
 pub async fn get_job_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<JobEvent>> {
     let events: Api<k8s_openapi::api::core::v1::Event> = Api::namespaced(client.clone(), namespace);
-    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=Job", name));
+    let lp = ListParams::default().fields(&format!(
+        "involvedObject.name={},involvedObject.kind=Job",
+        name
+    ));
     let event_list = events.list(&lp).await?;
 
-    Ok(event_list.items.iter().map(|e| JobEvent {
-        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
-        reason: e.reason.clone().unwrap_or_default(),
-        message: e.message.clone().unwrap_or_default(),
-        count: e.count.unwrap_or(1),
-        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
-    }).collect())
+    Ok(event_list
+        .items
+        .iter()
+        .map(|e| JobEvent {
+            event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+            reason: e.reason.clone().unwrap_or_default(),
+            message: e.message.clone().unwrap_or_default(),
+            count: e.count.unwrap_or(1),
+            first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            source: e
+                .source
+                .as_ref()
+                .map(|s| s.component.clone().unwrap_or_default())
+                .unwrap_or_default(),
+        })
+        .collect())
 }
 
-pub async fn get_job_pods(client: &Client, namespace: &str, job_name: &str) -> Result<Vec<PodInfo>> {
+pub async fn get_job_pods(
+    client: &Client,
+    namespace: &str,
+    job_name: &str,
+) -> Result<Vec<PodInfo>> {
     let pods: Api<Pod> = Api::namespaced(client.clone(), namespace);
     let lp = ListParams::default().labels(&format!("job-name={}", job_name));
     let pod_list = pods.list(&lp).await?;
@@ -4282,7 +4715,11 @@ pub struct CronJobEvent {
     pub source: String,
 }
 
-pub async fn get_cronjob_detail(client: &Client, namespace: &str, name: &str) -> Result<CronJobDetail> {
+pub async fn get_cronjob_detail(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<CronJobDetail> {
     use k8s_openapi::api::batch::v1::CronJob;
     let cronjobs: Api<CronJob> = Api::namespaced(client.clone(), namespace);
     let cj = cronjobs.get(name).await?;
@@ -4291,12 +4728,21 @@ pub async fn get_cronjob_detail(client: &Client, namespace: &str, name: &str) ->
     let spec = cj.spec;
     let status = cj.status.unwrap_or_default();
 
-    let container_images: Vec<String> = spec.job_template.spec
+    let container_images: Vec<String> = spec
+        .job_template
+        .spec
         .and_then(|js| js.template.spec)
-        .map(|s| s.containers.iter().map(|c| c.image.clone().unwrap_or_default()).collect())
+        .map(|s| {
+            s.containers
+                .iter()
+                .map(|c| c.image.clone().unwrap_or_default())
+                .collect()
+        })
         .unwrap_or_default();
 
-    let active_jobs: Vec<String> = status.active.unwrap_or_default()
+    let active_jobs: Vec<String> = status
+        .active
+        .unwrap_or_default()
         .iter()
         .map(|r| r.name.clone().unwrap_or_default())
         .collect();
@@ -4305,7 +4751,8 @@ pub async fn get_cronjob_detail(client: &Client, namespace: &str, name: &str) ->
         name: metadata.name.unwrap_or_default(),
         namespace: metadata.namespace.unwrap_or_default(),
         uid: metadata.uid.unwrap_or_default(),
-        creation_timestamp: metadata.creation_timestamp
+        creation_timestamp: metadata
+            .creation_timestamp
             .map(|t| t.0.to_rfc3339())
             .unwrap_or_default(),
         labels: metadata.labels.unwrap_or_default(),
@@ -4313,12 +4760,17 @@ pub async fn get_cronjob_detail(client: &Client, namespace: &str, name: &str) ->
         schedule: spec.schedule,
         timezone: spec.time_zone,
         suspend: spec.suspend.unwrap_or(false),
-        concurrency_policy: spec.concurrency_policy.unwrap_or_else(|| "Allow".to_string()),
+        concurrency_policy: spec
+            .concurrency_policy
+            .unwrap_or_else(|| "Allow".to_string()),
         starting_deadline_seconds: spec.starting_deadline_seconds,
         successful_jobs_history_limit: spec.successful_jobs_history_limit.unwrap_or(3),
         failed_jobs_history_limit: spec.failed_jobs_history_limit.unwrap_or(1),
         last_schedule_time: status.last_schedule_time.as_ref().map(|t| t.0.to_rfc3339()),
-        last_successful_time: status.last_successful_time.as_ref().map(|t| t.0.to_rfc3339()),
+        last_successful_time: status
+            .last_successful_time
+            .as_ref()
+            .map(|t| t.0.to_rfc3339()),
         active_jobs,
         container_images,
     })
@@ -4331,20 +4783,35 @@ pub async fn get_cronjob_yaml(client: &Client, namespace: &str, name: &str) -> R
     Ok(serde_yaml::to_string(&cj)?)
 }
 
-pub async fn get_cronjob_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<CronJobEvent>> {
+pub async fn get_cronjob_events(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<Vec<CronJobEvent>> {
     let events: Api<k8s_openapi::api::core::v1::Event> = Api::namespaced(client.clone(), namespace);
-    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=CronJob", name));
+    let lp = ListParams::default().fields(&format!(
+        "involvedObject.name={},involvedObject.kind=CronJob",
+        name
+    ));
     let event_list = events.list(&lp).await?;
 
-    Ok(event_list.items.iter().map(|e| CronJobEvent {
-        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
-        reason: e.reason.clone().unwrap_or_default(),
-        message: e.message.clone().unwrap_or_default(),
-        count: e.count.unwrap_or(1),
-        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
-    }).collect())
+    Ok(event_list
+        .items
+        .iter()
+        .map(|e| CronJobEvent {
+            event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+            reason: e.reason.clone().unwrap_or_default(),
+            message: e.message.clone().unwrap_or_default(),
+            count: e.count.unwrap_or(1),
+            first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            source: e
+                .source
+                .as_ref()
+                .map(|s| s.component.clone().unwrap_or_default())
+                .unwrap_or_default(),
+        })
+        .collect())
 }
 
 // ============ DaemonSet Detail ============
@@ -4392,7 +4859,11 @@ pub struct DaemonSetEvent {
     pub source: String,
 }
 
-pub async fn get_daemonset_detail(client: &Client, namespace: &str, name: &str) -> Result<DaemonSetDetail> {
+pub async fn get_daemonset_detail(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<DaemonSetDetail> {
     let daemonsets: Api<DaemonSet> = Api::namespaced(client.clone(), namespace);
     let ds = daemonsets.get(name).await?;
     let verdict = triage::daemonset_tracked(&ds, triage_now());
@@ -4401,19 +4872,32 @@ pub async fn get_daemonset_detail(client: &Client, namespace: &str, name: &str) 
     let spec = ds.spec.unwrap_or_default();
     let status = ds.status.unwrap_or_default();
 
-    let container_images: Vec<String> = spec.template.spec
-        .map(|s| s.containers.iter().map(|c| c.image.clone().unwrap_or_default()).collect())
+    let container_images: Vec<String> = spec
+        .template
+        .spec
+        .map(|s| {
+            s.containers
+                .iter()
+                .map(|c| c.image.clone().unwrap_or_default())
+                .collect()
+        })
         .unwrap_or_default();
 
-    let conditions = status.conditions.unwrap_or_default().iter().map(|c| DaemonSetCondition {
-        condition_type: c.type_.clone(),
-        status: c.status.clone(),
-        reason: c.reason.clone(),
-        message: c.message.clone(),
-        last_transition_time: c.last_transition_time.as_ref().map(|t| t.0.to_rfc3339()),
-    }).collect();
+    let conditions = status
+        .conditions
+        .unwrap_or_default()
+        .iter()
+        .map(|c| DaemonSetCondition {
+            condition_type: c.type_.clone(),
+            status: c.status.clone(),
+            reason: c.reason.clone(),
+            message: c.message.clone(),
+            last_transition_time: c.last_transition_time.as_ref().map(|t| t.0.to_rfc3339()),
+        })
+        .collect();
 
-    let update_strategy = spec.update_strategy
+    let update_strategy = spec
+        .update_strategy
         .and_then(|s| s.type_)
         .unwrap_or_else(|| "RollingUpdate".to_string());
 
@@ -4422,7 +4906,8 @@ pub async fn get_daemonset_detail(client: &Client, namespace: &str, name: &str) 
         name: metadata.name.unwrap_or_default(),
         namespace: metadata.namespace.unwrap_or_default(),
         uid: metadata.uid.unwrap_or_default(),
-        creation_timestamp: metadata.creation_timestamp
+        creation_timestamp: metadata
+            .creation_timestamp
             .map(|t| t.0.to_rfc3339())
             .unwrap_or_default(),
         labels: metadata.labels.unwrap_or_default(),
@@ -4447,27 +4932,47 @@ pub async fn get_daemonset_yaml(client: &Client, namespace: &str, name: &str) ->
     Ok(serde_yaml::to_string(&ds)?)
 }
 
-pub async fn get_daemonset_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<DaemonSetEvent>> {
+pub async fn get_daemonset_events(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<Vec<DaemonSetEvent>> {
     let events: Api<k8s_openapi::api::core::v1::Event> = Api::namespaced(client.clone(), namespace);
-    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=DaemonSet", name));
+    let lp = ListParams::default().fields(&format!(
+        "involvedObject.name={},involvedObject.kind=DaemonSet",
+        name
+    ));
     let event_list = events.list(&lp).await?;
 
-    Ok(event_list.items.iter().map(|e| DaemonSetEvent {
-        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
-        reason: e.reason.clone().unwrap_or_default(),
-        message: e.message.clone().unwrap_or_default(),
-        count: e.count.unwrap_or(1),
-        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
-    }).collect())
+    Ok(event_list
+        .items
+        .iter()
+        .map(|e| DaemonSetEvent {
+            event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+            reason: e.reason.clone().unwrap_or_default(),
+            message: e.message.clone().unwrap_or_default(),
+            count: e.count.unwrap_or(1),
+            first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            source: e
+                .source
+                .as_ref()
+                .map(|s| s.component.clone().unwrap_or_default())
+                .unwrap_or_default(),
+        })
+        .collect())
 }
 
-pub async fn get_daemonset_pods(client: &Client, namespace: &str, daemonset_name: &str) -> Result<Vec<PodInfo>> {
+pub async fn get_daemonset_pods(
+    client: &Client,
+    namespace: &str,
+    daemonset_name: &str,
+) -> Result<Vec<PodInfo>> {
     let daemonsets: Api<DaemonSet> = Api::namespaced(client.clone(), namespace);
     let ds = daemonsets.get(daemonset_name).await?;
 
-    let selector = ds.spec
+    let selector = ds
+        .spec
         .and_then(|s| s.selector.match_labels)
         .unwrap_or_default();
 
@@ -4475,7 +4980,8 @@ pub async fn get_daemonset_pods(client: &Client, namespace: &str, daemonset_name
         return Ok(vec![]);
     }
 
-    let label_selector = selector.iter()
+    let label_selector = selector
+        .iter()
         .map(|(k, v)| format!("{}={}", k, v))
         .collect::<Vec<_>>()
         .join(",");
@@ -4535,7 +5041,11 @@ pub struct ReplicaSetEvent {
     pub source: String,
 }
 
-pub async fn get_replicaset_detail(client: &Client, namespace: &str, name: &str) -> Result<ReplicaSetDetail> {
+pub async fn get_replicaset_detail(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<ReplicaSetDetail> {
     let replicasets: Api<ReplicaSet> = Api::namespaced(client.clone(), namespace);
     let rs = replicasets.get(name).await?;
     let verdict = triage::replicaset_tracked(&rs, triage_now());
@@ -4544,12 +5054,21 @@ pub async fn get_replicaset_detail(client: &Client, namespace: &str, name: &str)
     let spec = rs.spec.unwrap_or_default();
     let status = rs.status.unwrap_or_default();
 
-    let container_images: Vec<String> = spec.template
+    let container_images: Vec<String> = spec
+        .template
         .and_then(|t| t.spec)
-        .map(|s| s.containers.iter().map(|c| c.image.clone().unwrap_or_default()).collect())
+        .map(|s| {
+            s.containers
+                .iter()
+                .map(|c| c.image.clone().unwrap_or_default())
+                .collect()
+        })
         .unwrap_or_default();
 
-    let owner_references = metadata.owner_references.clone().unwrap_or_default()
+    let owner_references = metadata
+        .owner_references
+        .clone()
+        .unwrap_or_default()
         .iter()
         .map(|o| OwnerRef {
             kind: o.kind.clone(),
@@ -4558,20 +5077,26 @@ pub async fn get_replicaset_detail(client: &Client, namespace: &str, name: &str)
         })
         .collect();
 
-    let conditions = status.conditions.unwrap_or_default().iter().map(|c| ReplicaSetCondition {
-        condition_type: c.type_.clone(),
-        status: c.status.clone(),
-        reason: c.reason.clone(),
-        message: c.message.clone(),
-        last_transition_time: c.last_transition_time.as_ref().map(|t| t.0.to_rfc3339()),
-    }).collect();
+    let conditions = status
+        .conditions
+        .unwrap_or_default()
+        .iter()
+        .map(|c| ReplicaSetCondition {
+            condition_type: c.type_.clone(),
+            status: c.status.clone(),
+            reason: c.reason.clone(),
+            message: c.message.clone(),
+            last_transition_time: c.last_transition_time.as_ref().map(|t| t.0.to_rfc3339()),
+        })
+        .collect();
 
     Ok(ReplicaSetDetail {
         verdict,
         name: metadata.name.unwrap_or_default(),
         namespace: metadata.namespace.unwrap_or_default(),
         uid: metadata.uid.unwrap_or_default(),
-        creation_timestamp: metadata.creation_timestamp
+        creation_timestamp: metadata
+            .creation_timestamp
             .map(|t| t.0.to_rfc3339())
             .unwrap_or_default(),
         labels: metadata.labels.unwrap_or_default(),
@@ -4593,27 +5118,47 @@ pub async fn get_replicaset_yaml(client: &Client, namespace: &str, name: &str) -
     Ok(serde_yaml::to_string(&rs)?)
 }
 
-pub async fn get_replicaset_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<ReplicaSetEvent>> {
+pub async fn get_replicaset_events(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<Vec<ReplicaSetEvent>> {
     let events: Api<k8s_openapi::api::core::v1::Event> = Api::namespaced(client.clone(), namespace);
-    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=ReplicaSet", name));
+    let lp = ListParams::default().fields(&format!(
+        "involvedObject.name={},involvedObject.kind=ReplicaSet",
+        name
+    ));
     let event_list = events.list(&lp).await?;
 
-    Ok(event_list.items.iter().map(|e| ReplicaSetEvent {
-        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
-        reason: e.reason.clone().unwrap_or_default(),
-        message: e.message.clone().unwrap_or_default(),
-        count: e.count.unwrap_or(1),
-        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
-    }).collect())
+    Ok(event_list
+        .items
+        .iter()
+        .map(|e| ReplicaSetEvent {
+            event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+            reason: e.reason.clone().unwrap_or_default(),
+            message: e.message.clone().unwrap_or_default(),
+            count: e.count.unwrap_or(1),
+            first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            source: e
+                .source
+                .as_ref()
+                .map(|s| s.component.clone().unwrap_or_default())
+                .unwrap_or_default(),
+        })
+        .collect())
 }
 
-pub async fn get_replicaset_pods(client: &Client, namespace: &str, replicaset_name: &str) -> Result<Vec<PodInfo>> {
+pub async fn get_replicaset_pods(
+    client: &Client,
+    namespace: &str,
+    replicaset_name: &str,
+) -> Result<Vec<PodInfo>> {
     let replicasets: Api<ReplicaSet> = Api::namespaced(client.clone(), namespace);
     let rs = replicasets.get(replicaset_name).await?;
 
-    let selector = rs.spec
+    let selector = rs
+        .spec
         .and_then(|s| s.selector.match_labels)
         .unwrap_or_default();
 
@@ -4621,7 +5166,8 @@ pub async fn get_replicaset_pods(client: &Client, namespace: &str, replicaset_na
         return Ok(vec![]);
     }
 
-    let label_selector = selector.iter()
+    let label_selector = selector
+        .iter()
         .map(|(k, v)| format!("{}={}", k, v))
         .collect::<Vec<_>>()
         .join(",");
@@ -4695,7 +5241,7 @@ pub struct NetworkPolicyRuleInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NetworkPolicyPeerInput {
-    pub peer_type: String,  // "pod", "namespace", "ipBlock"
+    pub peer_type: String, // "pod", "namespace", "ipBlock"
     pub pod_selector: std::collections::HashMap<String, String>,
     pub namespace_selector: std::collections::HashMap<String, String>,
     pub ip_block: Option<String>,
@@ -4719,7 +5265,7 @@ pub async fn create_network_policy(
     egress_rules: Vec<NetworkPolicyRuleInput>,
 ) -> Result<()> {
     use k8s_openapi::api::networking::v1::{
-        NetworkPolicy, NetworkPolicySpec, NetworkPolicyIngressRule, NetworkPolicyEgressRule,
+        NetworkPolicy, NetworkPolicyEgressRule, NetworkPolicyIngressRule, NetworkPolicySpec,
     };
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
 
@@ -4727,7 +5273,11 @@ pub async fn create_network_policy(
 
     // Convert pod selector
     let pod_label_selector = LabelSelector {
-        match_labels: if pod_selector.is_empty() { None } else { Some(pod_selector.into_iter().collect()) },
+        match_labels: if pod_selector.is_empty() {
+            None
+        } else {
+            Some(pod_selector.into_iter().collect())
+        },
         match_expressions: None,
     };
 
@@ -4735,40 +5285,46 @@ pub async fn create_network_policy(
     let ingress = if ingress_rules.is_empty() && !policy_types.contains(&"Ingress".to_string()) {
         None
     } else {
-        Some(ingress_rules.iter().map(|rule| {
-            NetworkPolicyIngressRule {
-                from: if rule.peers.is_empty() {
-                    None
-                } else {
-                    Some(rule.peers.iter().map(|p| convert_peer_input(p)).collect())
-                },
-                ports: if rule.ports.is_empty() {
-                    None
-                } else {
-                    Some(rule.ports.iter().map(|p| convert_port_input(p)).collect())
-                },
-            }
-        }).collect())
+        Some(
+            ingress_rules
+                .iter()
+                .map(|rule| NetworkPolicyIngressRule {
+                    from: if rule.peers.is_empty() {
+                        None
+                    } else {
+                        Some(rule.peers.iter().map(|p| convert_peer_input(p)).collect())
+                    },
+                    ports: if rule.ports.is_empty() {
+                        None
+                    } else {
+                        Some(rule.ports.iter().map(|p| convert_port_input(p)).collect())
+                    },
+                })
+                .collect(),
+        )
     };
 
     // Convert egress rules
     let egress = if egress_rules.is_empty() && !policy_types.contains(&"Egress".to_string()) {
         None
     } else {
-        Some(egress_rules.iter().map(|rule| {
-            NetworkPolicyEgressRule {
-                to: if rule.peers.is_empty() {
-                    None
-                } else {
-                    Some(rule.peers.iter().map(|p| convert_peer_input(p)).collect())
-                },
-                ports: if rule.ports.is_empty() {
-                    None
-                } else {
-                    Some(rule.ports.iter().map(|p| convert_port_input(p)).collect())
-                },
-            }
-        }).collect())
+        Some(
+            egress_rules
+                .iter()
+                .map(|rule| NetworkPolicyEgressRule {
+                    to: if rule.peers.is_empty() {
+                        None
+                    } else {
+                        Some(rule.peers.iter().map(|p| convert_peer_input(p)).collect())
+                    },
+                    ports: if rule.ports.is_empty() {
+                        None
+                    } else {
+                        Some(rule.ports.iter().map(|p| convert_port_input(p)).collect())
+                    },
+                })
+                .collect(),
+        )
     };
 
     let np = NetworkPolicy {
@@ -4790,15 +5346,21 @@ pub async fn create_network_policy(
     Ok(())
 }
 
-fn convert_peer_input(p: &NetworkPolicyPeerInput) -> k8s_openapi::api::networking::v1::NetworkPolicyPeer {
-    use k8s_openapi::api::networking::v1::{NetworkPolicyPeer, IPBlock};
+fn convert_peer_input(
+    p: &NetworkPolicyPeerInput,
+) -> k8s_openapi::api::networking::v1::NetworkPolicyPeer {
+    use k8s_openapi::api::networking::v1::{IPBlock, NetworkPolicyPeer};
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
 
     NetworkPolicyPeer {
         ip_block: if p.peer_type == "ipBlock" {
             p.ip_block.as_ref().map(|cidr| IPBlock {
                 cidr: cidr.clone(),
-                except: if p.ip_block_except.is_empty() { None } else { Some(p.ip_block_except.clone()) },
+                except: if p.ip_block_except.is_empty() {
+                    None
+                } else {
+                    Some(p.ip_block_except.clone())
+                },
             })
         } else {
             None
@@ -4816,7 +5378,9 @@ fn convert_peer_input(p: &NetworkPolicyPeerInput) -> k8s_openapi::api::networkin
                 match_labels: Some(p.pod_selector.clone().into_iter().collect()),
                 match_expressions: None,
             })
-        } else if p.peer_type == "pod" || (p.peer_type != "ipBlock" && p.namespace_selector.is_empty()) {
+        } else if p.peer_type == "pod"
+            || (p.peer_type != "ipBlock" && p.namespace_selector.is_empty())
+        {
             // If peer_type is pod or no selectors specified, use empty selector (match all)
             Some(LabelSelector {
                 match_labels: None,
@@ -4828,7 +5392,9 @@ fn convert_peer_input(p: &NetworkPolicyPeerInput) -> k8s_openapi::api::networkin
     }
 }
 
-fn convert_port_input(p: &NetworkPolicyPortInput) -> k8s_openapi::api::networking::v1::NetworkPolicyPort {
+fn convert_port_input(
+    p: &NetworkPolicyPortInput,
+) -> k8s_openapi::api::networking::v1::NetworkPolicyPort {
     use k8s_openapi::api::networking::v1::NetworkPolicyPort;
     use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 
@@ -4856,7 +5422,7 @@ pub async fn update_network_policy(
     egress_rules: Vec<NetworkPolicyRuleInput>,
 ) -> Result<()> {
     use k8s_openapi::api::networking::v1::{
-        NetworkPolicy, NetworkPolicySpec, NetworkPolicyIngressRule, NetworkPolicyEgressRule,
+        NetworkPolicy, NetworkPolicyEgressRule, NetworkPolicyIngressRule, NetworkPolicySpec,
     };
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
 
@@ -4871,7 +5437,11 @@ pub async fn update_network_policy(
 
     // Convert pod selector
     let pod_label_selector = LabelSelector {
-        match_labels: if pod_selector.is_empty() { None } else { Some(pod_selector.into_iter().collect()) },
+        match_labels: if pod_selector.is_empty() {
+            None
+        } else {
+            Some(pod_selector.into_iter().collect())
+        },
         match_expressions: None,
     };
 
@@ -4879,40 +5449,46 @@ pub async fn update_network_policy(
     let ingress = if ingress_rules.is_empty() && !policy_types.contains(&"Ingress".to_string()) {
         None
     } else {
-        Some(ingress_rules.iter().map(|rule| {
-            NetworkPolicyIngressRule {
-                from: if rule.peers.is_empty() {
-                    None
-                } else {
-                    Some(rule.peers.iter().map(|p| convert_peer_input(p)).collect())
-                },
-                ports: if rule.ports.is_empty() {
-                    None
-                } else {
-                    Some(rule.ports.iter().map(|p| convert_port_input(p)).collect())
-                },
-            }
-        }).collect())
+        Some(
+            ingress_rules
+                .iter()
+                .map(|rule| NetworkPolicyIngressRule {
+                    from: if rule.peers.is_empty() {
+                        None
+                    } else {
+                        Some(rule.peers.iter().map(|p| convert_peer_input(p)).collect())
+                    },
+                    ports: if rule.ports.is_empty() {
+                        None
+                    } else {
+                        Some(rule.ports.iter().map(|p| convert_port_input(p)).collect())
+                    },
+                })
+                .collect(),
+        )
     };
 
     // Convert egress rules
     let egress = if egress_rules.is_empty() && !policy_types.contains(&"Egress".to_string()) {
         None
     } else {
-        Some(egress_rules.iter().map(|rule| {
-            NetworkPolicyEgressRule {
-                to: if rule.peers.is_empty() {
-                    None
-                } else {
-                    Some(rule.peers.iter().map(|p| convert_peer_input(p)).collect())
-                },
-                ports: if rule.ports.is_empty() {
-                    None
-                } else {
-                    Some(rule.ports.iter().map(|p| convert_port_input(p)).collect())
-                },
-            }
-        }).collect())
+        Some(
+            egress_rules
+                .iter()
+                .map(|rule| NetworkPolicyEgressRule {
+                    to: if rule.peers.is_empty() {
+                        None
+                    } else {
+                        Some(rule.peers.iter().map(|p| convert_peer_input(p)).collect())
+                    },
+                    ports: if rule.ports.is_empty() {
+                        None
+                    } else {
+                        Some(rule.ports.iter().map(|p| convert_port_input(p)).collect())
+                    },
+                })
+                .collect(),
+        )
     };
 
     let np = NetworkPolicy {
@@ -4930,7 +5506,11 @@ pub async fn update_network_policy(
     Ok(())
 }
 
-pub async fn get_networkpolicy_detail(client: &Client, namespace: &str, name: &str) -> Result<NetworkPolicyDetail> {
+pub async fn get_networkpolicy_detail(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<NetworkPolicyDetail> {
     use k8s_openapi::api::networking::v1::NetworkPolicy;
     let netpols: Api<NetworkPolicy> = Api::namespaced(client.clone(), namespace);
     let np = netpols.get(name).await?;
@@ -4938,108 +5518,165 @@ pub async fn get_networkpolicy_detail(client: &Client, namespace: &str, name: &s
     let metadata = np.metadata;
     let spec = np.spec.unwrap_or_default();
 
-    let pod_selector = spec.pod_selector.and_then(|ps| ps.match_labels).unwrap_or_default();
+    let pod_selector = spec
+        .pod_selector
+        .and_then(|ps| ps.match_labels)
+        .unwrap_or_default();
     let policy_types = spec.policy_types.unwrap_or_default();
 
-    let ingress_rules = spec.ingress.unwrap_or_default().iter().map(|r| {
-        let from = r.from.clone().unwrap_or_default().iter().map(|p| {
-            let peer_type = if p.ip_block.is_some() {
-                "IPBlock".to_string()
-            } else if p.namespace_selector.is_some() && p.pod_selector.is_some() {
-                "NamespaceAndPod".to_string()
-            } else if p.namespace_selector.is_some() {
-                "Namespace".to_string()
-            } else if p.pod_selector.is_some() {
-                "Pod".to_string()
-            } else {
-                "Unknown".to_string()
-            };
+    let ingress_rules = spec
+        .ingress
+        .unwrap_or_default()
+        .iter()
+        .map(|r| {
+            let from = r
+                .from
+                .clone()
+                .unwrap_or_default()
+                .iter()
+                .map(|p| {
+                    let peer_type = if p.ip_block.is_some() {
+                        "IPBlock".to_string()
+                    } else if p.namespace_selector.is_some() && p.pod_selector.is_some() {
+                        "NamespaceAndPod".to_string()
+                    } else if p.namespace_selector.is_some() {
+                        "Namespace".to_string()
+                    } else if p.pod_selector.is_some() {
+                        "Pod".to_string()
+                    } else {
+                        "Unknown".to_string()
+                    };
 
-            NetworkPolicyPeer {
-                peer_type,
-                namespace_selector: p.namespace_selector.as_ref()
-                    .and_then(|s| s.match_labels.clone())
-                    .unwrap_or_default(),
-                pod_selector: p.pod_selector.as_ref()
-                    .and_then(|s| s.match_labels.clone())
-                    .unwrap_or_default(),
-                ip_block: p.ip_block.as_ref().map(|b| {
-                    let excepts = b.except.as_ref()
-                        .map(|e| format!(" (except: {})", e.join(", ")))
-                        .unwrap_or_default();
-                    format!("{}{}", b.cidr, excepts)
-                }),
-            }
-        }).collect();
-
-        let ports = r.ports.clone().unwrap_or_default().iter().map(|p| {
-            NetworkPolicyPort {
-                protocol: p.protocol.clone().unwrap_or_else(|| "TCP".to_string()),
-                port: p.port.as_ref().map(|port| {
-                    match port {
-                        k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(i) => i.to_string(),
-                        k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::String(s) => s.clone(),
+                    NetworkPolicyPeer {
+                        peer_type,
+                        namespace_selector: p
+                            .namespace_selector
+                            .as_ref()
+                            .and_then(|s| s.match_labels.clone())
+                            .unwrap_or_default(),
+                        pod_selector: p
+                            .pod_selector
+                            .as_ref()
+                            .and_then(|s| s.match_labels.clone())
+                            .unwrap_or_default(),
+                        ip_block: p.ip_block.as_ref().map(|b| {
+                            let excepts = b
+                                .except
+                                .as_ref()
+                                .map(|e| format!(" (except: {})", e.join(", ")))
+                                .unwrap_or_default();
+                            format!("{}{}", b.cidr, excepts)
+                        }),
                     }
-                }).unwrap_or_else(|| "All".to_string()),
-                end_port: p.end_port,
-            }
-        }).collect();
+                })
+                .collect();
 
-        NetworkPolicyIngressRule { from, ports }
-    }).collect();
+            let ports = r
+                .ports
+                .clone()
+                .unwrap_or_default()
+                .iter()
+                .map(|p| NetworkPolicyPort {
+                    protocol: p.protocol.clone().unwrap_or_else(|| "TCP".to_string()),
+                    port: p
+                        .port
+                        .as_ref()
+                        .map(|port| match port {
+                            k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(i) => {
+                                i.to_string()
+                            }
+                            k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::String(
+                                s,
+                            ) => s.clone(),
+                        })
+                        .unwrap_or_else(|| "All".to_string()),
+                    end_port: p.end_port,
+                })
+                .collect();
 
-    let egress_rules = spec.egress.unwrap_or_default().iter().map(|r| {
-        let to = r.to.clone().unwrap_or_default().iter().map(|p| {
-            let peer_type = if p.ip_block.is_some() {
-                "IPBlock".to_string()
-            } else if p.namespace_selector.is_some() && p.pod_selector.is_some() {
-                "NamespaceAndPod".to_string()
-            } else if p.namespace_selector.is_some() {
-                "Namespace".to_string()
-            } else if p.pod_selector.is_some() {
-                "Pod".to_string()
-            } else {
-                "Unknown".to_string()
-            };
+            NetworkPolicyIngressRule { from, ports }
+        })
+        .collect();
 
-            NetworkPolicyPeer {
-                peer_type,
-                namespace_selector: p.namespace_selector.as_ref()
-                    .and_then(|s| s.match_labels.clone())
-                    .unwrap_or_default(),
-                pod_selector: p.pod_selector.as_ref()
-                    .and_then(|s| s.match_labels.clone())
-                    .unwrap_or_default(),
-                ip_block: p.ip_block.as_ref().map(|b| {
-                    let excepts = b.except.as_ref()
-                        .map(|e| format!(" (except: {})", e.join(", ")))
-                        .unwrap_or_default();
-                    format!("{}{}", b.cidr, excepts)
-                }),
-            }
-        }).collect();
+    let egress_rules = spec
+        .egress
+        .unwrap_or_default()
+        .iter()
+        .map(|r| {
+            let to =
+                r.to.clone()
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|p| {
+                        let peer_type = if p.ip_block.is_some() {
+                            "IPBlock".to_string()
+                        } else if p.namespace_selector.is_some() && p.pod_selector.is_some() {
+                            "NamespaceAndPod".to_string()
+                        } else if p.namespace_selector.is_some() {
+                            "Namespace".to_string()
+                        } else if p.pod_selector.is_some() {
+                            "Pod".to_string()
+                        } else {
+                            "Unknown".to_string()
+                        };
 
-        let ports = r.ports.clone().unwrap_or_default().iter().map(|p| {
-            NetworkPolicyPort {
-                protocol: p.protocol.clone().unwrap_or_else(|| "TCP".to_string()),
-                port: p.port.as_ref().map(|port| {
-                    match port {
-                        k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(i) => i.to_string(),
-                        k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::String(s) => s.clone(),
-                    }
-                }).unwrap_or_else(|| "All".to_string()),
-                end_port: p.end_port,
-            }
-        }).collect();
+                        NetworkPolicyPeer {
+                            peer_type,
+                            namespace_selector: p
+                                .namespace_selector
+                                .as_ref()
+                                .and_then(|s| s.match_labels.clone())
+                                .unwrap_or_default(),
+                            pod_selector: p
+                                .pod_selector
+                                .as_ref()
+                                .and_then(|s| s.match_labels.clone())
+                                .unwrap_or_default(),
+                            ip_block: p.ip_block.as_ref().map(|b| {
+                                let excepts = b
+                                    .except
+                                    .as_ref()
+                                    .map(|e| format!(" (except: {})", e.join(", ")))
+                                    .unwrap_or_default();
+                                format!("{}{}", b.cidr, excepts)
+                            }),
+                        }
+                    })
+                    .collect();
 
-        NetworkPolicyEgressRule { to, ports }
-    }).collect();
+            let ports = r
+                .ports
+                .clone()
+                .unwrap_or_default()
+                .iter()
+                .map(|p| NetworkPolicyPort {
+                    protocol: p.protocol.clone().unwrap_or_else(|| "TCP".to_string()),
+                    port: p
+                        .port
+                        .as_ref()
+                        .map(|port| match port {
+                            k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(i) => {
+                                i.to_string()
+                            }
+                            k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::String(
+                                s,
+                            ) => s.clone(),
+                        })
+                        .unwrap_or_else(|| "All".to_string()),
+                    end_port: p.end_port,
+                })
+                .collect();
+
+            NetworkPolicyEgressRule { to, ports }
+        })
+        .collect();
 
     Ok(NetworkPolicyDetail {
         name: metadata.name.unwrap_or_default(),
         namespace: metadata.namespace.unwrap_or_default(),
         uid: metadata.uid.unwrap_or_default(),
-        creation_timestamp: metadata.creation_timestamp
+        creation_timestamp: metadata
+            .creation_timestamp
             .map(|t| t.0.to_rfc3339())
             .unwrap_or_default(),
         labels: metadata.labels.unwrap_or_default(),
@@ -5051,27 +5688,46 @@ pub async fn get_networkpolicy_detail(client: &Client, namespace: &str, name: &s
     })
 }
 
-pub async fn get_networkpolicy_yaml(client: &Client, namespace: &str, name: &str) -> Result<String> {
+pub async fn get_networkpolicy_yaml(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<String> {
     use k8s_openapi::api::networking::v1::NetworkPolicy;
     let netpols: Api<NetworkPolicy> = Api::namespaced(client.clone(), namespace);
     let np = netpols.get(name).await?;
     Ok(serde_yaml::to_string(&np)?)
 }
 
-pub async fn get_networkpolicy_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<NetworkPolicyEvent>> {
+pub async fn get_networkpolicy_events(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<Vec<NetworkPolicyEvent>> {
     let events: Api<k8s_openapi::api::core::v1::Event> = Api::namespaced(client.clone(), namespace);
-    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=NetworkPolicy", name));
+    let lp = ListParams::default().fields(&format!(
+        "involvedObject.name={},involvedObject.kind=NetworkPolicy",
+        name
+    ));
     let event_list = events.list(&lp).await?;
 
-    Ok(event_list.items.iter().map(|e| NetworkPolicyEvent {
-        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
-        reason: e.reason.clone().unwrap_or_default(),
-        message: e.message.clone().unwrap_or_default(),
-        count: e.count.unwrap_or(1),
-        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
-    }).collect())
+    Ok(event_list
+        .items
+        .iter()
+        .map(|e| NetworkPolicyEvent {
+            event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+            reason: e.reason.clone().unwrap_or_default(),
+            message: e.message.clone().unwrap_or_default(),
+            count: e.count.unwrap_or(1),
+            first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            source: e
+                .source
+                .as_ref()
+                .map(|s| s.component.clone().unwrap_or_default())
+                .unwrap_or_default(),
+        })
+        .collect())
 }
 
 // ============ HPA Detail ============
@@ -5131,13 +5787,16 @@ pub async fn get_hpa_detail(client: &Client, namespace: &str, name: &str) -> Res
     let spec = hpa.spec;
     let status = hpa.status.unwrap_or_default();
 
-    let scale_target_ref = format!("{}/{}",
-        spec.scale_target_ref.kind,
-        spec.scale_target_ref.name
+    let scale_target_ref = format!(
+        "{}/{}",
+        spec.scale_target_ref.kind, spec.scale_target_ref.name
     );
 
-    let metrics: Vec<HPAMetric> = spec.metrics.unwrap_or_default().iter().map(|m| {
-        match m.type_.as_str() {
+    let metrics: Vec<HPAMetric> = spec
+        .metrics
+        .unwrap_or_default()
+        .iter()
+        .map(|m| match m.type_.as_str() {
             "Resource" => {
                 let resource = m.resource.as_ref();
                 HPAMetric {
@@ -5146,10 +5805,13 @@ pub async fn get_hpa_detail(client: &Client, namespace: &str, name: &str) -> Res
                     current_value: "-".to_string(),
                     target_value: resource
                         .and_then(|r| r.target.average_utilization.map(|v| format!("{}%", v)))
-                        .or_else(|| resource.and_then(|r| r.target.average_value.as_ref().map(|v| v.0.clone())))
+                        .or_else(|| {
+                            resource
+                                .and_then(|r| r.target.average_value.as_ref().map(|v| v.0.clone()))
+                        })
                         .unwrap_or_else(|| "-".to_string()),
                 }
-            },
+            }
             "Pods" => {
                 let pods = m.pods.as_ref();
                 HPAMetric {
@@ -5160,7 +5822,7 @@ pub async fn get_hpa_detail(client: &Client, namespace: &str, name: &str) -> Res
                         .and_then(|p| p.target.average_value.as_ref().map(|v| v.0.clone()))
                         .unwrap_or_else(|| "-".to_string()),
                 }
-            },
+            }
             "Object" => {
                 let obj = m.object.as_ref();
                 HPAMetric {
@@ -5171,7 +5833,7 @@ pub async fn get_hpa_detail(client: &Client, namespace: &str, name: &str) -> Res
                         .and_then(|o| o.target.value.as_ref().map(|v| v.0.clone()))
                         .unwrap_or_else(|| "-".to_string()),
                 }
-            },
+            }
             "External" => {
                 let ext = m.external.as_ref();
                 HPAMetric {
@@ -5182,29 +5844,35 @@ pub async fn get_hpa_detail(client: &Client, namespace: &str, name: &str) -> Res
                         .and_then(|e| e.target.value.as_ref().map(|v| v.0.clone()))
                         .unwrap_or_else(|| "-".to_string()),
                 }
-            },
+            }
             _ => HPAMetric {
                 metric_type: m.type_.clone(),
                 name: "-".to_string(),
                 current_value: "-".to_string(),
                 target_value: "-".to_string(),
-            }
-        }
-    }).collect();
+            },
+        })
+        .collect();
 
-    let conditions = status.conditions.unwrap_or_default().iter().map(|c| HPACondition {
-        condition_type: c.type_.clone(),
-        status: c.status.clone(),
-        reason: c.reason.clone(),
-        message: c.message.clone(),
-        last_transition_time: c.last_transition_time.as_ref().map(|t| t.0.to_rfc3339()),
-    }).collect();
+    let conditions = status
+        .conditions
+        .unwrap_or_default()
+        .iter()
+        .map(|c| HPACondition {
+            condition_type: c.type_.clone(),
+            status: c.status.clone(),
+            reason: c.reason.clone(),
+            message: c.message.clone(),
+            last_transition_time: c.last_transition_time.as_ref().map(|t| t.0.to_rfc3339()),
+        })
+        .collect();
 
     Ok(HPADetail {
         name: metadata.name.unwrap_or_default(),
         namespace: metadata.namespace.unwrap_or_default(),
         uid: metadata.uid.unwrap_or_default(),
-        creation_timestamp: metadata.creation_timestamp
+        creation_timestamp: metadata
+            .creation_timestamp
             .map(|t| t.0.to_rfc3339())
             .unwrap_or_default(),
         labels: metadata.labels.unwrap_or_default(),
@@ -5229,18 +5897,29 @@ pub async fn get_hpa_yaml(client: &Client, namespace: &str, name: &str) -> Resul
 
 pub async fn get_hpa_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<HPAEvent>> {
     let events: Api<k8s_openapi::api::core::v1::Event> = Api::namespaced(client.clone(), namespace);
-    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=HorizontalPodAutoscaler", name));
+    let lp = ListParams::default().fields(&format!(
+        "involvedObject.name={},involvedObject.kind=HorizontalPodAutoscaler",
+        name
+    ));
     let event_list = events.list(&lp).await?;
 
-    Ok(event_list.items.iter().map(|e| HPAEvent {
-        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
-        reason: e.reason.clone().unwrap_or_default(),
-        message: e.message.clone().unwrap_or_default(),
-        count: e.count.unwrap_or(1),
-        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
-    }).collect())
+    Ok(event_list
+        .items
+        .iter()
+        .map(|e| HPAEvent {
+            event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+            reason: e.reason.clone().unwrap_or_default(),
+            message: e.message.clone().unwrap_or_default(),
+            count: e.count.unwrap_or(1),
+            first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            source: e
+                .source
+                .as_ref()
+                .map(|s| s.component.clone().unwrap_or_default())
+                .unwrap_or_default(),
+        })
+        .collect())
 }
 
 // ============ PersistentVolume Detail ============
@@ -5284,22 +5963,32 @@ pub async fn get_pv_detail(client: &Client, name: &str) -> Result<PVDetail> {
     let spec = pv.spec.unwrap_or_default();
     let status = pv.status.unwrap_or_default();
 
-    let capacity = spec.capacity.as_ref()
+    let capacity = spec
+        .capacity
+        .as_ref()
         .and_then(|c| c.get("storage").map(|q| q.0.clone()))
         .unwrap_or_default();
 
     let claim = spec.claim_ref.as_ref().map(|c| {
-        format!("{}/{}", c.namespace.clone().unwrap_or_default(), c.name.clone().unwrap_or_default())
+        format!(
+            "{}/{}",
+            c.namespace.clone().unwrap_or_default(),
+            c.name.clone().unwrap_or_default()
+        )
     });
 
     let (source_type, source_details) = get_pv_source_info(&spec);
 
-    let node_affinity = spec.node_affinity.as_ref().map(|_| "Configured".to_string());
+    let node_affinity = spec
+        .node_affinity
+        .as_ref()
+        .map(|_| "Configured".to_string());
 
     Ok(PVDetail {
         name: metadata.name.unwrap_or_default(),
         uid: metadata.uid.unwrap_or_default(),
-        creation_timestamp: metadata.creation_timestamp
+        creation_timestamp: metadata
+            .creation_timestamp
             .map(|t| t.0.to_rfc3339())
             .unwrap_or_default(),
         labels: metadata.labels.unwrap_or_default(),
@@ -5318,7 +6007,9 @@ pub async fn get_pv_detail(client: &Client, name: &str) -> Result<PVDetail> {
     })
 }
 
-fn get_pv_source_info(spec: &k8s_openapi::api::core::v1::PersistentVolumeSpec) -> (String, std::collections::BTreeMap<String, String>) {
+fn get_pv_source_info(
+    spec: &k8s_openapi::api::core::v1::PersistentVolumeSpec,
+) -> (String, std::collections::BTreeMap<String, String>) {
     let mut details = std::collections::BTreeMap::new();
 
     if let Some(h) = &spec.host_path {
@@ -5369,18 +6060,29 @@ pub async fn get_pv_yaml(client: &Client, name: &str) -> Result<String> {
 
 pub async fn get_pv_events(client: &Client, name: &str) -> Result<Vec<PVEvent>> {
     let events: Api<k8s_openapi::api::core::v1::Event> = Api::all(client.clone());
-    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=PersistentVolume", name));
+    let lp = ListParams::default().fields(&format!(
+        "involvedObject.name={},involvedObject.kind=PersistentVolume",
+        name
+    ));
     let event_list = events.list(&lp).await?;
 
-    Ok(event_list.items.iter().map(|e| PVEvent {
-        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
-        reason: e.reason.clone().unwrap_or_default(),
-        message: e.message.clone().unwrap_or_default(),
-        count: e.count.unwrap_or(1),
-        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
-    }).collect())
+    Ok(event_list
+        .items
+        .iter()
+        .map(|e| PVEvent {
+            event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+            reason: e.reason.clone().unwrap_or_default(),
+            message: e.message.clone().unwrap_or_default(),
+            count: e.count.unwrap_or(1),
+            first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            source: e
+                .source
+                .as_ref()
+                .map(|s| s.component.clone().unwrap_or_default())
+                .unwrap_or_default(),
+        })
+        .collect())
 }
 
 // ============ PersistentVolumeClaim Detail ============
@@ -5431,28 +6133,36 @@ pub async fn get_pvc_detail(client: &Client, namespace: &str, name: &str) -> Res
     let spec = pvc.spec.unwrap_or_default();
     let status = pvc.status.unwrap_or_default();
 
-    let requested_storage = spec.resources
+    let requested_storage = spec
+        .resources
         .and_then(|r| r.requests)
         .and_then(|req| req.get("storage").map(|q| q.0.clone()))
         .unwrap_or_default();
 
-    let capacity = status.capacity
+    let capacity = status
+        .capacity
         .and_then(|c| c.get("storage").map(|q| q.0.clone()))
         .unwrap_or_default();
 
-    let conditions = status.conditions.unwrap_or_default().iter().map(|c| PVCCondition {
-        condition_type: c.type_.clone(),
-        status: c.status.clone(),
-        reason: c.reason.clone(),
-        message: c.message.clone(),
-        last_transition_time: c.last_probe_time.as_ref().map(|t| t.0.to_rfc3339()),
-    }).collect();
+    let conditions = status
+        .conditions
+        .unwrap_or_default()
+        .iter()
+        .map(|c| PVCCondition {
+            condition_type: c.type_.clone(),
+            status: c.status.clone(),
+            reason: c.reason.clone(),
+            message: c.message.clone(),
+            last_transition_time: c.last_probe_time.as_ref().map(|t| t.0.to_rfc3339()),
+        })
+        .collect();
 
     Ok(PVCDetail {
         name: metadata.name.unwrap_or_default(),
         namespace: metadata.namespace.unwrap_or_default(),
         uid: metadata.uid.unwrap_or_default(),
-        creation_timestamp: metadata.creation_timestamp
+        creation_timestamp: metadata
+            .creation_timestamp
             .map(|t| t.0.to_rfc3339())
             .unwrap_or_default(),
         labels: metadata.labels.unwrap_or_default(),
@@ -5476,18 +6186,29 @@ pub async fn get_pvc_yaml(client: &Client, namespace: &str, name: &str) -> Resul
 
 pub async fn get_pvc_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<PVCEvent>> {
     let events: Api<k8s_openapi::api::core::v1::Event> = Api::namespaced(client.clone(), namespace);
-    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=PersistentVolumeClaim", name));
+    let lp = ListParams::default().fields(&format!(
+        "involvedObject.name={},involvedObject.kind=PersistentVolumeClaim",
+        name
+    ));
     let event_list = events.list(&lp).await?;
 
-    Ok(event_list.items.iter().map(|e| PVCEvent {
-        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
-        reason: e.reason.clone().unwrap_or_default(),
-        message: e.message.clone().unwrap_or_default(),
-        count: e.count.unwrap_or(1),
-        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
-    }).collect())
+    Ok(event_list
+        .items
+        .iter()
+        .map(|e| PVCEvent {
+            event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+            reason: e.reason.clone().unwrap_or_default(),
+            message: e.message.clone().unwrap_or_default(),
+            count: e.count.unwrap_or(1),
+            first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            source: e
+                .source
+                .as_ref()
+                .map(|s| s.component.clone().unwrap_or_default())
+                .unwrap_or_default(),
+        })
+        .collect())
 }
 
 // ============ Namespace Detail ============
@@ -5531,18 +6252,24 @@ pub async fn get_namespace_detail(client: &Client, name: &str) -> Result<Namespa
     let metadata = ns.metadata;
     let status = ns.status.unwrap_or_default();
 
-    let conditions = status.conditions.unwrap_or_default().iter().map(|c| NamespaceCondition {
-        condition_type: c.type_.clone(),
-        status: c.status.clone(),
-        reason: c.reason.clone(),
-        message: c.message.clone(),
-        last_transition_time: c.last_transition_time.as_ref().map(|t| t.0.to_rfc3339()),
-    }).collect();
+    let conditions = status
+        .conditions
+        .unwrap_or_default()
+        .iter()
+        .map(|c| NamespaceCondition {
+            condition_type: c.type_.clone(),
+            status: c.status.clone(),
+            reason: c.reason.clone(),
+            message: c.message.clone(),
+            last_transition_time: c.last_transition_time.as_ref().map(|t| t.0.to_rfc3339()),
+        })
+        .collect();
 
     Ok(NamespaceDetail {
         name: metadata.name.unwrap_or_default(),
         uid: metadata.uid.unwrap_or_default(),
-        creation_timestamp: metadata.creation_timestamp
+        creation_timestamp: metadata
+            .creation_timestamp
             .map(|t| t.0.to_rfc3339())
             .unwrap_or_default(),
         labels: metadata.labels.unwrap_or_default(),
@@ -5561,18 +6288,29 @@ pub async fn get_namespace_yaml(client: &Client, name: &str) -> Result<String> {
 
 pub async fn get_namespace_events(client: &Client, name: &str) -> Result<Vec<NamespaceEvent>> {
     let events: Api<k8s_openapi::api::core::v1::Event> = Api::all(client.clone());
-    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=Namespace", name));
+    let lp = ListParams::default().fields(&format!(
+        "involvedObject.name={},involvedObject.kind=Namespace",
+        name
+    ));
     let event_list = events.list(&lp).await?;
 
-    Ok(event_list.items.iter().map(|e| NamespaceEvent {
-        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
-        reason: e.reason.clone().unwrap_or_default(),
-        message: e.message.clone().unwrap_or_default(),
-        count: e.count.unwrap_or(1),
-        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
-    }).collect())
+    Ok(event_list
+        .items
+        .iter()
+        .map(|e| NamespaceEvent {
+            event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+            reason: e.reason.clone().unwrap_or_default(),
+            message: e.message.clone().unwrap_or_default(),
+            count: e.count.unwrap_or(1),
+            first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            source: e
+                .source
+                .as_ref()
+                .map(|s| s.component.clone().unwrap_or_default())
+                .unwrap_or_default(),
+        })
+        .collect())
 }
 
 // ============ Node Detail ============
@@ -5661,40 +6399,79 @@ pub async fn get_node_detail(client: &Client, name: &str) -> Result<NodeDetail> 
     let spec = node.spec.unwrap_or_default();
     let status = node.status.unwrap_or_default();
 
-    let taints = spec.taints.unwrap_or_default().iter().map(|t| NodeTaint {
-        key: t.key.clone(),
-        value: t.value.clone(),
-        effect: t.effect.clone(),
-    }).collect();
+    let taints = spec
+        .taints
+        .unwrap_or_default()
+        .iter()
+        .map(|t| NodeTaint {
+            key: t.key.clone(),
+            value: t.value.clone(),
+            effect: t.effect.clone(),
+        })
+        .collect();
 
-    let conditions = status.conditions.unwrap_or_default().iter().map(|c| NodeCondition {
-        condition_type: c.type_.clone(),
-        status: c.status.clone(),
-        reason: c.reason.clone(),
-        message: c.message.clone(),
-        last_transition_time: c.last_transition_time.as_ref().map(|t| t.0.to_rfc3339()),
-        last_heartbeat_time: c.last_heartbeat_time.as_ref().map(|t| t.0.to_rfc3339()),
-    }).collect();
+    let conditions = status
+        .conditions
+        .unwrap_or_default()
+        .iter()
+        .map(|c| NodeCondition {
+            condition_type: c.type_.clone(),
+            status: c.status.clone(),
+            reason: c.reason.clone(),
+            message: c.message.clone(),
+            last_transition_time: c.last_transition_time.as_ref().map(|t| t.0.to_rfc3339()),
+            last_heartbeat_time: c.last_heartbeat_time.as_ref().map(|t| t.0.to_rfc3339()),
+        })
+        .collect();
 
-    let addresses = status.addresses.unwrap_or_default().iter().map(|a| NodeAddress {
-        address_type: a.type_.clone(),
-        address: a.address.clone(),
-    }).collect();
+    let addresses = status
+        .addresses
+        .unwrap_or_default()
+        .iter()
+        .map(|a| NodeAddress {
+            address_type: a.type_.clone(),
+            address: a.address.clone(),
+        })
+        .collect();
 
     let capacity_map = status.capacity.clone().unwrap_or_default();
     let capacity = NodeResources {
-        cpu: capacity_map.get("cpu").map(|q| q.0.clone()).unwrap_or_default(),
-        memory: capacity_map.get("memory").map(|q| q.0.clone()).unwrap_or_default(),
-        pods: capacity_map.get("pods").map(|q| q.0.clone()).unwrap_or_default(),
-        ephemeral_storage: capacity_map.get("ephemeral-storage").map(|q| q.0.clone()).unwrap_or_default(),
+        cpu: capacity_map
+            .get("cpu")
+            .map(|q| q.0.clone())
+            .unwrap_or_default(),
+        memory: capacity_map
+            .get("memory")
+            .map(|q| q.0.clone())
+            .unwrap_or_default(),
+        pods: capacity_map
+            .get("pods")
+            .map(|q| q.0.clone())
+            .unwrap_or_default(),
+        ephemeral_storage: capacity_map
+            .get("ephemeral-storage")
+            .map(|q| q.0.clone())
+            .unwrap_or_default(),
     };
 
     let allocatable_map = status.allocatable.clone().unwrap_or_default();
     let allocatable = NodeResources {
-        cpu: allocatable_map.get("cpu").map(|q| q.0.clone()).unwrap_or_default(),
-        memory: allocatable_map.get("memory").map(|q| q.0.clone()).unwrap_or_default(),
-        pods: allocatable_map.get("pods").map(|q| q.0.clone()).unwrap_or_default(),
-        ephemeral_storage: allocatable_map.get("ephemeral-storage").map(|q| q.0.clone()).unwrap_or_default(),
+        cpu: allocatable_map
+            .get("cpu")
+            .map(|q| q.0.clone())
+            .unwrap_or_default(),
+        memory: allocatable_map
+            .get("memory")
+            .map(|q| q.0.clone())
+            .unwrap_or_default(),
+        pods: allocatable_map
+            .get("pods")
+            .map(|q| q.0.clone())
+            .unwrap_or_default(),
+        ephemeral_storage: allocatable_map
+            .get("ephemeral-storage")
+            .map(|q| q.0.clone())
+            .unwrap_or_default(),
     };
 
     let info = status.node_info.unwrap_or_default();
@@ -5715,7 +6492,8 @@ pub async fn get_node_detail(client: &Client, name: &str) -> Result<NodeDetail> 
         verdict,
         name: metadata.name.unwrap_or_default(),
         uid: metadata.uid.unwrap_or_default(),
-        creation_timestamp: metadata.creation_timestamp
+        creation_timestamp: metadata
+            .creation_timestamp
             .map(|t| t.0.to_rfc3339())
             .unwrap_or_default(),
         labels: metadata.labels.unwrap_or_default(),
@@ -5739,18 +6517,29 @@ pub async fn get_node_yaml(client: &Client, name: &str) -> Result<String> {
 
 pub async fn get_node_events(client: &Client, name: &str) -> Result<Vec<NodeEvent>> {
     let events: Api<k8s_openapi::api::core::v1::Event> = Api::all(client.clone());
-    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=Node", name));
+    let lp = ListParams::default().fields(&format!(
+        "involvedObject.name={},involvedObject.kind=Node",
+        name
+    ));
     let event_list = events.list(&lp).await?;
 
-    Ok(event_list.items.iter().map(|e| NodeEvent {
-        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
-        reason: e.reason.clone().unwrap_or_default(),
-        message: e.message.clone().unwrap_or_default(),
-        count: e.count.unwrap_or(1),
-        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
-    }).collect())
+    Ok(event_list
+        .items
+        .iter()
+        .map(|e| NodeEvent {
+            event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+            reason: e.reason.clone().unwrap_or_default(),
+            message: e.message.clone().unwrap_or_default(),
+            count: e.count.unwrap_or(1),
+            first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            source: e
+                .source
+                .as_ref()
+                .map(|s| s.component.clone().unwrap_or_default())
+                .unwrap_or_default(),
+        })
+        .collect())
 }
 
 pub async fn get_node_pods(client: &Client, node_name: &str) -> Result<Vec<PodInfo>> {
@@ -5769,33 +6558,50 @@ fn validate_taint_key(key: &str) -> Result<()> {
 
     let parts: Vec<&str> = key.split('/').collect();
     if parts.len() > 2 {
-        return Err(AppError::Custom("Taint key can only have one '/' separator".to_string()));
+        return Err(AppError::Custom(
+            "Taint key can only have one '/' separator".to_string(),
+        ));
     }
 
     let name = if parts.len() == 2 { parts[1] } else { parts[0] };
-    let prefix = if parts.len() == 2 { Some(parts[0]) } else { None };
+    let prefix = if parts.len() == 2 {
+        Some(parts[0])
+    } else {
+        None
+    };
 
     // Validate name
     if name.is_empty() {
         return Err(AppError::Custom("Taint key name is required".to_string()));
     }
     if name.len() > 63 {
-        return Err(AppError::Custom("Taint key name must be 63 characters or less".to_string()));
+        return Err(AppError::Custom(
+            "Taint key name must be 63 characters or less".to_string(),
+        ));
     }
 
-    let name_regex = regex::Regex::new(r"^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$|^[a-zA-Z0-9]$").unwrap();
+    let name_regex =
+        regex::Regex::new(r"^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$|^[a-zA-Z0-9]$").unwrap();
     if !name_regex.is_match(name) {
-        return Err(AppError::Custom("Taint key name must start/end with alphanumeric, can contain -, _, .".to_string()));
+        return Err(AppError::Custom(
+            "Taint key name must start/end with alphanumeric, can contain -, _, .".to_string(),
+        ));
     }
 
     // Validate prefix if present
     if let Some(p) = prefix {
         if p.len() > 253 {
-            return Err(AppError::Custom("Taint key prefix must be 253 characters or less".to_string()));
+            return Err(AppError::Custom(
+                "Taint key prefix must be 253 characters or less".to_string(),
+            ));
         }
-        let prefix_regex = regex::Regex::new(r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$").unwrap();
+        let prefix_regex =
+            regex::Regex::new(r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$")
+                .unwrap();
         if !prefix_regex.is_match(p) {
-            return Err(AppError::Custom("Taint key prefix must be a valid DNS subdomain".to_string()));
+            return Err(AppError::Custom(
+                "Taint key prefix must be a valid DNS subdomain".to_string(),
+            ));
         }
     }
 
@@ -5808,11 +6614,16 @@ fn validate_taint_value(value: Option<&str>) -> Result<()> {
             return Ok(()); // Empty is fine
         }
         if v.len() > 63 {
-            return Err(AppError::Custom("Taint value must be 63 characters or less".to_string()));
+            return Err(AppError::Custom(
+                "Taint value must be 63 characters or less".to_string(),
+            ));
         }
-        let value_regex = regex::Regex::new(r"^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$|^[a-zA-Z0-9]$").unwrap();
+        let value_regex =
+            regex::Regex::new(r"^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$|^[a-zA-Z0-9]$").unwrap();
         if !value_regex.is_match(v) {
-            return Err(AppError::Custom("Taint value must start/end with alphanumeric, can contain -, _, .".to_string()));
+            return Err(AppError::Custom(
+                "Taint value must start/end with alphanumeric, can contain -, _, .".to_string(),
+            ));
         }
     }
     Ok(())
@@ -5844,9 +6655,7 @@ pub async fn add_node_taint(
 
     // Get current node to read existing taints
     let node = nodes.get(name).await?;
-    let mut taints = node.spec
-        .and_then(|s| s.taints)
-        .unwrap_or_default();
+    let mut taints = node.spec.and_then(|s| s.taints).unwrap_or_default();
 
     // Check if taint with same key and effect already exists
     if taints.iter().any(|t| t.key == key && t.effect == effect) {
@@ -5871,7 +6680,9 @@ pub async fn add_node_taint(
         }
     });
 
-    nodes.patch(name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
+    nodes
+        .patch(name, &PatchParams::default(), &Patch::Merge(&patch))
+        .await?;
     Ok(())
 }
 
@@ -5880,9 +6691,7 @@ pub async fn remove_node_taint(client: &Client, name: &str, key: &str, effect: &
 
     // Get current node to read existing taints
     let node = nodes.get(name).await?;
-    let taints = node.spec
-        .and_then(|s| s.taints)
-        .unwrap_or_default();
+    let taints = node.spec.and_then(|s| s.taints).unwrap_or_default();
 
     // Filter out the taint with matching key and effect
     let new_taints: Vec<_> = taints
@@ -5905,7 +6714,9 @@ pub async fn remove_node_taint(client: &Client, name: &str, key: &str, effect: &
         })
     };
 
-    nodes.patch(name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
+    nodes
+        .patch(name, &PatchParams::default(), &Patch::Merge(&patch))
+        .await?;
     Ok(())
 }
 
@@ -5918,7 +6729,9 @@ pub async fn cordon_node(client: &Client, name: &str) -> Result<()> {
         }
     });
 
-    nodes.patch(name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
+    nodes
+        .patch(name, &PatchParams::default(), &Patch::Merge(&patch))
+        .await?;
     Ok(())
 }
 
@@ -5931,7 +6744,9 @@ pub async fn uncordon_node(client: &Client, name: &str) -> Result<()> {
         }
     });
 
-    nodes.patch(name, &PatchParams::default(), &Patch::Merge(&patch)).await?;
+    nodes
+        .patch(name, &PatchParams::default(), &Patch::Merge(&patch))
+        .await?;
     Ok(())
 }
 
@@ -5961,18 +6776,26 @@ pub struct ServiceAccountEvent {
     pub source: String,
 }
 
-pub async fn get_serviceaccount_detail(client: &Client, namespace: &str, name: &str) -> Result<ServiceAccountDetail> {
+pub async fn get_serviceaccount_detail(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<ServiceAccountDetail> {
     let sas: Api<ServiceAccount> = Api::namespaced(client.clone(), namespace);
     let sa = sas.get(name).await?;
 
     let metadata = sa.metadata;
 
-    let secrets: Vec<String> = sa.secrets.unwrap_or_default()
+    let secrets: Vec<String> = sa
+        .secrets
+        .unwrap_or_default()
         .iter()
         .map(|s| s.name.clone().unwrap_or_default())
         .collect();
 
-    let image_pull_secrets: Vec<String> = sa.image_pull_secrets.unwrap_or_default()
+    let image_pull_secrets: Vec<String> = sa
+        .image_pull_secrets
+        .unwrap_or_default()
         .iter()
         .map(|s| s.name.clone())
         .collect();
@@ -5981,7 +6804,8 @@ pub async fn get_serviceaccount_detail(client: &Client, namespace: &str, name: &
         name: metadata.name.unwrap_or_default(),
         namespace: metadata.namespace.unwrap_or_default(),
         uid: metadata.uid.unwrap_or_default(),
-        creation_timestamp: metadata.creation_timestamp
+        creation_timestamp: metadata
+            .creation_timestamp
             .map(|t| t.0.to_rfc3339())
             .unwrap_or_default(),
         labels: metadata.labels.unwrap_or_default(),
@@ -5992,26 +6816,45 @@ pub async fn get_serviceaccount_detail(client: &Client, namespace: &str, name: &
     })
 }
 
-pub async fn get_serviceaccount_yaml(client: &Client, namespace: &str, name: &str) -> Result<String> {
+pub async fn get_serviceaccount_yaml(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<String> {
     let sas: Api<ServiceAccount> = Api::namespaced(client.clone(), namespace);
     let sa = sas.get(name).await?;
     Ok(serde_yaml::to_string(&sa)?)
 }
 
-pub async fn get_serviceaccount_events(client: &Client, namespace: &str, name: &str) -> Result<Vec<ServiceAccountEvent>> {
+pub async fn get_serviceaccount_events(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+) -> Result<Vec<ServiceAccountEvent>> {
     let events: Api<k8s_openapi::api::core::v1::Event> = Api::namespaced(client.clone(), namespace);
-    let lp = ListParams::default().fields(&format!("involvedObject.name={},involvedObject.kind=ServiceAccount", name));
+    let lp = ListParams::default().fields(&format!(
+        "involvedObject.name={},involvedObject.kind=ServiceAccount",
+        name
+    ));
     let event_list = events.list(&lp).await?;
 
-    Ok(event_list.items.iter().map(|e| ServiceAccountEvent {
-        event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
-        reason: e.reason.clone().unwrap_or_default(),
-        message: e.message.clone().unwrap_or_default(),
-        count: e.count.unwrap_or(1),
-        first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
-        source: e.source.as_ref().map(|s| s.component.clone().unwrap_or_default()).unwrap_or_default(),
-    }).collect())
+    Ok(event_list
+        .items
+        .iter()
+        .map(|e| ServiceAccountEvent {
+            event_type: e.type_.clone().unwrap_or_else(|| "Normal".to_string()),
+            reason: e.reason.clone().unwrap_or_default(),
+            message: e.message.clone().unwrap_or_default(),
+            count: e.count.unwrap_or(1),
+            first_timestamp: e.first_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            last_timestamp: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+            source: e
+                .source
+                .as_ref()
+                .map(|s| s.component.clone().unwrap_or_default())
+                .unwrap_or_default(),
+        })
+        .collect())
 }
 
 /// Create a client for a specific context
@@ -6034,8 +6877,8 @@ pub async fn create_client_for_context(context_name: &str) -> Result<Client> {
 /// Apply a YAML manifest to the cluster using kubectl
 /// This is the most reliable way to handle all resource types and edge cases
 pub async fn apply_yaml(context_name: &str, yaml_content: &str) -> Result<String> {
-    use std::process::Command;
     use std::io::Write;
+    use std::process::Command;
 
     // Create a temporary file for the YAML
     let temp_dir = std::env::temp_dir();
@@ -6051,9 +6894,11 @@ pub async fn apply_yaml(context_name: &str, yaml_content: &str) -> Result<String
     // Run kubectl apply
     let output = Command::new("kubectl")
         .args([
-            "--context", context_name,
+            "--context",
+            context_name,
             "apply",
-            "-f", temp_file.to_str().unwrap(),
+            "-f",
+            temp_file.to_str().unwrap(),
         ])
         .output()
         .map_err(|e| AppError::Custom(format!("Failed to execute kubectl: {}", e)))?;
@@ -6066,7 +6911,10 @@ pub async fn apply_yaml(context_name: &str, yaml_content: &str) -> Result<String
         Ok(stdout)
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        Err(AppError::Custom(format!("kubectl apply failed: {}", stderr)))
+        Err(AppError::Custom(format!(
+            "kubectl apply failed: {}",
+            stderr
+        )))
     }
 }
 
@@ -6087,9 +6935,7 @@ pub async fn create_secret(
     // Convert string data to base64-encoded ByteString
     let encoded_data: std::collections::BTreeMap<String, ByteString> = data
         .into_iter()
-        .map(|(k, v)| {
-            (k, ByteString(v.into_bytes()))
-        })
+        .map(|(k, v)| (k, ByteString(v.into_bytes())))
         .collect();
 
     let secret = Secret {
@@ -6127,9 +6973,7 @@ pub async fn update_secret(
     // Convert string data to base64-encoded ByteString
     let encoded_data: std::collections::BTreeMap<String, ByteString> = data
         .into_iter()
-        .map(|(k, v)| {
-            (k, ByteString(v.into_bytes()))
-        })
+        .map(|(k, v)| (k, ByteString(v.into_bytes())))
         .collect();
 
     let secret = Secret {
@@ -6149,7 +6993,6 @@ pub async fn delete_secret(client: &Client, namespace: &str, name: &str) -> Resu
     secrets.delete(name, &Default::default()).await?;
     Ok(())
 }
-
 
 #[cfg(test)]
 mod tests {

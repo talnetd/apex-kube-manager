@@ -57,7 +57,15 @@ impl PtyManager {
         if context_name.is_empty() {
             return Err("No context for exec".into());
         }
-        cmd.args(["--context", context_name, "exec", "-it", pod_name, "-n", namespace]);
+        cmd.args([
+            "--context",
+            context_name,
+            "exec",
+            "-it",
+            pod_name,
+            "-n",
+            namespace,
+        ]);
 
         if let Some(c) = container {
             cmd.args(["-c", c]);
@@ -96,13 +104,7 @@ impl PtyManager {
         // Store session
         {
             let mut sessions = self.sessions.lock().unwrap();
-            sessions.insert(
-                session_id.clone(),
-                PtySession {
-                    pair,
-                    writer,
-                },
-            );
+            sessions.insert(session_id.clone(), PtySession { pair, writer });
         }
 
         // Spawn thread to read PTY output and emit events
@@ -113,16 +115,21 @@ impl PtyManager {
                 match reader.read(&mut buffer) {
                     Ok(0) => {
                         // EOF - process exited
-                        let _ = app_for_reader.emit(&format!("pty-exit-{}", session_id_for_thread), ());
+                        let _ =
+                            app_for_reader.emit(&format!("pty-exit-{}", session_id_for_thread), ());
                         break;
                     }
                     Ok(n) => {
                         let data = String::from_utf8_lossy(&buffer[..n]).to_string();
-                        let _ = app_for_reader.emit(&format!("pty-data-{}", session_id_for_thread), data);
+                        let _ = app_for_reader
+                            .emit(&format!("pty-data-{}", session_id_for_thread), data);
                     }
                     Err(e) => {
                         tracing::error!("PTY read error: {}", e);
-                        let _ = app_for_reader.emit(&format!("pty-error-{}", session_id_for_thread), e.to_string());
+                        let _ = app_for_reader.emit(
+                            &format!("pty-error-{}", session_id_for_thread),
+                            e.to_string(),
+                        );
                         break;
                     }
                 }
