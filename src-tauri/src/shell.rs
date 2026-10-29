@@ -106,8 +106,15 @@ pub fn start_context_watcher(app: AppHandle) {
             app.state::<ContextSync>().prime(&ctx);
         }
         let mut tick = tokio::time::interval(Duration::from_secs(3));
+        let mut last_mtime = kubeconfig_mtime();
         loop {
             tick.tick().await;
+            // Any edit (new token, renamed cluster) invalidates cached clients.
+            let mtime = kubeconfig_mtime();
+            if mtime != last_mtime {
+                last_mtime = mtime;
+                crate::tray::invalidate_clients(&app);
+            }
             let sync = app.state::<ContextSync>();
             let _guard = sync.lock.lock().await;
             if let Ok(ctx) = kubernetes::get_current_context_name().await {
@@ -123,6 +130,12 @@ pub fn start_context_watcher(app: AppHandle) {
             }
         }
     });
+}
+
+fn kubeconfig_mtime() -> Option<std::time::SystemTime> {
+    std::fs::metadata(kubernetes::get_kubeconfig_path_for_portforward())
+        .and_then(|m| m.modified())
+        .ok()
 }
 
 // ============ Main windows ============
@@ -164,6 +177,32 @@ pub fn open_main_window(app: &AppHandle) -> Result<()> {
         .map_err(|e| AppError::Custom(format!("Failed to open window: {e}")))?;
     emit_window_count(app);
     Ok(())
+}
+
+/// Closing this main window quits the app (it's the last one, the menu bar
+/// item is off). Quitting ends running terminal sessions, so ask first when
+/// any are open; detail windows just close with it (pure, unit-tested).
+pub fn quit_needs_confirm(other_main_windows: usize, tray_on: bool, terminals: usize) -> bool {
+    other_main_windows == 0 && !tray_on && terminals > 0
+}
+
+pub const CONFIRM_QUIT: &str = "confirm-quit";
+
+/// CloseRequested on a main window: hold it and ask that window to confirm
+/// when quitting would end terminal sessions. Returns true when held.
+pub fn hold_close_for_terminals(app: &AppHandle, label: &str) -> bool {
+    let labels: Vec<String> = app.webview_windows().keys().cloned().collect();
+    let others = labels
+        .iter()
+        .filter(|l| is_main_label(l) && l.as_str() != label)
+        .count();
+    let terminals = labels.iter().filter(|l| l.starts_with("terminal-")).count();
+    let tray_on = app.state::<crate::tray::TrayState>().is_enabled();
+    if quit_needs_confirm(others, tray_on, terminals) {
+        let _ = app.emit_to(label, CONFIRM_QUIT, terminals);
+        return true;
+    }
+    false
 }
 
 /// A window closed: stop the watches it started, and when the last main
@@ -243,6 +282,23 @@ mod tests {
         let s = ContextSync::default();
         s.prime("prod");
         assert_eq!(s.observe("prod"), None);
+    }
+
+    #[test]
+    fn quit_confirm_only_when_terminals_would_die() {
+        assert!(quit_needs_confirm(0, false, 2));
+        assert!(
+            !quit_needs_confirm(0, false, 0),
+            "no terminals: quit as before"
+        );
+        assert!(
+            !quit_needs_confirm(1, false, 2),
+            "another main window stays"
+        );
+        assert!(
+            !quit_needs_confirm(0, true, 2),
+            "menu bar item keeps the app running"
+        );
     }
 
     #[test]
