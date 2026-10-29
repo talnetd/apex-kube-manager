@@ -8,26 +8,13 @@
   import IconButton from '../ui/IconButton.svelte';
   import SecretCreator from '../ui/SecretCreator.svelte';
   import { BP, type Column } from '../ui/data-table';
-  import { poll } from '../../utils/poll';
   import { toast } from '../../stores/toast';
+  import { get } from 'svelte/store';
   import {
-    secrets,
-    selectedNamespace,
+    secretList,
     currentContext,
-    refreshTrigger,
-    loadSecrets,
-    resourceState,
     type SecretInfo,
   } from '../../stores/kubernetes';
-
-  const loadState = resourceState('secrets');
-
-  $effect(() => {
-    if (!$currentContext) return;
-    void $refreshTrigger;
-    const ns = $selectedNamespace;
-    return poll(() => loadSecrets(ns));
-  });
 
   const columns: Column<SecretInfo>[] = [
     { id: 'name', label: 'Name', sortKey: 'name', primary: true },
@@ -40,14 +27,30 @@
   let showCreator = $state(false);
   let editingSecret = $state<{ name: string; namespace: string; secret_type: string; data: Record<string, string> } | null>(null);
 
+  // The context the editor targets: the one the row was loaded from, fixed
+  // when the editor opens. SecretCreator closes itself if it changes.
+  let editContext = $state('');
+
+  function create() {
+    editingSecret = null;
+    editContext = $currentContext;
+    showCreator = true;
+  }
+
   async function edit(sec: SecretInfo) {
+    // Rows clear on a context switch; this is the backstop for a click that
+    // lands mid-switch.
+    const ctx = get(secretList.context);
+    if (!ctx || ctx !== $currentContext) return void toast('Still loading this cluster. Try again in a moment.');
     try {
       const data = await invoke<Record<string, string>>('get_secret_data', {
-        contextName: $currentContext,
+        contextName: ctx,
         namespace: sec.namespace,
         name: sec.name,
       });
+      if ($currentContext !== ctx) return;
       editingSecret = { name: sec.name, namespace: sec.namespace, secret_type: sec.secret_type, data };
+      editContext = ctx;
       showCreator = true;
     } catch (e) {
       toast(`Couldn't load ${sec.name}: ${e}`, { health: 'failed' });
@@ -61,7 +64,7 @@
 </script>
 
 {#snippet actions()}
-  <Button onclick={() => (showCreator = true)}>Create</Button>
+  <Button onclick={create}>Create</Button>
 {/snippet}
 
 {#snippet rowActions(s: SecretInfo)}
@@ -76,25 +79,18 @@
   title="Secrets"
   viewId="secrets"
   itemLabel="secrets"
-  items={$secrets}
-  loadState={$loadState}
+  source={secretList}
   {columns}
   rowKey={(s) => `${s.namespace}/${s.name}`}
   filterFields={['name', 'namespace', 'secret_type']}
   defaultSort={{ id: 'name', dir: 'asc' }}
   resourceType="secret"
-  onRefresh={() => loadSecrets($selectedNamespace)}
   keyboard={!showCreator}
   {actions}
   {rowActions}
-  shortcuts={{
-    e: edit,
-    d: (s) => {
-      edit(s);
-      toast('Delete from the edit dialog');
-    },
-  }}
+  shortcuts={{ e: edit }}
+  deleteHint="Delete from Edit (E)"
 />
 
-<SecretCreator show={showCreator} editData={editingSecret} onclose={closeCreator} />
+<SecretCreator show={showCreator} editData={editingSecret} context={editContext} onclose={closeCreator} />
 

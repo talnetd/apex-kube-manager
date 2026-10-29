@@ -9,26 +9,13 @@
   import IconButton from '../ui/IconButton.svelte';
   import NetworkPolicyCreator from '../ui/NetworkPolicyCreator.svelte';
   import { BP, type Column } from '../ui/data-table';
-  import { poll } from '../../utils/poll';
   import { toast } from '../../stores/toast';
+  import { get } from 'svelte/store';
   import {
-    networkPolicies,
-    selectedNamespace,
+    networkPolicyList,
     currentContext,
-    refreshTrigger,
-    loadNetworkPolicies,
-    resourceState,
     type NetworkPolicyInfo,
   } from '../../stores/kubernetes';
-
-  const loadState = resourceState('networkpolicies');
-
-  $effect(() => {
-    if (!$currentContext) return;
-    void $refreshTrigger;
-    const ns = $selectedNamespace;
-    return poll(() => loadNetworkPolicies(ns));
-  });
 
   const columns: Column<NetworkPolicyInfo>[] = [
     { id: 'name', label: 'Name', sortKey: 'name', primary: true },
@@ -43,13 +30,30 @@
   // Shape comes from get_networkpolicy_detail; NetworkPolicyCreator reads it.
   let editingPolicy = $state<any>(null);
 
+  // The context the editor targets: the one the row was loaded from, fixed
+  // when the editor opens. NetworkPolicyCreator closes itself if it changes.
+  let editContext = $state('');
+
+  function create() {
+    editingPolicy = null;
+    editContext = $currentContext;
+    showCreator = true;
+  }
+
   async function edit(np: NetworkPolicyInfo) {
+    // Rows clear on a context switch; this is the backstop for a click that
+    // lands mid-switch.
+    const ctx = get(networkPolicyList.context);
+    if (!ctx || ctx !== $currentContext) return void toast('Still loading this cluster. Try again in a moment.');
     try {
-      editingPolicy = await invoke('get_networkpolicy_detail', {
-        contextName: $currentContext,
+      const detail = await invoke('get_networkpolicy_detail', {
+        contextName: ctx,
         namespace: np.namespace,
         name: np.name,
       });
+      if ($currentContext !== ctx) return;
+      editingPolicy = detail;
+      editContext = ctx;
       showCreator = true;
     } catch (e) {
       toast(`Couldn't load ${np.name}: ${e}`, { health: 'failed' });
@@ -65,7 +69,7 @@
 {#snippet selectorCell(n: NetworkPolicyInfo)}{n.pod_selector || '<all>'}{/snippet}
 
 {#snippet actions()}
-  <Button onclick={() => (showCreator = true)}>Create</Button>
+  <Button onclick={create}>Create</Button>
 {/snippet}
 
 {#snippet rowActions(n: NetworkPolicyInfo)}
@@ -80,25 +84,18 @@
   title="Network Policies"
   viewId="networkpolicies"
   itemLabel="network policies"
-  items={$networkPolicies}
-  loadState={$loadState}
+  source={networkPolicyList}
   {columns}
   rowKey={(n) => `${n.namespace}/${n.name}`}
   filterFields={['name', 'namespace', 'pod_selector', 'policy_types']}
   defaultSort={{ id: 'name', dir: 'asc' }}
   resourceType="networkpolicy"
-  onRefresh={() => loadNetworkPolicies($selectedNamespace)}
   keyboard={!showCreator}
   {actions}
   {rowActions}
-  shortcuts={{
-    e: edit,
-    d: (n) => {
-      edit(n);
-      toast('Delete from the edit dialog');
-    },
-  }}
+  shortcuts={{ e: edit }}
+  deleteHint="Delete from Edit (E)"
 />
 
-<NetworkPolicyCreator show={showCreator} editData={editingPolicy} onclose={closeCreator} />
+<NetworkPolicyCreator show={showCreator} editData={editingPolicy} context={editContext} onclose={closeCreator} />
 
