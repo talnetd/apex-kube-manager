@@ -58,26 +58,26 @@
 
   function getTerminalTheme() {
     const isDark = $resolvedTheme !== 'light';
-    const app = token('--ui-app', isDark ? '#0e0e10' : '#ffffff');
-    const accent = token('--ui-accent', isDark ? '#5e63e6' : '#4f52d9');
+    const app = token('--ui-app', isDark ? '#000000' : '#ffffff');
+    const accent = token('--ui-accent', '#0070f3');
     return {
       background: app,
-      foreground: token('--ui-primary', isDark ? '#ededf0' : '#18181b'),
+      foreground: token('--ui-primary', isDark ? '#ededed' : '#171717'),
       cursor: accent,
       cursorAccent: app,
       selectionBackground: withAlpha(accent, 0.3),
       // xterm 6 draws its own scrollbar (no native ::-webkit-scrollbar), so
       // it is themed here instead of in CSS.
-      scrollbarSliderBackground: token('--ui-line', isDark ? '#2e2e34' : '#dedee3'),
-      scrollbarSliderHoverBackground: token('--ui-line-strong', isDark ? '#3f3f46' : '#c8c8cf'),
-      scrollbarSliderActiveBackground: token('--ui-muted', isDark ? '#8d8d97' : '#6a6a73'),
+      scrollbarSliderBackground: token('--ui-line', isDark ? '#1f1f1f' : '#eaeaea'),
+      scrollbarSliderHoverBackground: token('--ui-line-strong', isDark ? '#2e2e2e' : '#d4d4d4'),
+      scrollbarSliderActiveBackground: token('--ui-muted', isDark ? '#8f8f8f' : '#666666'),
       black: isDark ? '#000000' : '#1f2937',
       red: '#ef4444',
       green: '#22c55e',
       yellow: '#f59e0b',
       blue: '#3b82f6',
       magenta: '#a855f7',
-      cyan: '#00d4aa',
+      cyan: '#06b6d4',
       white: isDark ? '#ffffff' : '#1f2937',
       brightBlack: isDark ? '#555555' : '#6b7280',
       brightRed: '#f87171',
@@ -300,7 +300,7 @@
       {#if !isConnected}
         <button
           onclick={reconnect}
-          class="px-3 py-1 text-xs bg-accent-primary text-white rounded-sm hover:bg-accent-primary/90 transition-colors"
+          class="px-3 py-1 text-xs bg-btn text-on-btn rounded-sm hover:opacity-90 transition-colors"
         >
           Reconnect
         </button>

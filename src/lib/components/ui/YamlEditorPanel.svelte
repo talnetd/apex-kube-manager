@@ -111,7 +111,7 @@
         <button
           onclick={saveYaml}
           disabled={isSaving || isDeleted}
-          class="text-xs px-3 py-1 bg-accent-primary text-white rounded-sm hover:bg-accent-primary/90 transition-colors disabled:opacity-50 flex items-center gap-1"
+          class="text-xs px-3 py-1 bg-btn text-on-btn rounded-sm hover:opacity-90 transition-colors disabled:opacity-50 flex items-center gap-1"
         >
           {#if isSaving}
             <svg class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">

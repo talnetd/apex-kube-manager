@@ -217,7 +217,7 @@
     <!-- Scroll to bottom button -->
     <button
       onclick={scrollToBottom}
-      class="absolute bottom-4 right-4 p-2 bg-accent-primary text-white rounded-full shadow-lg hover:bg-accent-primary/90 transition-all hover:scale-110"
+      class="absolute bottom-4 right-4 p-2 bg-surface border border-line-strong text-primary rounded-full hover:bg-hover transition-colors"
       title="Scroll to bottom"
     >
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

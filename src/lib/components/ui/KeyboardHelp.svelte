@@ -23,7 +23,7 @@
   <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" role="dialog" aria-modal="true" onclick={close}>
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
     <div
-      class="bg-bg-card border border-border-subtle rounded-lg p-6 max-w-lg w-full mx-4 shadow-xl"
+      class="bg-bg-card border border-border-subtle rounded-lg p-6 max-w-lg w-full mx-4"
       onclick={(e) => e.stopPropagation()}
     >
       <div class="flex items-center justify-between mb-6">

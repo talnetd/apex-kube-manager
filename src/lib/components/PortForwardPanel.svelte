@@ -213,7 +213,7 @@
   ></div>
 
   <!-- Panel -->
-  <div class="absolute top-full right-0 mt-2 w-80 bg-bg-secondary border border-border-subtle rounded-lg shadow-xl z-50">
+  <div class="absolute top-full right-0 mt-2 w-80 bg-bg-secondary border border-border-subtle rounded-lg z-50">
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-border-subtle">
       <span class="text-base font-medium text-text-primary">Port Forwards</span>
@@ -299,13 +299,13 @@
           <div class="flex rounded-lg bg-bg-primary p-0.5 border border-border-subtle">
             <button
               onclick={() => { resourceType = 'pod'; selectedResource = ''; loadResourcesForNamespace(); }}
-              class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors {resourceType === 'pod' ? 'bg-accent-primary text-white' : 'text-text-muted hover:text-text-primary'}"
+              class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors {resourceType === 'pod' ? 'bg-btn text-on-btn' : 'text-text-muted hover:text-text-primary'}"
             >
               Pod
             </button>
             <button
               onclick={() => { resourceType = 'service'; selectedResource = ''; loadResourcesForNamespace(); }}
-              class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors {resourceType === 'service' ? 'bg-accent-primary text-white' : 'text-text-muted hover:text-text-primary'}"
+              class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors {resourceType === 'service' ? 'bg-btn text-on-btn' : 'text-text-muted hover:text-text-primary'}"
             >
               Service
             </button>
@@ -384,7 +384,7 @@
             <button
               onclick={handleStartForward}
               disabled={isStarting || !selectedResource || !selectedNamespaceForm || !remotePort}
-              class="flex-1 px-3 py-2 text-base bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+              class="flex-1 px-3 py-2 text-base bg-btn text-on-btn rounded-lg hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
             >
               {isStarting ? 'Starting...' : 'Forward'}
             </button>

@@ -59,7 +59,7 @@
 {#if $pulseRailOpen}
   <aside
     transition:fly={{ x: 280, duration: 160 }}
-    class="fixed right-0 top-14 bottom-0 w-72 z-30 flex flex-col
+    class="fixed right-0 top-[44px] bottom-[24px] w-72 z-30 flex flex-col
            bg-bg-secondary border-l border-border-subtle overflow-hidden"
   >
     <!-- header -->

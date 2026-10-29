@@ -209,7 +209,7 @@
 <!-- Scale Modal -->
 {#if showScaleModal && scaleTarget}
   <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-    <div class="bg-bg-secondary rounded-lg p-6 w-96 shadow-xl">
+    <div class="bg-bg-secondary rounded-lg p-6 w-96 border border-line-strong">
       <h3 class="text-[18px]/7 font-semibold text-text-primary mb-4">Scale StatefulSet</h3>
       <p class="text-base text-text-secondary mb-4">
         Set the number of replicas for <span class="text-accent-text">{scaleTarget.name}</span>
@@ -248,7 +248,7 @@
         <button
           onclick={handleScale}
           disabled={isScaling}
-          class="px-4 py-2 text-base bg-accent-primary text-white rounded-sm hover:bg-accent-primary/90 transition-colors disabled:opacity-50"
+          class="px-4 py-2 text-base bg-btn text-on-btn rounded-sm hover:opacity-90 transition-colors disabled:opacity-50"
         >
           {isScaling ? 'Scaling...' : 'Scale'}
         </button>

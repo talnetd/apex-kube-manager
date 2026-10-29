@@ -139,7 +139,7 @@ describe('DataTable selection anchoring', () => {
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
-  it('draws the danger rail on failed rows and sorts problems first by default', () => {
+  it('marks failed rows with a danger dot and sorts problems first by default', () => {
     const rows = writable<Row[]>([
       { name: 'ok', cpu: 1 },
       { name: 'broken', cpu: 1, rank: 0 },
@@ -151,7 +151,10 @@ describe('DataTable selection anchoring', () => {
     flushSync();
     const keys = [...document.querySelectorAll('tbody tr')].map((r) => r.getAttribute('data-key'));
     expect(keys).toEqual(['broken', 'ok']);
-    const firstCell = document.querySelector<HTMLElement>('tbody tr td');
-    expect(firstCell?.style.boxShadow).toContain('--ui-danger-solid');
+    const first = document.querySelector<HTMLElement>('tbody tr');
+    expect(first?.dataset.problem).toBe('failed');
+    expect(first?.querySelector('td .sdot')?.classList.contains('bg-danger')).toBe(true);
+    // No coloured bar: only the selection draws a rail.
+    expect(first?.querySelector<HTMLElement>('td')?.style.boxShadow ?? '').toBe('');
   });
 });

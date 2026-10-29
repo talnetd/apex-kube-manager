@@ -98,10 +98,10 @@
 <svelte:window onkeydown={handleWindowKeydown} />
 
 <header
-  class="relative shrink-0 flex flex-wrap items-center gap-x-(--toolbar-gap) gap-y-2 bg-app border-b border-divider px-(--page-px) py-(--page-py)"
+  class="relative shrink-0 flex flex-wrap items-center gap-x-(--toolbar-gap) gap-y-2 bg-app border-b border-line px-(--page-px) py-(--page-py)"
 >
   <div class="flex items-baseline gap-2 min-w-0 mr-auto">
-    <h1 class="font-semibold text-primary tracking-[-0.01em] truncate" style="font-size: var(--title-font); line-height: 1.3">
+    <h1 class="font-semibold text-primary tracking-[-0.025em] truncate" style="font-size: var(--title-font); line-height: 1.3">
       {title}
     </h1>
     {#if count !== undefined}<span class="text-sm text-muted tabular-nums">{count}</span>{/if}
@@ -109,7 +109,7 @@
   </div>
 
   {#if segments?.length}
-    <div class="flex items-center gap-1" role="radiogroup" aria-label="Status filter">
+    <div class="inline-flex items-center gap-0.5 p-0.5 max-w-full overflow-x-auto rounded-md border border-line-strong bg-app" role="radiogroup" aria-label="Status filter">
       {#each segments as seg, i (seg.id)}
         {@const active = seg.id === activeSegment}
         {@const disabled = seg.count === 0 && i !== 0}
@@ -119,12 +119,12 @@
           aria-checked={active}
           {disabled}
           title={i < 5 ? `${seg.label} · ${i + 1}` : seg.label}
-          class="inline-flex items-center gap-1.5 h-(--control-h) px-2 rounded-md text-sm border transition-colors duration-100
+          class="seg-btn inline-flex items-center gap-1.5 px-2 rounded-sm text-sm transition-colors duration-100
             {active
-            ? 'bg-active text-primary border-line'
+            ? 'bg-active text-primary'
             : disabled
-              ? 'text-faint border-transparent cursor-default'
-              : 'text-secondary border-transparent hover:bg-hover hover:text-primary'}"
+              ? 'text-faint cursor-default'
+              : 'text-secondary hover:text-primary'}"
           onclick={() => onSegment?.(seg.id)}
         >
           {#if seg.health}<StatusIcon health={seg.health} colored={!disabled} />{/if}
@@ -149,7 +149,7 @@
         spellcheck="false"
         autocomplete="off"
         onkeydown={onFilterKeydown}
-        class="w-full h-(--control-h) pl-7 pr-8 rounded-md bg-app border border-line hover:border-line-strong text-sm text-primary transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-0"
+        class="filter-input w-full h-(--control-h) pl-7 pr-8 rounded-md bg-app border border-line-strong hover:border-faint text-sm text-primary transition-colors duration-100"
       />
       <div class="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center">
         {#if filter}
@@ -180,6 +180,14 @@
 </header>
 
 <style>
+  .seg-btn {
+    height: calc(var(--control-h) - 6px);
+  }
+  .filter-input:focus-visible {
+    outline: none;
+    border-color: var(--ui-accent);
+    box-shadow: 0 0 0 1px var(--ui-accent);
+  }
   .progress {
     animation: indeterminate 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   }

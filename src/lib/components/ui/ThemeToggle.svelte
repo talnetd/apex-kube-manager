@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { theme, resolvedTheme, setTheme, type Theme } from "../../stores/theme";
+  import { theme, setTheme, type Theme } from "../../stores/theme";
 
   let isOpen = $state(false);
 
@@ -60,30 +60,30 @@
     </svg>
   `;
 
-  function currentIcon() {
-    if ($resolvedTheme === "light") return SunIcon;
-    return MoonIcon;
-  }
 </script>
 
 <div class="theme-toggle-container relative">
   <button
-	on:click={toggleDropdown}
-	title="Change theme"
-	class="h-9 w-9 inline-flex items-center justify-center rounded-lg
-			bg-transparent hover:bg-bg-tertiary transition-colors
-			text-text-secondary hover:text-text-primary"
-	>
-	<span aria-hidden="true">{@html currentIcon()}</span>
+    type="button"
+    onclick={toggleDropdown}
+    title="Theme"
+    aria-label="Change theme"
+    aria-haspopup="menu"
+    aria-expanded={isOpen}
+    class="w-7 h-7 inline-grid place-items-center rounded-md text-secondary hover:bg-hover hover:text-primary"
+  >
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"
+      ><circle cx="8" cy="8" r="5.5" /><path d="M8 2.5a5.5 5.5 0 0 0 0 11z" fill="currentColor" /></svg
+    >
   </button>
 
   {#if isOpen}
     <div
-      class="absolute right-0 mt-2 w-40 bg-bg-secondary border border-border-subtle rounded-lg shadow-xl overflow-hidden z-50"
+      class="absolute right-0 mt-1 w-40 p-1 bg-surface border border-line-strong rounded-md overflow-hidden z-50"
     >
       <button
-        on:click={() => selectTheme("light")}
-        class="w-full flex items-center justify-between px-4 py-2.5 text-base text-text-primary hover:bg-bg-tertiary transition-colors"
+        onclick={() => selectTheme("light")}
+        class="w-full h-[30px] flex items-center justify-between px-2 rounded-md text-sm text-primary hover:bg-active"
       >
         <div class="flex items-center gap-2">
           <span aria-hidden="true">{@html SunIcon}</span>
@@ -95,8 +95,8 @@
       </button>
 
       <button
-        on:click={() => selectTheme("dark")}
-        class="w-full flex items-center justify-between px-4 py-2.5 text-base text-text-primary hover:bg-bg-tertiary transition-colors"
+        onclick={() => selectTheme("dark")}
+        class="w-full h-[30px] flex items-center justify-between px-2 rounded-md text-sm text-primary hover:bg-active"
       >
         <div class="flex items-center gap-2">
           <span aria-hidden="true">{@html MoonIcon}</span>
@@ -109,8 +109,8 @@
 
 
       <button
-        on:click={() => selectTheme("system")}
-        class="w-full flex items-center justify-between px-4 py-2.5 text-base text-text-primary hover:bg-bg-tertiary transition-colors"
+        onclick={() => selectTheme("system")}
+        class="w-full h-[30px] flex items-center justify-between px-2 rounded-md text-sm text-primary hover:bg-active"
       >
         <div class="flex items-center gap-2">
           <span aria-hidden="true">{@html MonitorIcon}</span>

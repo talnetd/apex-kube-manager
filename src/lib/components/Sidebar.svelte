@@ -1,184 +1,444 @@
 <script lang="ts">
-  import { currentView, sidebarCollapsed, type View } from '../stores/navigation';
-  import { connectionStatus } from '../stores/kubernetes';
+  // Sidebar (spec 4.2, 13.2; approved Geist preview). Sentence-case section
+  // headers that collapse, active item as a neutral pill, mono problem counts
+  // with no fill. md: icons only, counts become a dot. sm: off-canvas drawer.
+  import { currentView, navOpen, type View } from '../stores/navigation';
+  import { onMount } from 'svelte';
+  import {
+    pulseMetrics,
+    pulseScope,
+    clusterEvents,
+    nodes,
+    currentContext,
+    selectedNamespace,
+    loadPulseMetrics,
+  } from '../stores/kubernetes';
+  import { updateInfo } from '../stores/updates';
+  import Icon from './shell/Icon.svelte';
+  import type { IconName } from './shell/icons';
 
   interface NavItem {
     id: View;
     label: string;
-    icon: string;
+    icon: IconName;
   }
-
   interface NavSection {
-    title: string;
+    id: string;
+    title?: string;
     items: NavItem[];
   }
 
-  const navSections: NavSection[] = [
+  const sections: NavSection[] = [
     {
-      title: '',
+      id: 'top',
       items: [
-        { id: 'dashboard', label: 'Pulse', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
+        { id: 'dashboard', label: 'Pulse', icon: 'pulse' },
+        { id: 'events', label: 'Events', icon: 'events' },
       ],
     },
     {
+      id: 'wl',
       title: 'Workloads',
       items: [
-        { id: 'pods', label: 'Pods', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' },
-        { id: 'deployments', label: 'Deployments', icon: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z' },
-        { id: 'statefulsets', label: 'StatefulSets', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' },
-        { id: 'daemonsets', label: 'DaemonSets', icon: 'M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z' },
-        { id: 'replicasets', label: 'ReplicaSets', icon: 'M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z' },
-        { id: 'jobs', label: 'Jobs', icon: 'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
-        { id: 'cronjobs', label: 'CronJobs', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+        { id: 'pods', label: 'Pods', icon: 'pods' },
+        { id: 'deployments', label: 'Deployments', icon: 'deploy' },
+        { id: 'statefulsets', label: 'StatefulSets', icon: 'sts' },
+        { id: 'daemonsets', label: 'DaemonSets', icon: 'ds' },
+        { id: 'replicasets', label: 'ReplicaSets', icon: 'rs' },
+        { id: 'jobs', label: 'Jobs', icon: 'job' },
+        { id: 'cronjobs', label: 'CronJobs', icon: 'cron' },
       ],
     },
     {
+      id: 'net',
       title: 'Network',
       items: [
-        { id: 'services', label: 'Services', icon: 'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9' },
-        { id: 'ingresses', label: 'Ingresses', icon: 'M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064' },
-        { id: 'network_policies', label: 'NetPolicies', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
+        { id: 'services', label: 'Services', icon: 'svc' },
+        { id: 'ingresses', label: 'Ingresses', icon: 'ing' },
+        { id: 'network_policies', label: 'Network Policies', icon: 'netpol' },
       ],
     },
     {
+      id: 'cfg',
       title: 'Config',
       items: [
-        { id: 'configmaps', label: 'ConfigMaps', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
-        { id: 'secrets', label: 'Secrets', icon: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z' },
+        { id: 'configmaps', label: 'ConfigMaps', icon: 'cm' },
+        { id: 'secrets', label: 'Secrets', icon: 'secret' },
       ],
     },
     {
+      id: 'sto',
       title: 'Storage',
       items: [
-        { id: 'pvs', label: 'PersistentVolumes', icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4' },
-        { id: 'pvcs', label: 'PVCs', icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4' },
+        { id: 'pvs', label: 'Persistent Volumes', icon: 'pv' },
+        { id: 'pvcs', label: 'PV Claims', icon: 'pvc' },
       ],
     },
+    { id: 'policy', title: 'Scaling & Policy', items: [{ id: 'hpas', label: 'HPAs', icon: 'hpa' }] },
+    { id: 'access', title: 'Access Control', items: [{ id: 'serviceaccounts', label: 'Service Accounts', icon: 'sa' }] },
     {
+      id: 'cl',
       title: 'Cluster',
       items: [
-        { id: 'nodes', label: 'Nodes', icon: 'M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01' },
-        { id: 'namespaces', label: 'Namespaces', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' },
-        { id: 'events', label: 'Events', icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
-        { id: 'hpas', label: 'HPAs', icon: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6' },
-        { id: 'serviceaccounts', label: 'ServiceAccounts', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+        { id: 'nodes', label: 'Nodes', icon: 'node' },
+        { id: 'namespaces', label: 'Namespaces', icon: 'ns' },
       ],
     },
   ];
 
-  function toggleSidebar() {
-    sidebarCollapsed.update((v) => !v);
+  // Collapsed sections persist per machine; a convenience, so storage errors are ignored.
+  const COLLAPSE_KEY = 'apex-sidebar-collapsed';
+  function readCollapsed(): Record<string, boolean> {
+    try {
+      return JSON.parse(localStorage.getItem(COLLAPSE_KEY) ?? '{}') ?? {};
+    } catch {
+      return {};
+    }
+  }
+  let collapsed = $state<Record<string, boolean>>(readCollapsed());
+  $effect(() => {
+    try {
+      localStorage.setItem(COLLAPSE_KEY, JSON.stringify(collapsed));
+    } catch {
+      /* private mode */
+    }
+  });
+
+  const titled = sections.filter((s) => s.title);
+  const anyOpen = $derived(titled.some((s) => !collapsed[s.id]));
+  function toggleAll() {
+    const next = anyOpen;
+    collapsed = Object.fromEntries(titled.map((s) => [s.id, next]));
   }
 
-  function navigateTo(view: View) {
-    currentView.set(view);
+  // Workload badges read the Pulse metrics. Keep them for the current
+  // context and namespace: reload on change and refresh every 30s (Pulse
+  // itself polls every 5s while it's open).
+  $effect(() => {
+    const ctx = $currentContext;
+    const ns = $selectedNamespace;
+    if (ctx) loadPulseMetrics(ns);
+  });
+  onMount(() => {
+    const id = setInterval(() => loadPulseMetrics($selectedNamespace), 30000);
+    return () => clearInterval(id);
+  });
+  const metricsMatch = $derived(
+    !!$pulseScope && $pulseScope.context === $currentContext && $pulseScope.namespace === ($selectedNamespace ?? null)
+  );
+
+  // sm drawer: Esc closes it.
+  function onKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape' && $navOpen) {
+      e.preventDefault();
+      navOpen.set(false);
+    }
   }
+
+  function go(view: View) {
+    currentView.set(view);
+    navOpen.set(false); // also when the view didn't change
+  }
+
+  type Badge = { tone: 'fail' | 'warn'; n: number };
+
+  // Problem counts from data the app already polls: the Pulse metrics
+  // (triage verdicts per workload kind), the event watch and the node watch.
+  const badges = $derived.by(() => {
+    const b: Partial<Record<View, Badge>> = {};
+    const m = $pulseMetrics;
+    if (m && metricsMatch) {
+      for (const k of ['pods', 'deployments', 'statefulsets', 'daemonsets', 'replicasets', 'jobs'] as const) {
+        if (m[k].fail > 0) b[k] = { tone: 'fail', n: m[k].fail };
+      }
+    }
+    const warnEvents = $clusterEvents.filter((e) => e.type === 'Warning').length;
+    if (warnEvents > 0) b.events = { tone: 'warn', n: warnEvents };
+    const badNodes = $nodes.filter((n) => n.verdict.status === 'fail' || n.verdict.status === 'warn');
+    if (badNodes.length) {
+      b.nodes = { tone: badNodes.some((n) => n.verdict.status === 'fail') ? 'fail' : 'warn', n: badNodes.length };
+    }
+    return b;
+  });
+
+  function sectionBadge(sec: NavSection): Badge | null {
+    let n = 0;
+    let fail = false;
+    for (const i of sec.items) {
+      const x = badges[i.id];
+      if (!x) continue;
+      n += x.n;
+      fail ||= x.tone === 'fail';
+    }
+    return n ? { tone: fail ? 'fail' : 'warn', n } : null;
+  }
+
+  const fmt = (n: number) => (n > 99 ? '99+' : String(n));
+  const ariaFor = (i: NavItem, x?: Badge) =>
+    i.label + (x ? `, ${x.n} ${x.tone === 'fail' ? 'failing' : 'warnings'}` : '');
 </script>
 
-<aside
-  class="flex flex-col bg-bg-secondary border-r border-border-subtle transition-all duration-200 cursor-pointer {$sidebarCollapsed ? 'w-14' : 'w-52'}"
-  onclick={toggleSidebar}
->
-  <!-- Logo / Brand / Drag Region -->
+{#snippet badge(x: Badge | null | undefined)}
+  {#if x}
+    <span class="badge {x.tone === 'fail' ? 'text-danger b-fail' : 'text-warning b-warn'}" aria-hidden="true"
+      >{x.tone === 'warn' ? '▲' : ''}{fmt(x.n)}</span
+    >
+  {/if}
+{/snippet}
+
+<svelte:window onkeydown={onKeydown} />
+
+<!-- sm: scrim behind the drawer -->
+{#if $navOpen}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="flex items-center h-14 px-3 border-b border-border-subtle cursor-grab active:cursor-grabbing select-none" data-tauri-drag-region onclick={(e) => e.stopPropagation()}>
-    {#if !$sidebarCollapsed}
-      <div class="flex items-center gap-2" data-tauri-drag-region>
-        <div class="w-7 h-7 bg-[#20D4A9] rounded-lg flex items-center justify-center" data-tauri-drag-region>
-          <span class="text-white font-bold text-xs" data-tauri-drag-region>K8</span>
-        </div>
-        <span class="text-text-primary font-semibold text-base" data-tauri-drag-region>Apex Kube</span>
-      </div>
-    {:else}
-      <div class="w-7 h-7  bg-[#20D4A9] rounded-lg flex items-center justify-center mx-auto" data-tauri-drag-region>
-        <span class="text-white font-bold text-xs" data-tauri-drag-region>K8</span>
-      </div>
-    {/if}
+  <div class="navscrim fixed inset-0 z-[35] bg-scrim" onclick={() => navOpen.set(false)}></div>
+{/if}
+
+<aside class="side" class:open={$navOpen} aria-label="Navigation">
+  <div class="brand" data-tauri-drag-region>
+    <span class="logo" aria-hidden="true" data-tauri-drag-region></span>
+    <span class="brand-name" data-tauri-drag-region>Apex</span>
   </div>
 
-  <!-- Navigation -->
-  <nav class="flex-1 py-2 overflow-y-auto">
-    {#each navSections as section, sectionIndex}
-      <!-- Section divider with title -->
-      {#if section.title}
-        <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-        <div class="px-3 pt-3 pb-1" onclick={(e) => e.stopPropagation()}>
-          {#if !$sidebarCollapsed}
-            <span class="text-[10px] font-medium text-text-muted uppercase tracking-wider">{section.title}</span>
-          {:else}
-            <div class="border-t border-border-subtle"></div>
-          {/if}
-        </div>
+  <nav class="nav">
+    {#each sections as sec (sec.id)}
+      {@const isCollapsed = !!(sec.title && collapsed[sec.id])}
+      {#if sec.title}
+        <div class="rail-div" aria-hidden="true"></div>
+        <button
+          type="button"
+          class="sect"
+          aria-expanded={!isCollapsed}
+          onclick={() => (collapsed = { ...collapsed, [sec.id]: !collapsed[sec.id] })}
+        >
+          <svg class="chev" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"
+            ><path d="M2.5 3.5L5 6l2.5-2.5" /></svg
+          >
+          <span class="sect-title">{sec.title}</span>
+          {#if isCollapsed}{@render badge(sectionBadge(sec))}{/if}
+        </button>
       {/if}
-
-      <!-- Items -->
-      <ul class="space-y-0.5 px-2">
-        {#each section.items as item}
-          <li>
-            <button onclick={(e) => { e.stopPropagation(); navigateTo(item.id); }}
-              title={$sidebarCollapsed ? item.label : ''}
-              class="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md transition-colors
-                {$currentView === item.id
-                  ? 'bg-accent-primary/10 text-accent-text'
-                  : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary'}"
-            >
-              <svg
-                class="w-4 h-4 shrink-0"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.5"
-                  d={item.icon}
-                />
-              </svg>
-              {#if !$sidebarCollapsed}
-                <span class="text-xs">{item.label}</span>
-              {/if}
-            </button>
-          </li>
-        {/each}
-      </ul>
+      <!-- Collapsed items stay in the DOM: the md icon rail always shows them. -->
+      {#each sec.items as item (item.id)}
+          {@const x = badges[item.id]}
+          <button
+            type="button"
+            class="item"
+            class:folded={isCollapsed}
+            title={item.label}
+            aria-label={ariaFor(item, x)}
+            aria-current={$currentView === item.id ? 'page' : undefined}
+            onclick={() => go(item.id)}
+          >
+            <Icon name={item.icon} />
+            <span class="lbl">{item.label}</span>
+            {@render badge(x)}
+          </button>
+      {/each}
     {/each}
   </nav>
 
-  <!-- Connection Status & Collapse Toggle -->
-  <div class="border-t border-border-subtle p-2">
-    <div class="flex items-center {$sidebarCollapsed ? 'justify-center' : 'justify-between'}">
-      {#if !$sidebarCollapsed}
-        <div class="flex items-center gap-2">
-          <div
-            class="w-2 h-2 rounded-full {$connectionStatus === 'connected'
-              ? 'bg-accent-success'
-              : $connectionStatus === 'connecting'
-              ? 'bg-accent-warning animate-pulse'
-              : 'bg-accent-error'}"
-          ></div>
-          <span class="text-[10px] text-text-muted capitalize">{$connectionStatus}</span>
-        </div>
-      {/if}
-      <button
-        onclick={(e) => { e.stopPropagation(); toggleSidebar(); }}
-        class="p-1 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
-        title={$sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-      >
-        <svg
-          class="w-4 h-4 transition-transform {$sidebarCollapsed ? 'rotate-180' : ''}"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
-          />
-        </svg>
-      </button>
-    </div>
+  <div class="sidefoot">
+    <span class="font-mono">{$updateInfo?.current_version ? `v${$updateInfo.current_version}` : ''}</span>
+    <button type="button" class="hover:text-primary" title="Collapse or expand all sections" onclick={toggleAll}
+      >{anyOpen ? 'Collapse all' : 'Expand all'}</button
+    >
   </div>
 </aside>
+
+<style>
+  .side {
+    grid-row: 1 / 3;
+    grid-column: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--ui-app);
+    border-right: 1px solid var(--ui-line);
+    z-index: 40;
+  }
+  .brand {
+    height: 44px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--ui-line);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    user-select: none;
+  }
+  /* Geist mark: a plain triangle in the primary text colour. */
+  .logo {
+    width: 0;
+    height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-bottom: 13px solid var(--ui-primary);
+  }
+  .nav {
+    flex: 1;
+    overflow: auto;
+    padding: 6px 8px 12px;
+  }
+  .sect {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 18px 6px 4px;
+    font-size: 13px;
+    line-height: 16px;
+    font-weight: 500;
+    color: var(--ui-primary);
+    border-radius: 6px;
+    text-align: left;
+  }
+  .sect .chev {
+    flex: none;
+    color: var(--ui-muted);
+    transition: transform 0.15s;
+  }
+  .sect[aria-expanded='false'] .chev {
+    transform: rotate(-90deg);
+  }
+  .sect .badge {
+    margin-left: auto;
+  }
+  .item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: var(--nav-item-h);
+    padding: 0 8px;
+    border-radius: 6px;
+    color: var(--ui-secondary);
+    font-size: var(--nav-font);
+    text-align: left;
+  }
+  .item :global(svg) {
+    color: var(--ui-faint);
+  }
+  .item.folded {
+    display: none;
+  }
+  .item:hover {
+    background: var(--ui-hover);
+    color: var(--ui-primary);
+  }
+  .item[aria-current='page'] {
+    background: var(--ui-active);
+    color: var(--ui-primary);
+    font-weight: 500;
+  }
+  .item[aria-current='page'] :global(svg) {
+    color: var(--ui-secondary);
+  }
+  .lbl {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .sidefoot {
+    flex: none;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--ui-line);
+    font-size: 12px;
+    color: var(--ui-muted);
+  }
+  .navscrim {
+    display: none;
+  }
+  .rail-div {
+    display: none;
+  }
+
+  /* md 640-1199: icons only, 52px; counts become a dot on the icon. */
+  @media (min-width: 640px) and (max-width: 1199.98px) {
+    .brand {
+      justify-content: center;
+      padding: 0;
+    }
+    .brand-name,
+    .lbl,
+    .sidefoot {
+      display: none;
+    }
+    .nav {
+      padding: 6px;
+    }
+    .sect {
+      display: none;
+    }
+    .rail-div {
+      display: block;
+      height: 1px;
+      margin: 6px 4px;
+      background: var(--ui-divider);
+    }
+    .item,
+    .item.folded {
+      display: flex;
+      justify-content: center;
+      padding: 0;
+    }
+    .item .badge {
+      position: absolute;
+      top: 4px;
+      right: 6px;
+      width: 7px;
+      height: 7px;
+      padding: 0;
+      font-size: 0;
+      border-radius: 50%;
+    }
+    .item .b-fail {
+      background: var(--ui-danger-solid);
+    }
+    .item .b-warn {
+      background: var(--ui-warning-solid);
+    }
+  }
+
+  /* sm < 640: off-canvas drawer opened from the header's menu button. */
+  @media (max-width: 639.98px) {
+    .side {
+      position: fixed;
+      left: 0;
+      top: 0;
+      bottom: 24px;
+      width: 260px;
+      transform: translateX(-102%);
+      visibility: hidden;
+      transition:
+        transform 0.2s cubic-bezier(0.2, 0, 0, 1),
+        visibility 0s linear 0.2s;
+    }
+    .side.open {
+      transform: none;
+      visibility: visible;
+      transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1);
+      box-shadow: var(--ui-shadow-dialog);
+    }
+    .navscrim {
+      display: block;
+    }
+  }
+</style>

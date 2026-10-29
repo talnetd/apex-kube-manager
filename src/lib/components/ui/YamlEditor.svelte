@@ -23,52 +23,52 @@
 	const isDark = $resolvedTheme !== "light";
 	return EditorView.theme({
     '&': {
-      backgroundColor: isDark ? "#0a0a0a" : "#ffffff",
-	  color: isDark ? "#e4e4e7" : "#1f2937",
+      backgroundColor: 'var(--ui-app)',
+	  color: 'var(--ui-primary)',
       height: '100%',
     },
     '.cm-content': {
-      fontFamily: 'Hack, Menlo, Monaco, "Courier New", monospace',
+      fontFamily: 'var(--font-mono)',
       fontSize: '12px',
-      caretColor: '#00d4aa',
+      caretColor: 'var(--ui-accent)',
     },
     '.cm-cursor': {
-      borderLeftColor: '#00d4aa',
+      borderLeftColor: 'var(--ui-accent)',
     },
     '&.cm-focused .cm-cursor': {
-      borderLeftColor: '#00d4aa',
+      borderLeftColor: 'var(--ui-accent)',
     },
     '.cm-gutters': {
-      backgroundColor: isDark ? "#111111" : "#f9fafb",
-	  color: isDark ? "#555555" : "#9ca3af",
+      backgroundColor: 'var(--ui-app)',
+	  color: 'var(--ui-faint)',
       border: 'none',
-	  borderRight: isDark ? "1px solid #222222" : "1px solid #e5e7eb",
+	  borderRight: '1px solid var(--ui-line)',
     },
     '.cm-activeLineGutter': {
-	  backgroundColor: isDark ? "#1a1a1a" : "#f3f4f6",
+	  backgroundColor: 'var(--ui-hover)',
     },
     '.cm-activeLine': {
-      backgroundColor: isDark ? "#1a1a40" : "#f3f4f6",
+      backgroundColor: 'var(--ui-hover)',
     },
     '.cm-selectionBackground': {
-      backgroundColor: '#00d4aa30 !important',
+      backgroundColor: 'color-mix(in srgb, var(--ui-accent) 30%, transparent) !important',
     },
     '&.cm-focused .cm-selectionBackground': {
-      backgroundColor: '#00d4aa30 !important',
+      backgroundColor: 'color-mix(in srgb, var(--ui-accent) 30%, transparent) !important',
     },
     '.cm-matchingBracket': {
-      backgroundColor: '#00d4aa40',
+      backgroundColor: 'var(--ui-active)',
       outline: 'none',
     },
     // YAML syntax colors
-    '.cm-string': { color: '#22c55e' },
-    '.cm-number': { color: '#f59e0b' },
-    '.cm-keyword': { color: '#00d4aa' },
-    '.cm-comment': { color: isDark ? '#555555' : '#9ca3af' },
-    '.cm-propertyName': { color: '#3b82f6' },
-    '.cm-punctuation': { color: isDark ? '#888888' : '#6b7280' },
-    '.cm-atom': { color: '#a855f7' },
-    '.cm-meta': { color: '#ef4444' },
+    '.cm-string': { color: 'var(--ui-success)' },
+    '.cm-number': { color: 'var(--ui-warning)' },
+    '.cm-keyword': { color: 'var(--ui-accent-text)' },
+    '.cm-comment': { color: 'var(--ui-faint)' },
+    '.cm-propertyName': { color: 'var(--ui-accent-text)' },
+    '.cm-punctuation': { color: 'var(--ui-muted)' },
+    '.cm-atom': { color: 'var(--ui-primary)' },
+    '.cm-meta': { color: 'var(--ui-danger)' },
     // Scrollbar styling
     '.cm-scroller': {
       overflow: 'auto',

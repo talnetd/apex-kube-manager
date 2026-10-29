@@ -65,7 +65,7 @@
     columns: Column<T>[];
     /** e.g. `${ns}/${name}`; anchors the selection across re-sorts. */
     rowKey: (r: T) => string;
-    /** Drives the row rail and the synthetic 'health' sort. */
+    /** Drives the problem dot and the synthetic 'health' sort. */
     health?: (r: T) => HealthResult;
     defaultSort?: TableSort;
     state: TableState;
@@ -221,21 +221,17 @@
     return sort.dir === 'asc' ? 'ascending' : 'descending';
   }
 
-  // Row rails are drawn as inset shadows on the edge cells (box-shadow on <tr>
-  // is unreliable in WebKit). Decorative: the status pill carries the meaning.
-  function rails(r: T, selected: boolean, first: boolean, last: boolean): string | undefined {
-    if (!first && !last) return undefined;
+  // Geist: problems are a small dot before the name, not a coloured bar. The
+  // selection keeps a 2px accent rail on the first cell, drawn as an inset
+  // shadow (box-shadow on <tr> is unreliable in WebKit). Decorative: the
+  // status pill carries the meaning.
+  function problemOf(r: T): 'failed' | 'warning' | null {
     const h = health?.(r).health;
-    const problem =
-      h === 'failed' ? 'var(--ui-danger-solid)' : h === 'warning' ? 'var(--ui-warning-solid)' : null;
-    const shadows: string[] = [];
-    if (first) {
-      if (selected) shadows.push('inset 2px 0 0 var(--ui-accent)');
-      else if (problem) shadows.push(`inset 2px 0 0 ${problem}`);
-    }
-    // Failed + selected: the accent wins on the left, the problem keeps a right rail.
-    if (last && selected && problem) shadows.push(`inset -2px 0 0 ${problem}`);
-    return shadows.length ? shadows.join(', ') : undefined;
+    return h === 'failed' || h === 'warning' ? h : null;
+  }
+
+  function rail(selected: boolean, first: boolean): string | undefined {
+    return selected && first ? 'inset 2px 0 0 var(--ui-accent)' : undefined;
   }
 
   const SKELETON_WIDTHS = ['40%', '15%', '12%', '8%', '10%', '14%'];
@@ -269,12 +265,12 @@
           <th
             scope="col"
             aria-sort={col.sortKey !== undefined ? ariaSort(col.id) : undefined}
-            class="sticky top-0 z-10 bg-subtle border-b border-line h-(--header-row-h) px-(--cell-px) text-2xs font-medium uppercase tracking-[0.04em] text-muted whitespace-nowrap {right ? 'text-right' : 'text-left'}"
+            class="sticky top-0 z-10 bg-app border-b border-line h-(--header-row-h) px-(--cell-px) text-2xs font-medium uppercase tracking-[0.02em] text-muted whitespace-nowrap {right ? 'text-right' : 'text-left'}"
           >
             {#if col.sortKey !== undefined}
               <button
                 type="button"
-                class="inline-flex items-center gap-1 max-w-full uppercase tracking-[0.04em] hover:text-primary {sort?.id === col.id ? 'text-secondary' : ''} {right ? 'flex-row-reverse' : ''}"
+                class="inline-flex items-center gap-1 max-w-full uppercase tracking-[0.02em] hover:text-primary {sort?.id === col.id ? 'text-secondary' : ''} {right ? 'flex-row-reverse' : ''}"
                 onclick={() => (sort = nextSort(sort, col.id, defaultSort ?? null))}
               >
                 <span class="truncate">{col.label}</span>
@@ -289,7 +285,7 @@
             {/if}
           </th>
         {/each}
-        {#if rowActions}<th scope="col" class="sticky top-0 z-10 bg-subtle border-b border-line h-(--header-row-h)"><span class="sr-only">Actions</span></th>{/if}
+        {#if rowActions}<th scope="col" class="sticky top-0 z-10 bg-app border-b border-line h-(--header-row-h)"><span class="sr-only">Actions</span></th>{/if}
       </tr>
     </thead>
 
@@ -298,7 +294,7 @@
         {#each Array(8) as _, i}
           <tr class="h-(--row-h)" aria-hidden="true">
             {#each visibleColumns as col, c (col.id)}
-              <td class="border-b border-divider px-(--cell-px)">
+              <td class="border-b border-line px-(--cell-px)">
                 <div
                   class="skeleton h-2.5 rounded-sm bg-hover {col.numeric || col.align === 'right' ? 'ml-auto' : ''}"
                   style:width={SKELETON_WIDTHS[(c + i) % SKELETON_WIDTHS.length]}
@@ -306,37 +302,38 @@
                 ></div>
               </td>
             {/each}
-            {#if rowActions}<td class="border-b border-divider"></td>{/if}
+            {#if rowActions}<td class="border-b border-line"></td>{/if}
           </tr>
         {/each}
       {:else if showRows}
         {#each sorted as row, i (rowKey(row))}
           {@const selected = ownsNav() && i === $selectedRowIndex}
+          {@const problem = problemOf(row)}
           <tr
             bind:this={rowEls[i]}
             class="row h-(--row-h) cursor-pointer {selected ? 'selected bg-selected' : 'hover:bg-hover'}"
             aria-current={selected ? 'true' : undefined}
             aria-rowindex={i + 2}
             data-key={rowKey(row)}
+            data-problem={problem ?? undefined}
             onclick={() => clickRow(i, row)}
           >
             {#each visibleColumns as col, c (col.id)}
               {@const right = col.numeric || col.align === 'right'}
               {@const text = col.cell ? undefined : cellText(row, col)}
               <td
-                class="border-b border-divider px-(--cell-px) whitespace-nowrap overflow-hidden {right ? 'text-right' : 'text-left'} {col.numeric ? 'tabular-nums' : ''} {col.mono ? 'font-mono' : ''} {col.primary ? 'text-primary font-medium' : 'text-secondary'}"
+                class="border-b border-line px-(--cell-px) whitespace-nowrap overflow-hidden {right ? 'text-right' : 'text-left'} {col.numeric ? 'tabular-nums' : ''} {col.mono || col.primary ? 'font-mono' : ''} {col.primary ? 'name-cell text-primary font-medium' : 'text-secondary'}"
                 style="font-size: var(--cell-font)"
-                style:box-shadow={rails(row, selected, c === 0, !rowActions && c === visibleColumns.length - 1)}
+                style:box-shadow={rail(selected, c === 0)}
               >
                 <div class="truncate {col.primary ? 'name' : ''}" title={col.title ? col.title(row) : text !== '–' ? text : undefined}>
-                  {#if col.cell}{@render col.cell(row)}{:else}{text}{/if}
+                  {#if col.primary && problem}<span class="sdot {problem === 'failed' ? 'bg-danger' : 'bg-warning'}" aria-hidden="true"></span>{/if}{#if col.cell}{@render col.cell(row)}{:else}{text}{/if}
                 </div>
               </td>
             {/each}
             {#if rowActions}
               <td
-                class="border-b border-divider px-1 text-right"
-                style:box-shadow={rails(row, selected, false, true)}
+                class="border-b border-line px-1 text-right"
                 onclick={(e) => e.stopPropagation()}
               >
                 <div class="row-actions inline-flex items-center gap-0.5">{@render rowActions(row)}</div>
@@ -391,9 +388,25 @@
   .dt:focus-visible {
     outline: none;
   }
+  /* Narrow windows scroll sideways instead of crushing columns (preview). */
+  .dt {
+    min-width: 760px;
+  }
+  /* Mono name column (Geist): a touch smaller than the body text. */
+  .name-cell {
+    font-size: calc(var(--cell-font) - 0.5px) !important;
+  }
+  .sdot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: 1px;
+  }
   .dt:focus-visible :global(tr.selected) {
-    outline: 2px solid var(--ui-accent);
-    outline-offset: -2px;
+    outline: 1px solid var(--ui-accent);
+    outline-offset: -1px;
   }
   .row .row-actions {
     opacity: 0;
