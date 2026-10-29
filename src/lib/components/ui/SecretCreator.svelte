@@ -193,13 +193,13 @@
 </script>
 
 {#if show}
-  <div role="presentation" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onclick={(e) => e.target === e.currentTarget && handleClose()}>
-    <div role="dialog" aria-modal="true" tabindex="-1"
+  <div role="presentation" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onmousedown={(e) => e.target === e.currentTarget && handleClose()}>
+    <div role="dialog" aria-modal="true" aria-labelledby="sc-title" tabindex="-1"
       class="bg-bg-secondary rounded-lg border border-border-subtle w-[600px] max-w-[calc(100vw-16px)] max-h-[85vh] flex flex-col"
     >
       <!-- Header -->
       <div class="flex items-center justify-between p-4 border-b border-border-subtle">
-        <h2 class="text-[18px]/7 font-semibold text-text-primary">{isEditMode ? 'Edit' : 'Create'} Secret</h2>
+        <h2 id="sc-title" class="text-[18px]/7 font-semibold text-text-primary">{isEditMode ? 'Edit' : 'Create'} Secret</h2>
         <button aria-label="Close"
           onclick={handleClose}
           class="p-1 hover:bg-bg-tertiary rounded-sm transition-colors"
@@ -215,14 +215,14 @@
         <div class="space-y-4">
           <!-- Name -->
           <div>
-            <span class="block text-base font-medium text-text-secondary mb-1">Name *</span>
+            <label for="sc-name" class="block text-base font-medium text-text-secondary mb-1">Name *</label>
             {#if isEditMode}
               <div class="text-base text-text-primary bg-bg-tertiary border border-border-subtle rounded-sm px-3 py-2 opacity-60">
                 {name}
               </div>
               <p class="text-xs text-text-muted mt-1">Name cannot be changed when editing</p>
             {:else}
-              <input aria-label="Name"
+              <input id="sc-name"
                 type="text"
                 bind:value={name}
                 placeholder="my-secret"
@@ -241,6 +241,7 @@
               <p class="text-xs text-text-muted mt-1">Namespace cannot be changed when editing</p>
             {:else}
               <CustomSelect
+              ariaLabel="Namespace"
                 value={createNamespace}
                 options={namespaceOptions}
                 placeholder="Select namespace..."
@@ -253,6 +254,7 @@
           <div>
             <span class="block text-base font-medium text-text-secondary mb-1">Type</span>
             <CustomSelect
+              ariaLabel="Type"
               value={secretType}
               options={secretTypeOptions}
               onchange={(v) => secretType = v}
@@ -286,6 +288,7 @@
                     <div class="flex-1 space-y-2">
                       <input
                         type="text"
+                        aria-label={`Key ${i + 1}`}
                         bind:value={entry.key}
                         placeholder="Key (e.g., password)"
                         class="w-full bg-bg-secondary border border-border-subtle rounded-sm px-3 py-1.5 text-text-primary text-base focus:outline-hidden focus:border-accent-primary"
@@ -293,6 +296,7 @@
                       <div class="relative">
                         {#if entry.revealed}
                           <textarea
+                            aria-label={`Value ${i + 1}`}
                             bind:value={entry.value}
                             placeholder="Value"
                             rows="2"
@@ -301,6 +305,7 @@
                         {:else}
                           <input
                             type="password"
+                            aria-label={`Value ${i + 1}`}
                             bind:value={entry.value}
                             placeholder="Value (hidden)"
                             class="w-full bg-bg-secondary border border-border-subtle rounded-sm px-3 py-1.5 text-text-primary text-base focus:outline-hidden focus:border-accent-primary font-mono"
@@ -326,6 +331,7 @@
                         {/if}
                       </button>
                       <button
+                        aria-label={`Remove ${entry.key || `entry ${i + 1}`}`}
                         onclick={() => removeEntry(i)}
                         class="p-1.5 rounded-sm hover:bg-accent-error/10 transition-colors text-text-muted hover:text-danger"
                         title="Remove entry"
