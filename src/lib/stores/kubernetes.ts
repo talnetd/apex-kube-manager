@@ -1106,8 +1106,6 @@ export const loadEvents = (namespace?: string | null) => eventList.load(namespac
 export const loadDeployments = (namespace?: string | null) => deploymentList.load(namespace);
 export const loadStatefulSets = (namespace?: string | null) => statefulSetList.load(namespace);
 
-
-
 export const loadDaemonSets = (namespace?: string | null) => daemonSetList.load(namespace);
 export const loadReplicaSets = (namespace?: string | null) => replicaSetList.load(namespace);
 export const loadJobs = (namespace?: string | null) => jobList.load(namespace);
@@ -1224,7 +1222,6 @@ export async function loadAllResources(namespace?: string | null) {
     loadServiceAccounts(namespace),
   ]);
 }
-
 
 export async function getPodLogs(
   namespace: string,

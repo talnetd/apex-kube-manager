@@ -339,6 +339,7 @@ pub fn run() {
             commands::open_main_window,
             commands::get_shared_context,
             commands::quit_app,
+            commands::confirm_quit_shown,
             commands::focus_main_window,
             commands::get_main_window_count,
             commands::get_tray_status,

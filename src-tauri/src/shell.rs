@@ -188,21 +188,84 @@ pub fn quit_needs_confirm(other_main_windows: usize, tray_on: bool, terminals: u
 
 pub const CONFIRM_QUIT: &str = "confirm-quit";
 
+/// A close held for the terminal confirm. It can't trap the user: a second
+/// close within `CLOSE_AGAIN` goes through, and if the window doesn't
+/// acknowledge the prompt within `ACK_WITHIN` (still starting, hung) the
+/// close goes through on its own.
+struct QuitHold {
+    label: String,
+    at: std::time::Instant,
+    acked: bool,
+}
+
+static QUIT_HOLD: Mutex<Option<QuitHold>> = Mutex::new(None);
+const CLOSE_AGAIN: Duration = Duration::from_secs(3);
+const ACK_WITHIN: Duration = Duration::from_millis(1500);
+
+/// What to do with a close request, given a hold already pending (pure,
+/// unit-tested): `true` = hold it and ask.
+pub fn should_hold(needs_confirm: bool, pending: Option<(&str, Duration)>, label: &str) -> bool {
+    if !needs_confirm {
+        return false;
+    }
+    !matches!(pending, Some((l, since)) if l == label && since < CLOSE_AGAIN)
+}
+
 /// CloseRequested on a main window: hold it and ask that window to confirm
 /// when quitting would end terminal sessions. Returns true when held.
 pub fn hold_close_for_terminals(app: &AppHandle, label: &str) -> bool {
-    let labels: Vec<String> = app.webview_windows().keys().cloned().collect();
-    let others = labels
-        .iter()
+    let others = app
+        .webview_windows()
+        .keys()
         .filter(|l| is_main_label(l) && l.as_str() != label)
         .count();
-    let terminals = labels.iter().filter(|l| l.starts_with("terminal-")).count();
+    let terminals = app.state::<crate::pty::PtyManager>().live_count();
     let tray_on = app.state::<crate::tray::TrayState>().is_enabled();
-    if quit_needs_confirm(others, tray_on, terminals) {
-        let _ = app.emit_to(label, CONFIRM_QUIT, terminals);
-        return true;
+    let needs = quit_needs_confirm(others, tray_on, terminals);
+
+    let mut hold = QUIT_HOLD.lock().unwrap_or_else(|e| e.into_inner());
+    let pending = hold.as_ref().map(|h| (h.label.as_str(), h.at.elapsed()));
+    if !should_hold(needs, pending, label) {
+        *hold = None;
+        return false;
     }
-    false
+    *hold = Some(QuitHold {
+        label: label.to_string(),
+        at: std::time::Instant::now(),
+        acked: false,
+    });
+    drop(hold);
+    let _ = app.emit_to(label, CONFIRM_QUIT, terminals);
+
+    // No ack in time: the prompt can't show, so don't swallow the close.
+    let (app, label) = (app.clone(), label.to_string());
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(ACK_WITHIN).await;
+        let expired = {
+            let mut hold = QUIT_HOLD.lock().unwrap_or_else(|e| e.into_inner());
+            let expired = matches!(&*hold, Some(h) if h.label == label && !h.acked);
+            if expired {
+                *hold = None;
+            }
+            expired
+        };
+        if expired {
+            eprintln!("[apex-kube-manager] quit prompt not shown in {label}: closing anyway");
+            if let Some(w) = app.get_webview_window(&label) {
+                let _ = w.destroy();
+            }
+        }
+    });
+    true
+}
+
+/// The window showed the quit prompt (keeps the hold until the user picks).
+pub fn ack_quit_prompt(label: &str) {
+    if let Some(h) = QUIT_HOLD.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
+        if h.label == label {
+            h.acked = true;
+        }
+    }
 }
 
 /// A window closed: stop the watches it started, and when the last main
@@ -299,6 +362,24 @@ mod tests {
             !quit_needs_confirm(0, true, 2),
             "menu bar item keeps the app running"
         );
+    }
+
+    #[test]
+    fn a_second_close_or_another_window_is_never_held() {
+        assert!(should_hold(true, None, "main"), "first close asks");
+        assert!(
+            !should_hold(true, Some(("main", Duration::from_millis(800))), "main"),
+            "closing again goes through"
+        );
+        assert!(
+            should_hold(true, Some(("main", Duration::from_secs(10))), "main"),
+            "a much later close asks again"
+        );
+        assert!(
+            should_hold(true, Some(("main-2", Duration::from_millis(100))), "main"),
+            "a hold on another window doesn't count"
+        );
+        assert!(!should_hold(false, None, "main"), "nothing to confirm");
     }
 
     #[test]

@@ -17,6 +17,11 @@ struct PtySession {
 }
 
 impl PtyManager {
+    /// Running exec sessions (an ended shell removes itself).
+    pub fn live_count(&self) -> usize {
+        self.sessions.lock().map(|s| s.len()).unwrap_or(0)
+    }
+
     pub fn new() -> Self {
         Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),

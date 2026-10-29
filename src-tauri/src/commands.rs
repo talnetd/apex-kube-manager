@@ -1398,3 +1398,9 @@ pub fn hide_tray_popover(app: AppHandle) {
 pub fn quit_app(app: AppHandle) {
     app.exit(0);
 }
+
+/// The window is showing the quit prompt: keep holding its close.
+#[tauri::command]
+pub fn confirm_quit_shown(window: tauri::Window) {
+    crate::shell::ack_quit_prompt(window.label());
+}

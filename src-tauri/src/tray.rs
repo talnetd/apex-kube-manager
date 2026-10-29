@@ -180,6 +180,9 @@ pub struct TrayState {
     rerun: AtomicBool,
     /// One client per static-auth context (no plugin, so safe to reuse).
     clients: Mutex<std::collections::HashMap<String, kube::Client>>,
+    /// Bumped when the kubeconfig changes: a client built from the old file
+    /// while a sweep was in flight must not land in the cache afterwards.
+    client_gen: std::sync::atomic::AtomicU64,
 }
 
 impl TrayState {
@@ -192,6 +195,7 @@ impl TrayState {
             sweeping: AtomicBool::new(false),
             rerun: AtomicBool::new(false),
             clients: Mutex::new(std::collections::HashMap::new()),
+            client_gen: std::sync::atomic::AtomicU64::new(0),
         }
     }
 }
@@ -302,17 +306,19 @@ async fn cached_client(app: &AppHandle, context: &str) -> Result<kube::Client> {
     if let Some(c) = cached {
         return Ok(c);
     }
+    let gen = state(app).client_gen.load(Ordering::SeqCst);
     let c = kubernetes::create_client_for_context(context).await?;
-    state(app)
-        .clients
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .insert(context.to_string(), c.clone());
+    let s = state(app);
+    let mut clients = s.clients.lock().unwrap_or_else(|e| e.into_inner());
+    if s.client_gen.load(Ordering::SeqCst) == gen {
+        clients.insert(context.to_string(), c.clone());
+    }
     Ok(c)
 }
 
 /// The kubeconfig changed (new credentials, edited cluster): drop clients.
 pub fn invalidate_clients(app: &AppHandle) {
+    state(app).client_gen.fetch_add(1, Ordering::SeqCst);
     state(app)
         .clients
         .lock()
