@@ -510,6 +510,7 @@ export async function switchContext(contextName: string) {
     isSwitchingContext.set(true);
     // Clear stale metrics so header shows currentContext name, not old cluster name
     pulseMetrics.set(null);
+    apiProbes.set({ ok: 0, total: 0, since: Date.now() });
     nodeMetrics.set({});
     // Stop any active watch streams before switching
     await stopPodWatch();
@@ -1275,6 +1276,12 @@ export async function loadClusterMetrics() {
 /** Context and namespace the current `pulseMetrics` were loaded for. */
 export const pulseScope = writable<{ context: string; namespace: string | null } | null>(null);
 
+/**
+ * API server reachability over the session (Pulse "Uptime" tile): every
+ * metrics poll counts as one probe. Reset on context switch.
+ */
+export const apiProbes = writable<{ ok: number; total: number; since: number }>({ ok: 0, total: 0, since: Date.now() });
+
 export async function loadPulseMetrics(namespace?: string | null) {
   if (!isContextReady()) return;
   const context = _currentContext;
@@ -1286,9 +1293,13 @@ export async function loadPulseMetrics(namespace?: string | null) {
     markSynced('pulse');
     // The status bar's "Connected" reflects the last real API call.
     connectionStatus.set('connected');
+    apiProbes.update((p) => ({ ...p, ok: p.ok + 1, total: p.total + 1 }));
   } catch (e) {
     error.set(String(e));
-    if (_currentContext === context) connectionStatus.set('disconnected');
+    if (_currentContext === context) {
+      connectionStatus.set('disconnected');
+      apiProbes.update((p) => ({ ...p, total: p.total + 1 }));
+    }
   }
 }
 
