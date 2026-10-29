@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Terminal from '../Terminal.svelte';
+  import { startDetailContextSync, access, switchBack } from '../../stores/detail';
   import WindowControls from '../ui/WindowControls.svelte';
   // Separate webview: apply theme + density here too.
   import '../../stores/theme';
@@ -23,6 +24,9 @@
     podName = params.get('pod') || '';
     const containerParam = params.get('container');
     container = containerParam || undefined;
+
+    // Follow the shared context: new sessions wait while the app is elsewhere.
+    startDetailContextSync(context);
 
     if (!podName || !namespace) {
       loadError = 'Missing pod name or namespace';
@@ -83,7 +87,14 @@
         </div>
       </div>
     {:else}
+      {#if $access.readOnly}
+        <div class="flex items-center gap-3 px-4 py-2 border-b border-line text-sm" role="status">
+          <span class="flex-1 min-w-0 text-secondary">This shell is on <span class="font-mono text-primary">{$access.locked}</span>. The app is on <span class="font-mono text-primary">{$access.shared}</span>; the session keeps running, but reconnecting waits.</span>
+          <button type="button" class="h-6 px-2 rounded-md border border-line-strong text-xs hover:bg-hover" onclick={() => switchBack()}>Switch back</button>
+        </div>
+      {/if}
       <Terminal
+        {context}
         {namespace}
         {podName}
         {container}

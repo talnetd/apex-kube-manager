@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "tray",
+  "description": "Menu bar popover: events and its own window only (no shell, no window creation)",
+  "windows": ["tray"],
+  "permissions": ["core:event:default", "core:window:allow-hide", "core:window:allow-set-focus"]
+}

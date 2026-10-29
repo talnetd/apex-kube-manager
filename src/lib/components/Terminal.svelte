@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { guard, detailReadOnly } from '../stores/detail';
   import { onMount, onDestroy } from 'svelte';
   import { Terminal } from '@xterm/xterm';
   import { FitAddon } from '@xterm/addon-fit';
@@ -10,6 +11,8 @@
   import { resolvedTheme } from '../stores/theme';
 
   interface Props {
+    /** The context this terminal execs into (locked when the window opened). */
+    context: string;
     namespace: string;
     podName: string;
     container?: string;
@@ -17,7 +20,7 @@
     onClose?: () => void;
   }
 
-  let { namespace, podName, container, shell: initialShell, onClose }: Props = $props();
+  let { context, namespace, podName, container, shell: initialShell, onClose }: Props = $props();
 
   // Common shells available in containers
   const SHELLS = [
@@ -166,6 +169,7 @@
 
       // Spawn PTY session
       sessionId = await invoke<string>('pty_spawn', {
+        contextName: context,
         namespace,
         podName,
         container: container || null,
@@ -252,6 +256,9 @@
   }
 
   async function reconnect() {
+    // A running shell keeps going after a context switch (spec 13.3), but a
+    // new session (reconnect, other shell) waits until the user switches back.
+    if (!guard('exec')) return;
     connectionError = null;
     isConnected = false;
     await cleanupPty();
@@ -293,13 +300,14 @@
         <CustomSelect
           bind:value={selectedShell}
           options={SHELLS}
-          disabled={isConnected}
+          disabled={isConnected || $detailReadOnly}
           placeholder="Shell..."
         />
       </div>
       {#if !isConnected}
         <button
           onclick={reconnect}
+          disabled={$detailReadOnly}
           class="px-3 py-1 text-xs bg-btn text-on-btn rounded-sm hover:opacity-90 transition-colors"
         >
           Reconnect

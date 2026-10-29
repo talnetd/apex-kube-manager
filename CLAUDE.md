@@ -348,6 +348,22 @@ To add a kind here: a list fn + row struct, a detail builder, one arm in each di
 | `get_secret_data` | `context_name, namespace, name` | `HashMap<String, String>` |
 | `open_resource_detail` | `context_name, resourceType, namespace, name` | `()` |
 
+## Multi-window, shared context, menu bar (spec 13)
+
+- **One shared context** for every window (main, detail, terminal, tray). Rust is the source of truth (`src-tauri/src/shell.rs`): `switch_context` writes the kubeconfig once and broadcasts `context-changed { context, seq }`; one 3s watcher in Rust catches outside kubectx changes. Windows apply it in `startContextPolling()` (`kubernetes.ts`, now an event listener; `acceptContextEvent` drops stale `seq`). The namespace stays per window and resets on a switch
+- **New Window**: File > New Window / ⌘N (macOS menu; Ctrl+N handled in `App.svelte` elsewhere) opens `main-<n>` via `open_main_window`. Main windows are min 400 px wide; every view must work at sm/md/lg (13.2). `windows-changed` drives the header's "N windows" marker (`stores/windows.ts`)
+- **Detail windows** keep the context they opened on. When the shared context moves away they turn read-only (`utils/detail-access.ts` + `stores/detail.ts`) and show "This resource is on <ctx>" with **Switch back**. Every mutating handler starts with `if (!guard('<action>')) return;` (restart, delete, scale, exec, cordon, taint, edit, apply) and its button gets `disabled={$detailReadOnly}`. New detail actions must do both
+- **Menu bar item** (macOS, `src-tauri/src/tray.rs`, Tauri `tray-icon` feature): drawn icon, a template image when healthy and a coloured dot for the worst cluster (critical verdict or unreachable = red, other issues = amber). The current context gets a verdict summary, other contexts only a 5s `/version` probe, every 60s and only while enabled. Popover window `tray` (`tray.html`, `components/tray/TrayPopover.svelte`) gets `tray-status`; switching into a prod context from it goes through `ConfirmDialog`. File > Show in Menu Bar toggles it (persisted in `<app config>/tray.json`); with it on, closing the last window keeps Apex running
+
+| Command | Parameters | Returns |
+|---------|------------|---------|
+| `switch_context` | `context_name` | `()`, broadcasts `context-changed` |
+| `open_main_window` / `focus_main_window` | - | `()` |
+| `get_main_window_count` | - | `usize` |
+| `get_tray_status` / `refresh_tray_status` | - | `TraySnapshot` / `()` |
+| `set_tray_enabled` | `enabled` | `()` |
+| `hide_tray_popover` | - | `()` |
+
 ## Frontend Stores (src/lib/stores/)
 
 ### kubernetes.ts

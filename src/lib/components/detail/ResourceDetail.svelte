@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { guard, detailReadOnly } from '../../stores/detail';
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import YamlEditorPanel from '../ui/YamlEditorPanel.svelte';
@@ -322,6 +323,7 @@
 
   // Taint management functions (for nodes)
   async function addTaint() {
+    if (!guard('taint')) return;
     // Validate key
     const keyError = validateTaintKey(newTaintKey);
     if (keyError) {
@@ -361,6 +363,7 @@
   }
 
   async function removeTaint(key: string, effect: string) {
+    if (!guard('taint')) return;
     try {
       taintActionLoading = true;
       taintActionError = null;
@@ -400,6 +403,7 @@
 
   // Cordon/Uncordon functions (for nodes)
   async function cordonNode() {
+    if (!guard('cordon')) return;
     try {
       cordonLoading = true;
       await invoke('cordon_node', {
@@ -416,6 +420,7 @@
   }
 
   async function uncordonNode() {
+    if (!guard('cordon')) return;
     try {
       cordonLoading = true;
       await invoke('uncordon_node', {
@@ -1088,7 +1093,7 @@
                   {#if detail.unschedulable}
                     <button
                       onclick={uncordonNode}
-                      disabled={cordonLoading || isDeleted}
+                      disabled={cordonLoading || isDeleted || $detailReadOnly}
                       class="flex items-center gap-2 px-3 py-1.5 text-base bg-accent-success text-white rounded-lg hover:bg-accent-success/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {#if cordonLoading}
@@ -1101,7 +1106,7 @@
                   {:else}
                     <button
                       onclick={() => showCordonConfirm = true}
-                      disabled={cordonLoading || isDeleted}
+                      disabled={cordonLoading || isDeleted || $detailReadOnly}
                       class="flex items-center gap-2 px-3 py-1.5 text-base bg-accent-warning text-white rounded-lg hover:bg-accent-warning/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Cordon
@@ -1491,7 +1496,7 @@
             <h2 class="text-[18px]/7 font-semibold text-text-primary">Taints ({(detail.taints || []).length})</h2>
             <button
               onclick={() => { showAddTaintModal = true; taintActionError = null; }}
-              disabled={isDeleted || taintActionLoading}
+              disabled={isDeleted || taintActionLoading || $detailReadOnly}
               class="flex items-center gap-2 px-3 py-1.5 text-base bg-btn text-on-btn rounded-lg hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

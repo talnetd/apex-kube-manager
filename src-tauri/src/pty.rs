@@ -27,6 +27,7 @@ impl PtyManager {
     pub fn spawn_session(
         &self,
         app: AppHandle,
+        context_name: &str,
         namespace: &str,
         pod_name: &str,
         container: Option<&str>,
@@ -46,7 +47,12 @@ impl PtyManager {
 
         // Build kubectl exec command
         let mut cmd = CommandBuilder::new("kubectl");
-        cmd.args(["exec", "-it", pod_name, "-n", namespace]);
+        // --context: exec into the cluster the window shows, not kubeconfig's
+        // current context (which another window may have switched).
+        if context_name.is_empty() {
+            return Err("No context for exec".into());
+        }
+        cmd.args(["--context", context_name, "exec", "-it", pod_name, "-n", namespace]);
 
         if let Some(c) = container {
             cmd.args(["-c", c]);

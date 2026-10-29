@@ -8,6 +8,20 @@
   // Unified component for all other resource types
   import ResourceDetail from './ResourceDetail.svelte';
   import { parseCrType } from '../../utils/resources';
+  import { startDetailContextSync, access, switchBack } from '../../stores/detail';
+  import { toast } from '../../stores/toast';
+
+  let switching = $state(false);
+  async function doSwitchBack() {
+    switching = true;
+    try {
+      await switchBack();
+    } catch (e) {
+      toast(`Couldn't switch context: ${e}`, { health: 'failed' });
+    } finally {
+      switching = false;
+    }
+  }
   // Window controls
   import WindowControls from '../ui/WindowControls.svelte';
   import Toaster from '../ui/Toaster.svelte';
@@ -63,6 +77,9 @@
     resourceType = (params.get('type') as ResourceType) || 'pod';
     resourceName = params.get('name') || '';
     initialTab = params.get('tab') || '';
+
+    // Follow the shared context: read-only while the app is elsewhere.
+    startDetailContextSync(lockedContext);
 
     if (!resourceName) {
       loadError = 'No resource name specified';
@@ -140,14 +157,31 @@
     <div class="flex-1 h-full cursor-grab active:cursor-grabbing" data-tauri-drag-region></div>
     <!-- Locked view badge and window controls -->
     <div class="flex items-center gap-2">
-      <span class="text-xs px-2 py-1 bg-accent-primary/10 text-accent-text rounded-sm">
-        Locked View
-      </span>
+      {#if $access.readOnly}
+        <span class="text-xs px-2 py-0.5 border border-line-strong text-secondary rounded-sm font-mono">Read-only</span>
+      {/if}
       <div class="ml-2 pl-2 border-l border-border-subtle">
         <WindowControls />
       </div>
     </div>
   </header>
+
+  <!-- The app moved to another context: this window stays on its own, read-only -->
+  {#if $access.readOnly}
+    <div class="flex items-center gap-3 px-4 py-2 border-b border-line bg-app text-sm" role="status">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="text-muted shrink-0" aria-hidden="true"><path d="M6.5 9.5l3-3M7 4.5l1-1a2.8 2.8 0 0 1 4 4l-1 1M9 11.5l-1 1a2.8 2.8 0 0 1-4-4l1-1" /></svg>
+      <span class="min-w-0 flex-1 text-secondary">
+        This resource is on <span class="font-mono text-primary">{$access.locked}</span>. The app is on
+        <span class="font-mono text-primary">{$access.shared}</span>, so actions are off.
+      </span>
+      <button
+        type="button"
+        class="h-6 px-2 rounded-md border border-line-strong text-primary text-xs hover:bg-hover disabled:opacity-40 shrink-0"
+        disabled={switching}
+        onclick={doSwitchBack}
+      >Switch back</button>
+    </div>
+  {/if}
 
   <!-- Main content area -->
   <main class="flex-1 overflow-hidden">

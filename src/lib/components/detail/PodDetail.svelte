@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { guard, detailReadOnly } from '../../stores/detail';
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import YamlEditorPanel from '../ui/YamlEditorPanel.svelte';
@@ -329,6 +330,7 @@
   }
 
   async function openTerminal(containerName?: string) {
+    if (!guard('exec')) return;
     try {
       await invoke('open_terminal_window', {
         podName: name,
@@ -542,7 +544,7 @@
                       <span class="text-xs text-text-muted">Restarts: {container.restart_count}</span>
                       <button
                         onclick={() => openTerminal(container.name)}
-                        disabled={isDeleted}
+                        disabled={isDeleted || $detailReadOnly}
                         class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-text-muted"
                         title={isDeleted ? "Pod no longer exists" : `Open Terminal in ${container.name}`}
                       >
@@ -578,7 +580,7 @@
                     <span class="text-xs text-text-muted">Restarts: {container.restart_count}</span>
                     <button
                       onclick={() => openTerminal(container.name)}
-                      disabled={isDeleted}
+                      disabled={isDeleted || $detailReadOnly}
                       class="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-muted hover:text-accent-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-text-muted"
                       title={isDeleted ? "Pod no longer exists" : `Open Terminal in ${container.name}`}
                     >

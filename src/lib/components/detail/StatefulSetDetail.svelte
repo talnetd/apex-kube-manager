@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { guard, detailReadOnly } from '../../stores/detail';
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import YamlEditorPanel from '../ui/YamlEditorPanel.svelte';
@@ -188,11 +189,14 @@
   }
 
   async function handleScale() {
+    if (!guard('scale')) return;
     if (isDeleted || !statefulSetDetail) return;
 
     try {
       isScaling = true;
       await invoke('scale_statefulset', {
+        // The cluster this window shows, not kubeconfig's current one.
+        contextName: context,
         namespace,
         name,
         replicas: scaleReplicas
@@ -210,15 +214,20 @@
   }
 
   async function handleRestart() {
+    if (!guard('restart')) return;
     if (isDeleted) return;
 
     if (!confirm(`Are you sure you want to restart statefulset "${name}"?`)) {
       return;
     }
+    // The app may have switched context while the confirm was open.
+    if (!guard('restart')) return;
 
     try {
       isRestarting = true;
       await invoke('restart_statefulset', {
+        // The cluster this window shows, not kubeconfig's current one.
+        contextName: context,
         namespace,
         name
       });
@@ -279,7 +288,7 @@
     <div class="flex items-center gap-2">
       <button
         onclick={() => { scaleReplicas = statefulSetDetail?.replicas || 0; showScaleModal = true; }}
-        disabled={isDeleted}
+        disabled={isDeleted || $detailReadOnly}
         class="px-3 py-1.5 text-base bg-accent-primary/10 text-accent-text rounded-sm hover:bg-accent-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -289,7 +298,7 @@
       </button>
       <button
         onclick={handleRestart}
-        disabled={isDeleted || isRestarting}
+        disabled={isDeleted || isRestarting || $detailReadOnly}
         class="px-3 py-1.5 text-base bg-accent-warning/10 text-warning rounded-sm hover:bg-accent-warning/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
       >
         <svg class="w-4 h-4 {isRestarting ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">

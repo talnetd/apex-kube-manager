@@ -4,6 +4,7 @@
   import Header from './lib/components/Header.svelte';
   import StatusBar from './lib/components/StatusBar.svelte';
   import { currentContextIsProd } from './lib/stores/production';
+  import { trackWindowCount, openNewWindow } from './lib/stores/windows';
   import MainPanel from './lib/components/MainPanel.svelte';
   import StartupScreen from './lib/components/StartupScreen.svelte';
   import GlobalSearch from './lib/components/GlobalSearch.svelte';
@@ -51,6 +52,14 @@
       e.preventDefault();
       const next = toggleDensity();
       toast(`Density: ${densityLabel(next)}`, { duration: 1500 });
+      return;
+    }
+
+    // ⌘N / Ctrl+N: another main window on the shared context. On macOS the
+    // File menu's accelerator handles ⌘N, so only take it elsewhere.
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'n' && !isMacPlatform) {
+      e.preventDefault();
+      openNewWindow().catch((err) => toast(`Couldn't open a window: ${err}`, { health: 'failed' }));
       return;
     }
 
@@ -150,7 +159,10 @@
     startEventWatch(ns);
   });
 
+  const isMacPlatform = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform || navigator.userAgent);
+
   onMount(() => {
+    trackWindowCount();
     window.addEventListener('keydown', handleKeydown);
   });
 

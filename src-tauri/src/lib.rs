@@ -4,12 +4,15 @@ mod kubernetes;
 mod portforward;
 mod pty;
 mod resources;
+mod shell;
+mod tray;
 mod triage;
 mod updates;
 mod watch;
 
 use portforward::PortForwardManager;
 use pty::PtyManager;
+use tauri::Manager;
 use watch::WatchManager;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -127,6 +130,45 @@ pub fn run() {
         .manage(PtyManager::new())
         .manage(PortForwardManager::new())
         .manage(WatchManager::new())
+        .manage(shell::ContextSync::default())
+        .manage(tray::TrayState::new())
+        .setup(|app| {
+            let handle = app.handle().clone();
+            let tray_on = cfg!(target_os = "macos") && tray::load_enabled(&handle);
+            // macOS only: elsewhere a set menu draws a bar inside our
+            // frameless windows; the frontend handles Ctrl+N there.
+            #[cfg(target_os = "macos")]
+            {
+                let menu = shell::build_menu(&handle, tray_on)?;
+                app.set_menu(menu)?;
+            }
+            shell::start_context_watcher(handle.clone());
+            if tray_on {
+                if let Err(e) = tray::set_enabled(&handle, true) {
+                    eprintln!("[apex-kube-manager] menu bar icon: {e}");
+                }
+            }
+            Ok(())
+        })
+        .on_menu_event(|app, event| {
+            if event.id() == shell::MENU_NEW_WINDOW {
+                let _ = shell::open_main_window(app);
+            } else if event.id() == shell::MENU_TRAY {
+                let on = !app.state::<tray::TrayState>().is_enabled();
+                let _ = tray::set_enabled(app, on);
+            }
+        })
+        .on_window_event(|window, event| {
+            let label = window.label().to_string();
+            match event {
+                tauri::WindowEvent::Focused(false) if label == "tray" => tray::on_popover_blur(window.app_handle()),
+                tauri::WindowEvent::Destroyed => {
+                    eprintln!("[apex-kube-manager] window {label} closed");
+                    shell::on_window_destroyed(window.app_handle(), &label);
+                }
+                _ => {}
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             // Startup checks
             commands::check_kubeconfig,
@@ -288,7 +330,38 @@ pub fn run() {
             commands::stop_watch,
             commands::stop_all_watches,
             commands::check_for_updates,
+            // Multi-window + menu bar (shell.rs, tray.rs)
+            commands::open_main_window,
+            commands::get_shared_context,
+            commands::focus_main_window,
+            commands::get_main_window_count,
+            commands::get_tray_status,
+            commands::refresh_tray_status,
+            commands::set_tray_enabled,
+            commands::hide_tray_popover,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // Closing the last window keeps Apex in the menu bar (spec 13.4).
+            match event {
+                tauri::RunEvent::ExitRequested { code, api, .. } => {
+                    let tray_on = app.state::<tray::TrayState>().is_enabled();
+                    // Logged so an unexpected exit shows its cause in the dev log.
+                    eprintln!("[apex-kube-manager] exit requested (code {code:?}, menu bar item {})", if tray_on { "on" } else { "off" });
+                    if code.is_none() && tray_on {
+                        api.prevent_exit();
+                    }
+                }
+                tauri::RunEvent::Exit => eprintln!("[apex-kube-manager] exiting"),
+                // Dock icon clicked with no visible window: bring one back.
+                #[cfg(target_os = "macos")]
+                tauri::RunEvent::Reopen { has_visible_windows, .. } => {
+                    if !has_visible_windows {
+                        let _ = shell::focus_or_open_main(app);
+                    }
+                }
+                _ => {}
+            }
+        });
 }
