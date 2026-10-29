@@ -1,104 +1,52 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { invoke } from '@tauri-apps/api/core';
-  import SortableHeader from '../ui/SortableHeader.svelte';
-  import { sortData, toggleSort, type SortState } from '../../utils/sort';
-  import { namespacesInfo, currentContext, refreshTrigger, loadNamespacesInfo } from '../../stores/kubernetes';
-  import { filterBySearch } from '../../stores/search';
-  import ViewFilter from '../ui/ViewFilter.svelte';
+  import ListView from '../ui/ListView.svelte';
+  import StatusPill from '../ui/StatusPill.svelte';
+  import { type Column } from '../ui/data-table';
+  import { namespaceHealth } from '../../utils/status-words';
+  import { poll } from '../../utils/poll';
+  import {
+    namespacesInfo,
+    currentContext,
+    refreshTrigger,
+    loadNamespacesInfo,
+    resourceState,
+    type NamespaceInfo,
+  } from '../../stores/kubernetes';
 
-  let sort = $state<SortState>({ field: 'name', direction: 'asc' });
-  let filterQuery = $state('');
-
-  async function openDetail(ns: { name: string }) {
-    try {
-      await invoke('open_resource_detail', {
-        resourceType: 'namespace',
-        name: ns.name,
-        namespace: '',
-        context: $currentContext
-      });
-    } catch (e) {
-      console.error('Failed to open detail:', e);
-    }
-  }
-
-  const sortedData = $derived(() => {
-    const filtered = filterBySearch($namespacesInfo, filterQuery, ['name', 'status']);
-    return sortData(filtered, sort.field, sort.direction);
-  });
-
-  function handleSort(field: string) {
-    sort = toggleSort(sort, field);
-  }
-
-  onMount(() => {
-    loadNamespacesInfo();
-    const interval = setInterval(() => loadNamespacesInfo(), 10000);
-    return () => clearInterval(interval);
-  });
+  const loadState = resourceState('namespaces');
+  const health = (n: NamespaceInfo) => namespaceHealth(n.status);
 
   $effect(() => {
-    const ctx = $currentContext;
-    const trigger = $refreshTrigger;
-    if (!ctx) return;
-    loadNamespacesInfo();
+    if (!$currentContext) return;
+    void $refreshTrigger;
+    return poll(() => loadNamespacesInfo());
   });
 
-  function getStatusColor(status: string): string {
-    switch (status) {
-      case 'Active': return 'text-success bg-accent-success/10';
-      case 'Terminating': return 'text-warning bg-accent-warning/10';
-      default: return 'text-text-muted bg-bg-tertiary';
-    }
-  }
+  const columns: Column<NamespaceInfo>[] = [
+    { id: 'name', label: 'Name', sortKey: 'name', primary: true },
+    { id: 'status', label: 'Status', width: '160px', sortKey: (n) => health(n).rank, cell: statusCell },
+    { id: 'age', label: 'Age', sortKey: 'age', numeric: true, width: '64px' },
+  ];
 </script>
 
-<div class="h-full flex flex-col overflow-hidden">
-  <!-- Toolbar -->
-  <div class="px-6 py-4 border-b border-border-subtle">
-    <div class="flex items-center justify-between">
-      <h1 class="text-lg font-semibold text-text-primary">Namespaces</h1>
-      <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter namespaces..." />
-    </div>
-  </div>
+{#snippet statusCell(n: NamespaceInfo)}
+  {@const h = health(n)}
+  <StatusPill health={h.health} label={h.label} />
+{/snippet}
 
-  <!-- Table -->
-  <div class="flex-1 overflow-auto p-6 pt-4">
-    <table class="w-full">
-      <thead>
-        <tr class="text-left border-b border-border-subtle">
-          <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Status" field="status" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Age" field="age" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-        </tr>
-      </thead>
-      <tbody>
-        {#each sortedData() as ns}
-          <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer" onclick={() => openDetail(ns)}>
-            <td class="py-3 pr-4">
-              <span class="text-accent-text font-medium hover:underline">{ns.name}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-xs px-2 py-0.5 rounded-sm {getStatusColor(ns.status)}">{ns.status}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{ns.age}</span>
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
-
-    {#if sortedData().length === 0}
-      <div class="flex items-center justify-center h-48">
-        <div class="text-center">
-          <svg class="w-12 h-12 text-text-muted mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-          </svg>
-          <p class="text-text-muted">No namespaces found</p>
-        </div>
-      </div>
-    {/if}
-  </div>
-</div>
+<ListView
+  title="Namespaces"
+  viewId="namespaces"
+  itemLabel="namespaces"
+  subtitle="cluster-scoped"
+  items={$namespacesInfo}
+  loadState={$loadState}
+  {columns}
+  rowKey={(n) => n.name}
+  filterFields={['name', 'status']}
+  {health}
+  defaultSort={{ id: 'name', dir: 'asc' }}
+  resourceType="namespace"
+  namespaced={false}
+  onRefresh={() => loadNamespacesInfo()}
+/>

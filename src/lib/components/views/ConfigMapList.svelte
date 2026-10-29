@@ -1,101 +1,44 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { invoke } from '@tauri-apps/api/core';
-  import SortableHeader from '../ui/SortableHeader.svelte';
-  import { sortData, toggleSort, type SortState } from '../../utils/sort';
-  import { configmaps, selectedNamespace, currentContext, refreshTrigger, loadConfigMaps } from '../../stores/kubernetes';
-  import { filterBySearch } from '../../stores/search';
-  import ViewFilter from '../ui/ViewFilter.svelte';
+  import ListView from '../ui/ListView.svelte';
+  import { BP, type Column } from '../ui/data-table';
+  import { poll } from '../../utils/poll';
+  import {
+    configmaps,
+    selectedNamespace,
+    currentContext,
+    refreshTrigger,
+    loadConfigMaps,
+    resourceState,
+    type ConfigMapInfo,
+  } from '../../stores/kubernetes';
 
-  let sort = $state<SortState>({ field: 'name', direction: 'asc' });
-  let filterQuery = $state('');
-
-  async function openDetail(cm: { name: string; namespace: string }) {
-    try {
-      await invoke('open_resource_detail', {
-        resourceType: 'configmap',
-        name: cm.name,
-        namespace: cm.namespace,
-        context: $currentContext
-      });
-    } catch (e) {
-      console.error('Failed to open detail:', e);
-    }
-  }
-
-  const sortedData = $derived(() => {
-    const filtered = filterBySearch($configmaps, filterQuery, ['name', 'namespace']);
-    return sortData(filtered, sort.field, sort.direction);
-  });
-
-  function handleSort(field: string) {
-    sort = toggleSort(sort, field);
-  }
-
-  onMount(() => {
-    loadConfigMaps($selectedNamespace);
-    const interval = setInterval(() => loadConfigMaps($selectedNamespace), 10000);
-    return () => clearInterval(interval);
-  });
+  const loadState = resourceState('configmaps');
 
   $effect(() => {
-    const ctx = $currentContext;
-    const trigger = $refreshTrigger;
-    if (!ctx) return;
-    loadConfigMaps($selectedNamespace);
+    if (!$currentContext) return;
+    void $refreshTrigger;
+    const ns = $selectedNamespace;
+    return poll(() => loadConfigMaps(ns));
   });
+
+  const columns: Column<ConfigMapInfo>[] = [
+    { id: 'name', label: 'Name', sortKey: 'name', primary: true },
+    { id: 'namespace', label: 'Namespace', sortKey: 'namespace', width: '20%', hideBelow: BP.md },
+    { id: 'data_count', label: 'Keys', sortKey: 'data_count', numeric: true, width: '72px' },
+    { id: 'age', label: 'Age', sortKey: 'age', numeric: true, width: '64px' },
+  ];
 </script>
 
-<div class="h-full flex flex-col overflow-hidden">
-  <!-- Toolbar -->
-  <div class="px-6 py-4 border-b border-border-subtle">
-    <div class="flex items-center justify-between">
-      <h1 class="text-lg font-semibold text-text-primary">ConfigMaps</h1>
-      <ViewFilter value={filterQuery} onchange={(v) => filterQuery = v} placeholder="Filter configmaps..." />
-    </div>
-  </div>
-
-  <!-- Table -->
-  <div class="flex-1 overflow-auto p-6 pt-4">
-    <table class="w-full">
-      <thead>
-        <tr class="text-left border-b border-border-subtle">
-          <SortableHeader label="Name" field="name" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Namespace" field="namespace" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Data" field="data_count" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-          <SortableHeader label="Age" field="age" sortField={sort.field} sortDirection={sort.direction} onSort={handleSort} />
-        </tr>
-      </thead>
-      <tbody>
-        {#each sortedData() as cm}
-          <tr class="border-b border-border-subtle/50 hover:bg-bg-secondary transition-colors cursor-pointer" onclick={() => openDetail(cm)}>
-            <td class="py-3 pr-4">
-              <span class="text-accent-text font-medium hover:underline">{cm.name}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{cm.namespace}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{cm.data_count} {cm.data_count === 1 ? 'key' : 'keys'}</span>
-            </td>
-            <td class="py-3 pr-4">
-              <span class="text-text-secondary text-base">{cm.age}</span>
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
-
-    {#if sortedData().length === 0}
-      <div class="flex items-center justify-center h-48">
-        <div class="text-center">
-          <svg class="w-12 h-12 text-text-muted mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          <p class="text-text-muted">No configmaps found</p>
-        </div>
-      </div>
-    {/if}
-  </div>
-</div>
+<ListView
+  title="ConfigMaps"
+  viewId="configmaps"
+  itemLabel="configmaps"
+  items={$configmaps}
+  loadState={$loadState}
+  {columns}
+  rowKey={(r) => `${r.namespace}/${r.name}`}
+  filterFields={['name', 'namespace']}
+  defaultSort={{ id: 'name', dir: 'asc' }}
+  resourceType="configmap"
+  onRefresh={() => loadConfigMaps($selectedNamespace)}
+/>

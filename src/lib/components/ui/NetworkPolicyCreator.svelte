@@ -2,6 +2,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { currentContext, selectedNamespace, namespaces, loadNetworkPolicies } from '../../stores/kubernetes';
   import CustomSelect from './CustomSelect.svelte';
+  import ConfirmDialog from './ConfirmDialog.svelte';
 
   // Edit data structure matching backend NetworkPolicyDetail
   interface EditData {
@@ -26,6 +27,19 @@
   }
 
   let { show, onclose, editData = null }: Props = $props();
+
+  // Delete lives here, in edit mode, behind a ConfirmDialog: the list rows
+  // never delete (CLAUDE.md, Architecture Note 7), and the editor is the one
+  // place the user has already picked this exact object.
+  let confirmDelete = $state(false);
+  let deleted = false;
+
+  async function deleteEdited() {
+    if (!editData) return;
+    await invoke('delete_network_policy', { contextName: $currentContext, namespace: editData.namespace, name: editData.name });
+    deleted = true;
+    loadNetworkPolicies($selectedNamespace);
+  }
 
   // Form state
   let name = $state('');
@@ -851,6 +865,14 @@
       <div class="flex items-center justify-between p-4 border-t border-border-subtle">
         {#if error}
           <p class="text-base text-danger">{error}</p>
+        {:else if isEditMode}
+          <button
+            onclick={() => (confirmDelete = true)}
+            disabled={isCreating}
+            class="px-3 py-2 text-base text-danger rounded-sm hover:bg-hover transition-colors disabled:opacity-50"
+          >
+            Delete…
+          </button>
         {:else}
           <div></div>
         {/if}
@@ -872,4 +894,24 @@
       </div>
     </div>
   </div>
+{/if}
+
+{#if confirmDelete && editData}
+  <ConfirmDialog
+    open={true}
+    title={`Delete network policy ${editData.name}?`}
+    resource={{ kind: 'NetworkPolicy', name: editData.name, namespace: editData.namespace, context: $currentContext }}
+    body="Traffic this policy allows or blocks changes immediately for the pods it selects. This can't be undone."
+    confirmLabel="Delete"
+    tone="danger"
+    successMessage={`Deleted ${editData.name}`}
+    onConfirm={deleteEdited}
+    onClose={() => {
+      confirmDelete = false;
+      if (deleted) {
+        deleted = false;
+        handleClose();
+      }
+    }}
+  />
 {/if}
