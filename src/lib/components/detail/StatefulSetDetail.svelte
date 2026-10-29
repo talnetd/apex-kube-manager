@@ -478,6 +478,8 @@
       <YamlEditorPanel
         yaml={statefulSetYaml}
         context={context}
+        name={name}
+        namespace={namespace}
         resourceType="StatefulSet"
         isDeleted={isDeleted}
         onRefresh={loadStatefulSetYaml}

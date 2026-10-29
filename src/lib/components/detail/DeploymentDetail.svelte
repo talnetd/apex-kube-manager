@@ -477,6 +477,8 @@
       <YamlEditorPanel
         yaml={deploymentYaml}
         context={context}
+        name={name}
+        namespace={namespace}
         resourceType="Deployment"
         isDeleted={isDeleted}
         onRefresh={loadDeploymentYaml}

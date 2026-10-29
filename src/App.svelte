@@ -13,7 +13,13 @@
   async function listenConfirmQuit() {
     if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
     const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow');
-    await getCurrentWebviewWindow().listen<number>('confirm-quit', (e) => (quitTerminals = e.payload));
+    await getCurrentWebviewWindow().listen<number>('confirm-quit', async (e) => {
+      quitTerminals = e.payload;
+      // Tell Rust the prompt is up; without this ack it lets the close
+      // through after 1.5s, so a window that can't show it isn't stuck.
+      const { invoke } = await import('@tauri-apps/api/core');
+      invoke('confirm_quit_shown').catch(() => {});
+    });
   }
   async function quitNow() {
     const { invoke } = await import('@tauri-apps/api/core');
