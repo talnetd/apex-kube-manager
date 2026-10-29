@@ -13,8 +13,8 @@ mod watch;
 use portforward::PortForwardManager;
 use pty::PtyManager;
 use tauri::Manager;
-use watch::WatchManager;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use watch::WatchManager;
 
 /// Fix environment on macOS when launched from Finder (GUI apps don't inherit shell env)
 /// This is needed for exec-based Kubernetes auth (EKS, GKE, AKS) to find auth binaries
@@ -27,9 +27,7 @@ fn fix_path_env() {
 
     // Run the shell in login mode to get all environment variables
     // Using `env` command to output all variables in a parseable format
-    let output = Command::new(&shell)
-        .args(["-l", "-c", "env"])
-        .output();
+    let output = Command::new(&shell).args(["-l", "-c", "env"]).output();
 
     match output {
         Ok(output) if output.status.success() => {
@@ -53,11 +51,17 @@ fn fix_path_env() {
                         }
                     }
                 }
-                eprintln!("[apex-kube-manager] Inherited {} environment variables from login shell", count);
+                eprintln!(
+                    "[apex-kube-manager] Inherited {} environment variables from login shell",
+                    count
+                );
             }
         }
         Ok(output) => {
-            eprintln!("[apex-kube-manager] Shell env command failed: {:?}", output.status);
+            eprintln!(
+                "[apex-kube-manager] Shell env command failed: {:?}",
+                output.status
+            );
         }
         Err(e) => {
             eprintln!("[apex-kube-manager] Failed to run shell: {}", e);
@@ -74,9 +78,7 @@ fn fix_path_env() {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
 
     // Run the shell in login mode to get all environment variables
-    let output = Command::new(&shell)
-        .args(["-l", "-c", "env"])
-        .output();
+    let output = Command::new(&shell).args(["-l", "-c", "env"]).output();
 
     match output {
         Ok(output) if output.status.success() => {
@@ -97,11 +99,17 @@ fn fix_path_env() {
                         }
                     }
                 }
-                eprintln!("[apex-kube-manager] Inherited {} environment variables from login shell", count);
+                eprintln!(
+                    "[apex-kube-manager] Inherited {} environment variables from login shell",
+                    count
+                );
             }
         }
         Ok(output) => {
-            eprintln!("[apex-kube-manager] Shell env command failed: {:?}", output.status);
+            eprintln!(
+                "[apex-kube-manager] Shell env command failed: {:?}",
+                output.status
+            );
         }
         Err(e) => {
             eprintln!("[apex-kube-manager] Failed to run shell: {}", e);
@@ -161,7 +169,9 @@ pub fn run() {
         .on_window_event(|window, event| {
             let label = window.label().to_string();
             match event {
-                tauri::WindowEvent::Focused(false) if label == "tray" => tray::on_popover_blur(window.app_handle()),
+                tauri::WindowEvent::Focused(false) if label == "tray" => {
+                    tray::on_popover_blur(window.app_handle())
+                }
                 tauri::WindowEvent::CloseRequested { api, .. } if shell::is_main_label(&label) => {
                     if shell::hold_close_for_terminals(window.app_handle(), &label) {
                         api.prevent_close();
@@ -355,7 +365,10 @@ pub fn run() {
                 tauri::RunEvent::ExitRequested { code, api, .. } => {
                     let tray_on = app.state::<tray::TrayState>().is_enabled();
                     // Logged so an unexpected exit shows its cause in the dev log.
-                    eprintln!("[apex-kube-manager] exit requested (code {code:?}, menu bar item {})", if tray_on { "on" } else { "off" });
+                    eprintln!(
+                        "[apex-kube-manager] exit requested (code {code:?}, menu bar item {})",
+                        if tray_on { "on" } else { "off" }
+                    );
                     if code.is_none() && tray_on {
                         api.prevent_exit();
                     }
@@ -363,7 +376,10 @@ pub fn run() {
                 tauri::RunEvent::Exit => eprintln!("[apex-kube-manager] exiting"),
                 // Dock icon clicked with no visible window: bring one back.
                 #[cfg(target_os = "macos")]
-                tauri::RunEvent::Reopen { has_visible_windows, .. } => {
+                tauri::RunEvent::Reopen {
+                    has_visible_windows,
+                    ..
+                } => {
                     if !has_visible_windows {
                         let _ = shell::focus_or_open_main(app);
                     }

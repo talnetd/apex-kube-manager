@@ -188,7 +188,6 @@
 
   async function loadPods() {
     try {
-      const params = getInvokeParams();
       // Different resources have different param names for getting pods
       if (resourceType === 'node') {
         pods = await invoke('get_node_pods', { contextName: context, nodeName: name });
@@ -495,8 +494,8 @@
     </div>
   {/if}
 
-  <!-- Main Content -->
-  <div class="flex-1 overflow-auto">
+  <!-- Main Content: the panel the active tab controls -->
+  <div class="flex-1 overflow-auto" role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`} tabindex="0">
     {#if isLoading}
       <div class="flex items-center justify-center h-full">
         <div class="text-center">
@@ -1333,11 +1332,11 @@
 
     <!-- Add Taint Modal -->
     {#if showAddTaintModal}
-      <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={() => { if (!taintActionLoading) showAddTaintModal = false; }}>
-        <div class="bg-bg-secondary rounded-lg border border-line-strong w-full max-w-md mx-4" onclick={(e) => e.stopPropagation()}>
+      <div role="presentation" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={(e) => { if (e.target === e.currentTarget && !taintActionLoading) showAddTaintModal = false; }}>
+        <div role="dialog" aria-modal="true" tabindex="-1" class="bg-bg-secondary rounded-lg border border-line-strong w-full max-w-md mx-4">
           <div class="flex items-center justify-between px-6 py-4 border-b border-border-subtle">
             <h3 class="text-[18px]/7 font-semibold text-text-primary">Add Taint</h3>
-            <button
+            <button aria-label="Close"
               onclick={() => showAddTaintModal = false}
               disabled={taintActionLoading}
               class="text-text-muted hover:text-text-primary disabled:opacity-50"
@@ -1380,7 +1379,7 @@
             </div>
 
             <div>
-              <label class="block text-base font-medium text-text-primary mb-1">Effect *</label>
+              <span class="block text-base font-medium text-text-primary mb-1">Effect *</span>
               <CustomSelect
                 bind:value={newTaintEffect}
                 disabled={taintActionLoading}

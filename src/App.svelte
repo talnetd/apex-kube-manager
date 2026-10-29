@@ -16,7 +16,7 @@
     await getCurrentWebviewWindow().listen<number>('confirm-quit', async (e) => {
       quitTerminals = e.payload;
       // Tell Rust the prompt is up; without this ack it lets the close
-      // through after 1.5s, so a window that can't show it isn't stuck.
+      // through after 4s, so a window that can't show it isn't stuck.
       const { invoke } = await import('@tauri-apps/api/core');
       invoke('confirm_quit_shown').catch(() => {});
     });
@@ -174,7 +174,7 @@
     if (!$isInitialized) return;
     const ctx = $currentContext;
     const ns = $selectedNamespace;
-    const _trigger = $refreshTrigger;
+    void $refreshTrigger; // restart on manual refresh too
     if (!ctx) return;
     startEventWatch(ns);
   });

@@ -193,15 +193,14 @@
 </script>
 
 {#if show}
-  <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onclick={handleClose}>
-    <div
+  <div role="presentation" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onclick={(e) => e.target === e.currentTarget && handleClose()}>
+    <div role="dialog" aria-modal="true" tabindex="-1"
       class="bg-bg-secondary rounded-lg border border-border-subtle w-[600px] max-w-[calc(100vw-16px)] max-h-[85vh] flex flex-col"
-      onclick={(e) => e.stopPropagation()}
     >
       <!-- Header -->
       <div class="flex items-center justify-between p-4 border-b border-border-subtle">
         <h2 class="text-[18px]/7 font-semibold text-text-primary">{isEditMode ? 'Edit' : 'Create'} Secret</h2>
-        <button
+        <button aria-label="Close"
           onclick={handleClose}
           class="p-1 hover:bg-bg-tertiary rounded-sm transition-colors"
         >
@@ -216,14 +215,14 @@
         <div class="space-y-4">
           <!-- Name -->
           <div>
-            <label class="block text-base font-medium text-text-secondary mb-1">Name *</label>
+            <span class="block text-base font-medium text-text-secondary mb-1">Name *</span>
             {#if isEditMode}
               <div class="text-base text-text-primary bg-bg-tertiary border border-border-subtle rounded-sm px-3 py-2 opacity-60">
                 {name}
               </div>
               <p class="text-xs text-text-muted mt-1">Name cannot be changed when editing</p>
             {:else}
-              <input
+              <input aria-label="Name"
                 type="text"
                 bind:value={name}
                 placeholder="my-secret"
@@ -234,7 +233,7 @@
 
           <!-- Namespace -->
           <div>
-            <label class="block text-base font-medium text-text-secondary mb-1">Namespace *</label>
+            <span class="block text-base font-medium text-text-secondary mb-1">Namespace *</span>
             {#if isEditMode}
               <div class="text-base text-text-primary bg-bg-tertiary border border-border-subtle rounded-sm px-3 py-2 opacity-60">
                 {editNamespace || 'default'}
@@ -252,7 +251,7 @@
 
           <!-- Secret Type -->
           <div>
-            <label class="block text-base font-medium text-text-secondary mb-1">Type</label>
+            <span class="block text-base font-medium text-text-secondary mb-1">Type</span>
             <CustomSelect
               value={secretType}
               options={secretTypeOptions}
@@ -263,7 +262,7 @@
           <!-- Data Entries -->
           <div>
             <div class="flex items-center justify-between mb-2">
-              <label class="block text-base font-medium text-text-secondary">Data</label>
+              <span class="block text-base font-medium text-text-secondary">Data</span>
               <button
                 onclick={addEntry}
                 class="text-xs px-2 py-1 bg-accent-primary/10 text-accent-text rounded-sm hover:bg-accent-primary/20 transition-colors"

@@ -1,12 +1,12 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use tokio::sync::RwLock;
-use tokio::net::TcpListener;
-use kube::{Api, Client, Config};
-use kube::api::ListParams;
 use k8s_openapi::api::core::v1::{Pod, Service};
+use kube::api::ListParams;
+use kube::{Api, Client, Config};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::Arc;
+use tokio::net::TcpListener;
+use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::error::{AppError, Result};
@@ -25,7 +25,7 @@ pub struct PortForwardInfo {
     pub namespace: String,
     pub resource_type: ResourceType,
     pub resource_name: String,
-    pub pod_name: String,  // Resolved pod name (same as resource_name for pods)
+    pub pod_name: String, // Resolved pod name (same as resource_name for pods)
     pub local_port: u16,
     pub remote_port: u16,
     pub status: PortForwardStatus,
@@ -130,7 +130,8 @@ impl PortForwardManager {
         {
             let forwards = self.forwards.read().await;
             for (_, fwd) in forwards.iter() {
-                if fwd.info.local_port == local_port && fwd.info.status == PortForwardStatus::Active {
+                if fwd.info.local_port == local_port && fwd.info.status == PortForwardStatus::Active
+                {
                     return Err(AppError::Custom(format!(
                         "Port {} is already being forwarded by this app",
                         local_port
@@ -181,11 +182,14 @@ impl PortForwardManager {
         // Store the forward
         {
             let mut forwards = self.forwards.write().await;
-            forwards.insert(id.clone(), ActiveForward {
-                info: info.clone(),
-                stats: stats.clone(),
-                shutdown_tx,
-            });
+            forwards.insert(
+                id.clone(),
+                ActiveForward {
+                    info: info.clone(),
+                    stats: stats.clone(),
+                    shutdown_tx,
+                },
+            );
         }
 
         // Clone what we need for the spawned task
@@ -206,7 +210,8 @@ impl PortForwardManager {
                 forwards_ref.clone(),
                 id_clone.clone(),
                 stats_clone,
-            ).await;
+            )
+            .await;
 
             // Update status based on result
             let mut forwards = forwards_ref.write().await;
@@ -237,16 +242,19 @@ impl PortForwardManager {
 
     pub async fn list_forwards(&self) -> Vec<PortForwardInfo> {
         let forwards = self.forwards.read().await;
-        forwards.values().map(|f| {
-            let (active, total, sent, received) = f.stats.snapshot();
-            PortForwardInfo {
-                active_connections: active,
-                total_connections: total,
-                bytes_sent: sent,
-                bytes_received: received,
-                ..f.info.clone()
-            }
-        }).collect()
+        forwards
+            .values()
+            .map(|f| {
+                let (active, total, sent, received) = f.stats.snapshot();
+                PortForwardInfo {
+                    active_connections: active,
+                    total_connections: total,
+                    bytes_sent: sent,
+                    bytes_received: received,
+                    ..f.info.clone()
+                }
+            })
+            .collect()
     }
 
     pub async fn stop_all(&self) {
@@ -351,11 +359,14 @@ async fn handle_connection(
     let pods: Api<Pod> = Api::namespaced(client.clone(), namespace);
 
     // Create port forwarder
-    let mut pf = pods.portforward(pod_name, &[remote_port]).await
+    let mut pf = pods
+        .portforward(pod_name, &[remote_port])
+        .await
         .map_err(|e| AppError::Custom(format!("Failed to create port forward: {}", e)))?;
 
     // Get the stream for this port
-    let upstream = pf.take_stream(remote_port)
+    let upstream = pf
+        .take_stream(remote_port)
         .ok_or_else(|| AppError::Custom("Failed to get port forward stream".to_string()))?;
 
     // Split the streams for bidirectional copying
@@ -389,7 +400,9 @@ async fn handle_connection(
 }
 
 async fn create_client_config(context_name: &str) -> Result<Config> {
-    let kubeconfig = kube::config::Kubeconfig::read_from(crate::kubernetes::get_kubeconfig_path_for_portforward())?;
+    let kubeconfig = kube::config::Kubeconfig::read_from(
+        crate::kubernetes::get_kubeconfig_path_for_portforward(),
+    )?;
 
     let options = kube::config::KubeConfigOptions {
         context: Some(context_name.to_string()),
@@ -420,8 +433,9 @@ pub async fn get_resource_ports(
     match resource_type {
         ResourceType::Pod => {
             let pods: Api<Pod> = Api::namespaced(client, namespace);
-            let pod = pods.get(resource_name).await
-                .map_err(|e| AppError::Custom(format!("Pod '{}' not found: {}", resource_name, e)))?;
+            let pod = pods.get(resource_name).await.map_err(|e| {
+                AppError::Custom(format!("Pod '{}' not found: {}", resource_name, e))
+            })?;
 
             let mut ports = Vec::new();
             if let Some(spec) = pod.spec {
@@ -444,27 +458,36 @@ pub async fn get_resource_ports(
         }
         ResourceType::Service => {
             let services: Api<Service> = Api::namespaced(client.clone(), namespace);
-            let service = services.get(resource_name).await
-                .map_err(|e| AppError::Custom(format!("Service '{}' not found: {}", resource_name, e)))?;
+            let service = services.get(resource_name).await.map_err(|e| {
+                AppError::Custom(format!("Service '{}' not found: {}", resource_name, e))
+            })?;
 
             // Get selector to find pods for named port resolution
-            let selector = service.spec.as_ref()
-                .and_then(|s| s.selector.as_ref());
+            let selector = service.spec.as_ref().and_then(|s| s.selector.as_ref());
 
             // Get a pod to resolve named ports
             let pod_ports: Vec<(String, i32)> = if let Some(sel) = selector {
-                let label_selector: String = sel.iter()
+                let label_selector: String = sel
+                    .iter()
                     .map(|(k, v)| format!("{}={}", k, v))
                     .collect::<Vec<_>>()
                     .join(",");
                 let pods_api: Api<Pod> = Api::namespaced(client, namespace);
-                if let Ok(pod_list) = pods_api.list(&ListParams::default().labels(&label_selector).limit(1)).await {
-                    pod_list.items.first()
+                if let Ok(pod_list) = pods_api
+                    .list(&ListParams::default().labels(&label_selector).limit(1))
+                    .await
+                {
+                    pod_list
+                        .items
+                        .first()
                         .and_then(|p| p.spec.as_ref())
                         .map(|spec| {
-                            spec.containers.iter()
+                            spec.containers
+                                .iter()
                                 .flat_map(|c| c.ports.iter().flatten())
-                                .filter_map(|p| p.name.as_ref().map(|n| (n.clone(), p.container_port)))
+                                .filter_map(|p| {
+                                    p.name.as_ref().map(|n| (n.clone(), p.container_port))
+                                })
                                 .collect()
                         })
                         .unwrap_or_default()
@@ -481,10 +504,17 @@ pub async fn get_resource_ports(
                     for sp in service_ports {
                         // Use targetPort (actual pod port) for forwarding, not service port
                         let target_port = match &sp.target_port {
-                            Some(k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(p)) => *p as u16,
-                            Some(k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::String(name)) => {
+                            Some(
+                                k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(p),
+                            ) => *p as u16,
+                            Some(
+                                k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::String(
+                                    name,
+                                ),
+                            ) => {
                                 // Named port - look up from pod container ports
-                                pod_ports.iter()
+                                pod_ports
+                                    .iter()
                                     .find(|(n, _)| n == name)
                                     .map(|(_, p)| *p as u16)
                                     .unwrap_or(sp.port as u16)
@@ -515,7 +545,9 @@ async fn resolve_service_to_pod(
 
     // Get the service
     let services: Api<Service> = Api::namespaced(client.clone(), namespace);
-    let service = services.get(service_name).await
+    let service = services
+        .get(service_name)
+        .await
         .map_err(|e| AppError::Custom(format!("Service '{}' not found: {}", service_name, e)))?;
 
     // Get the selector from the service spec
@@ -534,7 +566,9 @@ async fn resolve_service_to_pod(
 
     // Find pods matching the selector
     let pods: Api<Pod> = Api::namespaced(client, namespace);
-    let pod_list = pods.list(&ListParams::default().labels(&label_selector)).await
+    let pod_list = pods
+        .list(&ListParams::default().labels(&label_selector))
+        .await
         .map_err(|e| AppError::Custom(format!("Failed to list pods: {}", e)))?;
 
     // Find a running pod
@@ -545,7 +579,9 @@ async fn resolve_service_to_pod(
                     if let Some(name) = pod.metadata.name {
                         tracing::info!(
                             "Resolved service '{}' to pod '{}' via selector '{}'",
-                            service_name, name, label_selector
+                            service_name,
+                            name,
+                            label_selector
                         );
                         return Ok(name);
                     }

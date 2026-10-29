@@ -20,7 +20,7 @@
   let openUpward = $state(false);
   let dropdownRef: HTMLDivElement;
   let buttonRef: HTMLButtonElement;
-  let menuRef: HTMLDivElement;
+  let menuRef = $state<HTMLDivElement>();
 
   async function toggle() {
     if (!disabled) {

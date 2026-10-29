@@ -1,6 +1,6 @@
 <script lang="ts">
   import { guard, detailReadOnly } from '../../stores/detail';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import YamlEditorPanel from '../ui/YamlEditorPanel.svelte';
   import EventsTable from '../ui/EventsTable.svelte';
@@ -22,7 +22,8 @@
 
   type TabType = 'overview' | 'containers' | 'env' | 'volumes' | 'events' | 'logs' | 'yaml';
   const validTabs: TabType[] = ['overview', 'containers', 'env', 'volumes', 'events', 'logs', 'yaml'];
-  const startTab = (initialTab && validTabs.includes(initialTab as TabType)) ? initialTab as TabType : 'overview';
+  // The window opens on its URL's tab once; later prop changes don't move it.
+  const startTab = untrack(() => (initialTab && validTabs.includes(initialTab as TabType) ? (initialTab as TabType) : 'overview'));
   let activeTab = $state<TabType>(startTab);
 
   // Pod detail data
@@ -266,7 +267,7 @@
   });
 
   // Log container ref for scrolling
-  let logContainerRef: HTMLDivElement;
+  let logContainerRef = $state<HTMLDivElement>();
 
   function scrollToBottom() {
     if (logContainerRef) {
@@ -394,8 +395,8 @@
     </div>
   {/if}
 
-  <!-- Tab content -->
-  <div class="flex-1 overflow-auto">
+  <!-- Tab content: the panel the active tab controls -->
+  <div class="flex-1 overflow-auto" role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`} tabindex="0">
     {#if isLoading}
       <div class="flex items-center justify-center h-full">
         <div class="text-center">
@@ -813,7 +814,7 @@
             <span class="text-xs text-text-muted">
               {matchCount()} match{matchCount() !== 1 ? 'es' : ''}
             </span>
-            <button
+            <button aria-label="Clear search"
               onclick={() => logSearch = ''}
               class="text-text-muted hover:text-text-primary"
             >

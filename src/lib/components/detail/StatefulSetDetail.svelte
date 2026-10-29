@@ -306,8 +306,8 @@
     </div>
   {/if}
 
-  <!-- Tab content -->
-  <div class="flex-1 overflow-auto">
+  <!-- Tab content: the panel the active tab controls -->
+  <div class="flex-1 overflow-auto" role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`} tabindex="0">
     {#if isLoading}
       <div class="flex items-center justify-center h-full">
         <div class="text-center">

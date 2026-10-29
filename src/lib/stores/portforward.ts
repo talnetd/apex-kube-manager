@@ -105,19 +105,6 @@ export async function stopPortForward(id: string): Promise<void> {
   }
 }
 
-// Stop all port forwards
-export async function stopAllPortForwards(): Promise<void> {
-  try {
-    portForwardError.set(null);
-    await tauriInvoke<void>('stop_all_port_forwards');
-    // Refresh the list
-    await loadPortForwards();
-  } catch (e) {
-    console.error('Failed to stop all port forwards:', e);
-    portForwardError.set(String(e));
-    throw e;
-  }
-}
 
 // Get available ports for a resource
 export async function getResourcePorts(

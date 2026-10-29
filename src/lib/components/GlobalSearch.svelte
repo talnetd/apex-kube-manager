@@ -6,15 +6,14 @@
     globalSearchOpen,
     globalSearchResults,
     countResults,
-    resourceDisplayNames,
     resourceTypeMap,
     type SearchResults,
   } from '../stores/search';
   import { currentContext, selectedNamespace, loadAllResources } from '../stores/kubernetes';
 
-  let searchInput: HTMLInputElement;
+  let searchInput = $state<HTMLInputElement>();
   let selectedIndex = $state(0);
-  let listContainer: HTMLDivElement;
+  let listContainer = $state<HTMLDivElement>();
   let isLoadingResources = $state(false);
 
   // Flatten all results into a single list for command palette style
@@ -138,7 +137,7 @@
 
   // Reset selection when results change
   $effect(() => {
-    const _ = $globalSearchResults;
+    void $globalSearchResults;
     selectedIndex = 0;
   });
 
@@ -193,11 +192,15 @@
 
 {#if $globalSearchOpen}
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div
+  <div role="presentation"
     class="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] bg-black/60 backdrop-blur-xs"
     onclick={handleBackdropClick}
   >
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Search"
+      tabindex="-1"
       class="w-full max-w-xl bg-bg-primary border border-border-subtle rounded-lg overflow-hidden"
       onkeydown={handleKeydown}
     >

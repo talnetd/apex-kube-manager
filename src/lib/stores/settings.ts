@@ -95,26 +95,4 @@ export function toggleNotifications() {
   settings.update((s) => ({ ...s, notificationsEnabled: !s.notificationsEnabled }));
 }
 
-// Helper to set notifications enabled/disabled
-export function setNotificationsEnabled(enabled: boolean) {
-  settings.update((s) => ({ ...s, notificationsEnabled: enabled }));
-}
 
-const MUTE_MS = 60 * 60 * 1000;
-
-/** Mute a Pulse issue for 1h (spec 6.3). */
-export function muteIssue(fingerprint: string, severity?: MutedIssue["severity"], now = Date.now()) {
-  settings.update((s) => ({
-    ...s,
-    mutedIssues: { ...s.mutedIssues, [fingerprint]: { until: now + MUTE_MS, severity } },
-  }));
-}
-
-export function unmuteIssue(fingerprint: string) {
-  settings.update((s) => {
-    if (!(fingerprint in s.mutedIssues)) return s;
-    const rest = { ...s.mutedIssues };
-    delete rest[fingerprint];
-    return { ...s, mutedIssues: rest };
-  });
-}

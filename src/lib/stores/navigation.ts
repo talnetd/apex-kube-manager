@@ -36,7 +36,6 @@ export type View =
   | 'customresources';
 
 export const currentView = writable<View>('dashboard');
-export const sidebarCollapsed = writable<boolean>(false);
 
 /** sm (< 640px) only: the sidebar is an off-canvas drawer (spec 13.2). */
 export const navOpen = writable<boolean>(false);

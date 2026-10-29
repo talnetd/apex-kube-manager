@@ -1,6 +1,6 @@
 <script lang="ts">
   import { guard, detailReadOnly } from '../stores/detail';
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import { Terminal } from '@xterm/xterm';
   import { FitAddon } from '@xterm/addon-fit';
   import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -35,8 +35,8 @@
   let fitAddon: FitAddon | null = null;
   let sessionId: string | null = null;
   let isConnected = $state(false);
-  let connectionError = $state<string | null>(null);
-  let selectedShell = $state(initialShell || '/bin/sh');
+  // The shell picked when the window opened; the user can change it after.
+  let selectedShell = $state(untrack(() => initialShell) || '/bin/sh');
 
   // Event listeners
   let unlistenData: UnlistenFn | null = null;
@@ -188,7 +188,6 @@
       });
 
       unlistenError = await listen<string>(`pty-error-${sessionId}`, (event) => {
-        connectionError = event.payload;
         terminal?.writeln(`\x1b[31mError: ${event.payload}\x1b[0m`);
       });
 
@@ -209,7 +208,6 @@
       terminal.focus();
 
     } catch (error) {
-      connectionError = String(error);
       terminal.writeln(`\x1b[31mFailed to connect: ${error}\x1b[0m`);
       terminal.writeln('');
       // Check if error is about shell not found
@@ -259,7 +257,6 @@
     // A running shell keeps going after a context switch (spec 13.3), but a
     // new session (reconnect, other shell) waits until the user switches back.
     if (!guard('exec')) return;
-    connectionError = null;
     isConnected = false;
     await cleanupPty();
     terminal?.reset();
